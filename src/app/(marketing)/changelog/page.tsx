@@ -31,7 +31,7 @@ const RELEASES = [
 
 export default function ChangelogPage() {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-14">
+    <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14">
       <h1 className="text-3xl font-bold">Changelog</h1>
       <div className="mt-8 space-y-10">
         {RELEASES.map((r) => (

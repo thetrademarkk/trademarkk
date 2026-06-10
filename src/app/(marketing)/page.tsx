@@ -76,10 +76,10 @@ export default function LandingPage() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/app/onboarding">Try the live demo</Link>
+                <Link href="/app/onboarding">Try it — no sign-up</Link>
               </Button>
             </div>
-            <p className="mt-3 text-xs text-muted">Free forever · No card · Try the demo instantly, no sign-up</p>
+            <p className="mt-3 text-xs text-muted">Free forever · Open source · No card required</p>
           </Reveal>
 
           <HeroShowcase />

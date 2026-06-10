@@ -21,7 +21,7 @@ const ROWS: [string, string, string][] = [
 
 export default function ComparePage() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-14">
+    <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14">
       <h1 className="text-3xl font-bold">Looking for a free TradeZella alternative?</h1>
       <p className="mt-3 text-sm leading-6 text-muted">
         TradeZella is a polished journal — built for US markets at a US price. If you trade NIFTY

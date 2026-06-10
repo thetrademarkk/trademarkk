@@ -38,7 +38,7 @@ const SECTIONS = [
 
 export default function FeaturesPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-14">
+    <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14 [&_section]:max-w-3xl">
       <h1 className="text-3xl font-bold">Everything a serious intraday trader needs</h1>
       <div className="mt-8 space-y-8">
         {SECTIONS.map((s) => (

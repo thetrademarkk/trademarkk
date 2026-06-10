@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function DocsPage() {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-14 space-y-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14 space-y-8 [&_section]:max-w-3xl">
       <div>
         <h1 className="text-3xl font-bold">Getting started</h1>
         <p className="mt-2 text-sm text-muted">Three ways to run TradeMark — pick one, switch anytime.</p>

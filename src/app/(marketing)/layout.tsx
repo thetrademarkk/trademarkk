@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CandlestickChart, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { siteConfig } from "@/config/site";
 
 const NAV = [
@@ -26,7 +27,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5">
+            <ThemeToggle />
             <Button variant="ghost" size="icon" asChild>
               <a href={siteConfig.github} target="_blank" rel="noreferrer" aria-label="GitHub">
                 <Github className="h-4 w-4" />
