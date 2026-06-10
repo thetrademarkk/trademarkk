@@ -9,7 +9,7 @@ export const siteConfig = {
   description:
     "Free, open-source trading journal for Indian intraday & FnO traders. Track trades, mistakes and rules — your data stays in your own database.",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  github: "https://github.com/trademark-journal/trademark",
+  github: "https://github.com/raashish1601/trademark",
   keywords: [
     "trading journal",
     "free trading journal",

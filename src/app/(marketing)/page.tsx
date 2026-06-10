@@ -35,7 +35,7 @@ const STEPS = [
 const MODES = [
   { icon: Cloud, title: "Hosted", badge: "default", text: "Sign up in a minute. Your own isolated database — not a row in someone else's." },
   { icon: Database, title: "Your database", badge: "private", text: "Connect a free Turso DB. Queries go browser → your DB. We never see a trade." },
-  { icon: HardDrive, title: "In-browser", badge: "instant", text: "The demo runs fully in your browser with SQLite. No account, no upload." },
+  { icon: HardDrive, title: "In-browser", badge: "instant", text: "A real SQLite database inside your browser — explore everything with sample data, no account needed." },
 ];
 
 export default function LandingPage() {
@@ -79,7 +79,7 @@ export default function LandingPage() {
                 <Link href="/app/onboarding">Try the live demo</Link>
               </Button>
             </div>
-            <p className="mt-3 text-xs text-muted">No card. No catch. The demo runs entirely in your browser.</p>
+            <p className="mt-3 text-xs text-muted">Free forever · No card · Try the demo instantly, no sign-up</p>
           </Reveal>
 
           <HeroShowcase />
