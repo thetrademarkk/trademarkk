@@ -29,5 +29,6 @@ npm-debug.log*
 # generated assets
 public/sqljs/
 
-# Requires 'workflow' OAuth scope to push — add via: gh auth refresh -s workflow
+# Requires 'workflow' OAuth scope to push ï¿½ add via: gh auth refresh -s workflow
 .github/workflows/
+.vercel

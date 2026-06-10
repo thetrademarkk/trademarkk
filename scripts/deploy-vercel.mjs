@@ -15,7 +15,8 @@ if (!token) {
   process.exit(1);
 }
 const PROJECT = "trademark";
-const T = `--token ${token}`;
+const SCOPE = process.env.VERCEL_SCOPE ? `--scope ${process.env.VERCEL_SCOPE}` : "";
+const T = `--token ${token} ${SCOPE}`.trim();
 const run = (cmd, opts = {}) => execSync(cmd, { stdio: "pipe", encoding: "utf-8", ...opts });
 const runLoud = (cmd) => execSync(cmd, { stdio: "inherit" });
 
