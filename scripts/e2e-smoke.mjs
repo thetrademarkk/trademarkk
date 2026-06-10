@@ -1,0 +1,176 @@
+/**
+ * End-to-end smoke test: walks every marketing page, runs the full demo flow
+ * (seed → dashboard → add trade → journal → rules → all screens) in a real
+ * Chromium, and reports every console error, page error and failed request.
+ *
+ * Setup (local only — Playwright is not a project dependency):
+ *   npm i -D playwright && npx playwright install chromium
+ * Run (with the app already serving on :3000):
+ *   npm start &  &&  npm run e2e
+ */
+import { chromium } from "playwright";
+
+const BASE = process.env.BASE_URL ?? "http://localhost:3000";
+const issues = [];
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1380, height: 900 } });
+const page = await ctx.newPage();
+
+page.on("console", (m) => {
+  if (m.type() === "error") issues.push(`[console] ${page.url()} :: ${m.text().slice(0, 250)}`);
+});
+page.on("pageerror", (e) => issues.push(`[pageerror] ${page.url()} :: ${String(e.message).slice(0, 250)}`));
+page.on("response", (r) => {
+  if (r.status() >= 400) issues.push(`[http ${r.status()}] ${r.url()}`);
+});
+
+let passed = 0;
+let failed = 0;
+const step = async (name, fn) => {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ok  ${name}`);
+  } catch (e) {
+    failed++;
+    issues.push(`[step] ${name} :: ${String(e.message).slice(0, 200)}`);
+    console.log(`  FAIL ${name}: ${String(e.message).slice(0, 200)}`);
+  }
+};
+
+console.log("— Marketing pages —");
+for (const path of ["/", "/features", "/faq", "/docs", "/blog", "/blog/why-every-fno-trader-needs-a-journal", "/changelog", "/compare/tradezella-alternative"]) {
+  await step(`marketing ${path}`, async () => {
+    await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+    await page.locator("h1").first().waitFor({ timeout: 10000 });
+  });
+}
+
+console.log("— Demo onboarding —");
+await step("onboarding renders 3 mode cards", async () => {
+  await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
+  await page.getByText("Start free — we host it").waitFor({ timeout: 15000 });
+  await page.getByText("Bring your own database").waitFor();
+  await page.getByText("Try the demo").waitFor();
+});
+
+await step("demo seeds & lands on dashboard", async () => {
+  await page.getByText("Try the demo").click();
+  await page.waitForURL("**/app/dashboard", { timeout: 90000 });
+  await page.getByText("Net P&L").first().waitFor({ timeout: 30000 });
+});
+
+console.log("— Dashboard —");
+await step("dashboard shows seeded DATA (not just labels)", async () => {
+  await page.getByText("Equity curve").waitFor({ timeout: 15000 });
+  // The rule checklist shows "x/6" once the 6 seeded rules load — real data, not a label.
+  await page.getByText(/\/\s*6 followed|0\/6/).first().waitFor({ timeout: 20000 });
+  await page.locator("svg").first().waitFor();
+});
+
+console.log("— Trades —");
+await step("trades list renders rows", async () => {
+  await page.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await page.locator("table tbody tr").first().waitFor({ timeout: 20000 });
+});
+
+await step("trade detail opens", async () => {
+  await page.locator("table tbody tr a").first().click();
+  await page.getByText("P&L breakdown").waitFor({ timeout: 15000 });
+  await page.getByText("Execution").waitFor();
+});
+
+await step("quick-add: equity trade saves", async () => {
+  await page.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await page.keyboard.press("t");
+  await page.getByPlaceholder("NIFTY / RELIANCE").waitFor({ timeout: 10000 });
+  await page.getByPlaceholder("NIFTY / RELIANCE").fill("TESTSTOCK");
+  // switch segment to Equity (no strike/CE-PE needed)
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Equity" }).click();
+  await page.getByPlaceholder("75").fill("10");
+  await page.getByPlaceholder("120.50").fill("500");
+  await page.getByPlaceholder("blank = open").fill("510");
+  await page.getByRole("button", { name: "Save trade" }).click();
+  await page.getByText("Trade saved").waitFor({ timeout: 10000 });
+});
+
+await step("new trade appears in list (search filter)", async () => {
+  await page.getByPlaceholder("Symbol…").fill("TESTSTOCK");
+  await page.getByText("TESTSTOCK").first().waitFor({ timeout: 10000 });
+});
+
+console.log("— Journal —");
+await step("journal saves an entry", async () => {
+  await page.goto(`${BASE}/app/journal`, { waitUntil: "networkidle" });
+  await page.getByPlaceholder(/What worked/).fill("E2E smoke test review.");
+  await page.getByRole("button", { name: "Save journal" }).click();
+  await page.getByText("Journal saved").waitFor({ timeout: 10000 });
+});
+
+console.log("— Rules —");
+await step("rules: toggle a daily check + add a rule", async () => {
+  await page.goto(`${BASE}/app/rules`, { waitUntil: "networkidle" });
+  await page.getByText("Today's rules").waitFor({ timeout: 15000 });
+  await page.locator('button[title="followed"]').first().click();
+  await page.getByPlaceholder(/No trades after/).fill("E2E test rule");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByText("E2E test rule").first().waitFor({ timeout: 10000 });
+});
+
+console.log("— Calendar —");
+await step("calendar heatmap renders", async () => {
+  await page.goto(`${BASE}/app/calendar`, { waitUntil: "networkidle" });
+  await page.getByText("Month:").waitFor({ timeout: 15000 });
+});
+
+console.log("— Analytics —");
+await step("analytics: all four tabs render", async () => {
+  await page.goto(`${BASE}/app/analytics`, { waitUntil: "networkidle" });
+  await page.getByText("By entry hour").waitFor({ timeout: 20000 });
+  for (const tab of ["Setup", "Instrument", "Distribution"]) {
+    await page.getByRole("tab", { name: tab }).click();
+  }
+  await page.getByText("R-multiple distribution").waitFor();
+});
+
+console.log("— Playbooks —");
+await step("playbooks render with stats", async () => {
+  await page.goto(`${BASE}/app/playbooks`, { waitUntil: "networkidle" });
+  await page.getByText("Opening Range Breakout").waitFor({ timeout: 15000 });
+});
+
+console.log("— Reports —");
+await step("reports: weekly + monthly render", async () => {
+  await page.goto(`${BASE}/app/reports`, { waitUntil: "networkidle" });
+  await page.getByText(/review/).first().waitFor({ timeout: 15000 });
+  // The report's own period selector shows "Weekly" (the topbar one shows a day range).
+  await page.getByRole("combobox").filter({ hasText: "Weekly" }).click();
+  await page.getByRole("option", { name: "Monthly" }).click();
+  await page.getByText(/review/).first().waitFor();
+});
+
+console.log("— Settings —");
+await step("settings sections render", async () => {
+  await page.goto(`${BASE}/app/settings`, { waitUntil: "networkidle" });
+  await page.getByText("Storage & data").waitFor({ timeout: 15000 });
+  await page.getByText("Account & charges").waitFor();
+  await page.getByText("Appearance").waitFor();
+  await page.getByText("Danger zone").waitFor();
+});
+
+await step("demo data persists across reload (IndexedDB)", async () => {
+  await page.goto(`${BASE}/app/dashboard`, { waitUntil: "networkidle" });
+  await page.getByText("Net P&L").first().waitFor({ timeout: 30000 });
+});
+
+await browser.close();
+
+console.log(`\n${passed} passed, ${failed} failed`);
+if (issues.length) {
+  console.log(`\n— ${issues.length} issue(s) —`);
+  for (const i of [...new Set(issues)]) console.log("  " + i);
+  process.exit(1);
+} else {
+  console.log("\nNo console errors, no failed requests. ✅");
+}

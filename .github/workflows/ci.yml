@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # Dummy values so `next build` can evaluate server modules; real secrets live in Vercel.
+      TURSO_PLATFORM_DB_URL: libsql://ci-placeholder.turso.io
+      TURSO_PLATFORM_DB_TOKEN: ci-placeholder
+      BETTER_AUTH_SECRET: ci-placeholder-secret-0123456789abcdef
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

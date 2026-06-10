@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* Dark themes are class-based (next-themes sets the class on <html>). */
+@custom-variant dark (&:where(.carbon, .carbon *, .midnight, .midnight *, .oled, .oled *));
+
+/* ── Theme tokens ─────────────────────────────────────────────── */
+:root,
+.light {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --border: #e4e4e7;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --profit: #059669;
+  --loss: #dc2626;
+  --accent: #7c3aed;
+  --accent-fg: #ffffff;
+  --warning: #d97706;
+}
+
+.carbon {
+  --bg: #0a0a0b;
+  --surface: #131316;
+  --surface-2: #1b1b1f;
+  --border: #26262b;
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --profit: #34d399;
+  --loss: #f87171;
+  --accent: #8b5cf6;
+  --accent-fg: #ffffff;
+  --warning: #fbbf24;
+}
+
+.midnight {
+  --bg: #0b1220;
+  --surface: #111a2c;
+  --surface-2: #182338;
+  --border: #233148;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --profit: #34d399;
+  --loss: #f87171;
+  --accent: #818cf8;
+  --accent-fg: #ffffff;
+  --warning: #fbbf24;
+}
+
+.oled {
+  --bg: #000000;
+  --surface: #0d0d0f;
+  --surface-2: #161618;
+  --border: #232326;
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --profit: #34d399;
+  --loss: #f87171;
+  --accent: #8b5cf6;
+  --accent-fg: #ffffff;
+  --warning: #fbbf24;
+}
+
+/* Color-blind-safe P&L (blue/orange) — toggled in Settings. */
+[data-pl="cb"] {
+  --profit: #60a5fa;
+  --loss: #fb923c;
+}
+.light[data-pl="cb"] {
+  --profit: #2563eb;
+  --loss: #ea580c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--text);
+  --color-muted: var(--text-muted);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-lg: 10px;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-slide-up: slide-up 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Base ─────────────────────────────────────────────────────── */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Numbers are the UI: all numerics align. */
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+.font-money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Micro-label style used across cards */
+.micro-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Thin scrollbars for data-dense panes */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ── Marketing surface ────────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(100deg, var(--accent) 0%, #c084fc 50%, #f0abfc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-glow {
+  background:
+    radial-gradient(600px 300px at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(800px 400px at 80% 20%, color-mix(in srgb, #34d399 10%, transparent), transparent 70%);
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
