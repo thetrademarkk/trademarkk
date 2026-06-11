@@ -16,18 +16,23 @@ import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
 import { deriveTradeNumbers, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
 
+/**
+ * Field order is deliberate (journaling priority): instrument → direction →
+ * execution (qty/entry/exit) → risk plan (SL/target — drives R-multiple and
+ * plan-vs-actual review) → setup & conviction → psychology tags → notes →
+ * timing (auto-filled) → charges override. Everything is visible — hiding the
+ * risk plan behind a toggle meant nobody filled it.
+ */
 interface TradeFormProps {
   tradeId?: string;
   defaults?: Partial<TradeFormValues>;
-  quick?: boolean;
   onSaved?: () => void;
 }
 
-export function TradeForm({ tradeId, defaults, quick = false, onSaved }: TradeFormProps) {
+export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: playbooks = [] } = usePlaybooks();
   const saveTrade = useSaveTrade();
-  const [showMore, setShowMore] = React.useState(!quick);
 
   const form = useForm<TradeFormValues>({
     resolver: zodResolver(tradeFormSchema) as Resolver<TradeFormValues>,
@@ -177,40 +182,20 @@ export function TradeForm({ tradeId, defaults, quick = false, onSaved }: TradeFo
         </div>
       </div>
 
-      {quick && (
-        <button
-          type="button"
-          onClick={() => setShowMore((s) => !s)}
-          className="text-xs text-accent hover:underline"
-        >
-          {showMore ? "Hide options" : "More options (SL, playbook, tags…)"}
-        </button>
-      )}
-
-      {showMore && (
-        <div className="space-y-4 animate-fade-in">
+      <div className="space-y-4">
+          {/* Risk plan — SL first: it powers R-multiples and plan-vs-actual review. */}
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <Label>Planned entry</Label>
-              <Input type="number" step="any" {...register("plannedEntry")} />
-            </div>
-            <div className="space-y-1">
               <Label>Stop loss</Label>
-              <Input type="number" step="any" {...register("plannedSl")} />
+              <Input type="number" step="any" placeholder="risk per trade" {...register("plannedSl")} />
             </div>
             <div className="space-y-1">
               <Label>Target</Label>
               <Input type="number" step="any" {...register("plannedTarget")} />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Opened at</Label>
-              <Input type="datetime-local" {...register("openedAt")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Closed at</Label>
-              <Input type="datetime-local" {...register("closedAt")} />
+              <Label>Planned entry</Label>
+              <Input type="number" step="any" {...register("plannedEntry")} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -267,12 +252,22 @@ export function TradeForm({ tradeId, defaults, quick = false, onSaved }: TradeFo
             <Label>Notes</Label>
             <Textarea placeholder="What was the thesis? What did you see?" {...register("notes")} />
           </div>
+          {/* Timing auto-fills to "now" — editing it is the exception, so it sits low. */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label>Opened at</Label>
+              <Input type="datetime-local" {...register("openedAt")} />
+            </div>
+            <div className="space-y-1">
+              <Label>Closed at</Label>
+              <Input type="datetime-local" {...register("closedAt")} />
+            </div>
+          </div>
           <div className="space-y-1">
             <Label>Charges override ₹ (blank = auto-calculated)</Label>
             <Input type="number" step="any" {...register("manualCharges")} />
           </div>
         </div>
-      )}
 
       {preview && (
         <div className="flex items-center justify-between rounded-lg border bg-surface-2 px-3 py-2 text-sm">

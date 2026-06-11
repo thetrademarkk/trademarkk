@@ -12,6 +12,7 @@ const feedbackSchema = z.object({
   message: z.string().min(5, "Tell us a little more").max(2000),
   email: z.string().email().optional().or(z.literal("")),
   path: z.string().max(200).optional(),
+  anonymous: z.boolean().optional(),
 });
 
 /** Anonymous-friendly feedback — signed-in users are linked automatically. */
@@ -31,10 +32,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Anonymous submissions strip ALL identity, even for signed-in users.
+  const anonymous = parsed.data.anonymous === true;
   await platformDb.insert(feedback).values({
     id: newId(),
-    userId: session?.user.id ?? null,
-    email: parsed.data.email || session?.user.email || null,
+    userId: anonymous ? null : (session?.user.id ?? null),
+    email: anonymous ? null : parsed.data.email || session?.user.email || null,
     category: parsed.data.category,
     message: parsed.data.message.trim(),
     path: parsed.data.path ?? null,

@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { CandlestickChart, Github } from "lucide-react";
+import { CandlestickChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Logo } from "@/components/shared/logo";
+import { SiteHeader } from "@/components/shared/site-header";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { siteConfig } from "@/config/site";
 
@@ -17,29 +16,13 @@ const NAV = [
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-4">
-          <Logo />
-          <nav className="hidden gap-5 text-sm text-muted md:flex">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="hover:text-foreground transition-colors">
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" asChild>
-              <a href={siteConfig.github} target="_blank" rel="noreferrer" aria-label="GitHub">
-                <Github className="h-4 w-4" />
-              </a>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/app/onboarding">Sign in</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader
+        cta={
+          <Button asChild size="sm">
+            <Link href="/app/onboarding">Sign in</Link>
+          </Button>
+        }
+      />
       <main className="flex-1">{children}</main>
       <footer className="border-t">
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-sm text-muted">

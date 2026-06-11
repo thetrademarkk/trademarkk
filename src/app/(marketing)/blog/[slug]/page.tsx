@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft, Clock } from "lucide-react";
-import { getBlogArticle } from "@/server/blog-posts";
+import { getBlogArticle, listBlogPosts } from "@/server/blog-posts";
 import { siteConfig, jsonLdScript } from "@/config/site";
 import { RichContent } from "@/components/ui/rich-editor";
+import { cn } from "@/lib/utils";
 import { Toc } from "../_components/toc";
 import { ReadingProgress } from "../_components/progress-bar";
 
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getBlogArticle(slug);
+  const [post, allPosts] = await Promise.all([getBlogArticle(slug), listBlogPosts()]);
   if (!post) notFound();
 
   const jsonLd = {
@@ -45,9 +46,40 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
       <ReadingProgress />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_200px]">
+      <div className="grid gap-10 lg:grid-cols-[200px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1fr)_190px]">
+        {/* ── Left rail: all articles, current highlighted ── */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-20 space-y-3">
+            <Link href="/blog" className="flex items-center gap-1.5 text-xs text-muted hover:text-accent">
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All articles
+            </Link>
+            <p className="micro-label pt-2">Articles</p>
+            <ul className="space-y-1">
+              {allPosts.map((p) => (
+                <li key={p.slug}>
+                  <Link
+                    href={`/blog/${p.slug}`}
+                    aria-current={p.slug === post.slug ? "page" : undefined}
+                    className={cn(
+                      "block rounded-md px-2 py-1.5 text-[13px] leading-5 transition-colors",
+                      p.slug === post.slug
+                        ? "bg-accent/10 font-medium text-accent"
+                        : "text-muted hover:bg-surface-2 hover:text-foreground"
+                    )}
+                  >
+                    {p.title.length > 58 ? p.title.slice(0, 55) + "…" : p.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
         <article className="mx-auto w-full max-w-2xl">
-          <Link href="/blog" className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline lg:hidden"
+          >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> All articles
           </Link>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted">

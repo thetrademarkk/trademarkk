@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { toDateKey } from "@/lib/utils";
 
 export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "all";
@@ -8,10 +9,17 @@ interface FilterState {
   setPeriod: (p: PeriodPreset) => void;
 }
 
-export const useFilterStore = create<FilterState>((set) => ({
-  period: "30d",
-  setPeriod: (period) => set({ period }),
-}));
+// Persisted: users land on the same timeline they last chose.
+// (Theme persistence is handled by next-themes in localStorage.)
+export const useFilterStore = create<FilterState>()(
+  persist(
+    (set) => ({
+      period: "30d",
+      setPeriod: (period) => set({ period }),
+    }),
+    { name: "tm.filters" }
+  )
+);
 
 /** Resolves a preset to an inclusive [from, to] date-key range (null = unbounded). */
 export function periodToRange(period: PeriodPreset): { from: string | null; to: string | null } {

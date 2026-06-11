@@ -19,7 +19,7 @@ export function QuickAdd() {
           <DialogHeader>
             <DialogTitle>Add trade</DialogTitle>
           </DialogHeader>
-          <TradeForm quick onSaved={close} />
+          <TradeForm onSaved={close} />
         </DialogContent>
       </Dialog>
     );
@@ -28,7 +28,7 @@ export function QuickAdd() {
   return (
     <Sheet open={quickAddOpen} onOpenChange={setQuickAddOpen}>
       <SheetContent title="Add trade">
-        <TradeForm quick onSaved={close} />
+        <TradeForm onSaved={close} />
       </SheetContent>
     </Sheet>
   );
