@@ -9,7 +9,8 @@ import { siteConfig } from "@/config/site";
 export function SiteHeader({ cta }: { cta: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
+      {/* max-w-5xl matches every public page container — header and content align. */}
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
         <Logo />
         <NavLinks />
         <div className="ml-auto flex items-center gap-1.5">

@@ -35,7 +35,7 @@ function CommunityHome() {
   ];
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[200px_minmax(0,1fr)_260px]">
+    <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[190px_minmax(0,1fr)_250px]">
       {/* ── Left rail ── */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 space-y-5">
@@ -47,7 +47,9 @@ function CommunityHome() {
                 aria-pressed={sort === t.id}
                 className={cn(
                   "block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                  sort === t.id ? "bg-accent/12 font-medium text-accent" : "text-muted hover:bg-surface-2 hover:text-foreground"
+                  sort === t.id
+                    ? "bg-accent/12 font-medium text-accent"
+                    : "text-muted hover:bg-surface-2 hover:text-foreground"
                 )}
               >
                 {t.label}
@@ -63,7 +65,9 @@ function CommunityHome() {
             )}
           </nav>
           <div>
-            <p className="micro-label mb-2 px-3">{trending?.tags?.length ? "Trending topics" : "Topics"}</p>
+            <p className="micro-label mb-2 px-3">
+              {trending?.tags?.length ? "Trending topics" : "Topics"}
+            </p>
             <div className="flex flex-wrap gap-1.5 px-3">
               {topics.map((t) => (
                 <Link
@@ -71,7 +75,9 @@ function CommunityHome() {
                   href={tag === t.tag ? "/community" : `/community?tag=${t.tag}`}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-xs transition-colors",
-                    tag === t.tag ? "border-accent bg-accent/15 text-accent" : "text-muted hover:text-foreground"
+                    tag === t.tag
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "text-muted hover:text-foreground"
                   )}
                 >
                   #{t.tag}
@@ -135,7 +141,9 @@ function CommunityHome() {
         </div>
         {tag && (
           <div className="mb-3 flex items-center gap-2 text-sm">
-            <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">#{tag}</span>
+            <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
+              #{tag}
+            </span>
             <button
               onClick={() => router.push("/community")}
               className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
@@ -194,7 +202,13 @@ function CommunityHome() {
 
 export default function CommunityPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl p-6"><Skeleton className="h-64" /></div>}>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-6xl p-6">
+          <Skeleton className="h-64" />
+        </div>
+      }
+    >
       <CommunityHome />
     </Suspense>
   );

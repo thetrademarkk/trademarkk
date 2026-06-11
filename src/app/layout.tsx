@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
+import NextTopLoader from "nextjs-toploader";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { PwaRegister } from "@/components/pwa-register";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
@@ -56,10 +57,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={`${sans.variable} ${mono.variable} font-sans antialiased`}>
         <ThemeProvider>
+          {/* YouTube-style route-change progress bar — every surface. */}
+          <NextTopLoader
+            color="var(--accent)"
+            height={3}
+            showSpinner={false}
+            shadow="0 0 8px var(--accent)"
+          />
           <PwaRegister />
           <AnalyticsTracker />
           {children}
-          <Toaster position="top-center" toastOptions={{ style: { background: "var(--surface-2)", color: "var(--text)", border: "1px solid var(--border)" } }} />
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              style: {
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                border: "1px solid var(--border)",
+              },
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>
