@@ -131,6 +131,17 @@ export function RulesManager() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Delete rule"
+                      className="text-muted hover:text-loss"
+                      onClick={() =>
+                        confirm("Delete rule and its history?") && deleteRule.mutate(rule.id)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     <Switch
                       checked={rule.active === 1}
                       aria-label="Rule active"
@@ -143,17 +154,6 @@ export function RulesManager() {
                         })
                       }
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete rule"
-                      className="text-muted hover:text-loss"
-                      onClick={() =>
-                        confirm("Delete rule and its history?") && deleteRule.mutate(rule.id)
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </>
               )}
