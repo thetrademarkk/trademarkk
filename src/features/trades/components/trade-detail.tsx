@@ -29,6 +29,7 @@ export function TradeDetail({ id }: { id: string }) {
   const deleteAttachment = useDeleteAttachment();
   const [editOpen, setEditOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
+  const editDirtyRef = React.useRef(false);
 
   React.useEffect(() => {
     const onPaste = async (e: ClipboardEvent) => {
@@ -80,7 +81,9 @@ export function TradeDetail({ id }: { id: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/app/trades"><ArrowLeft /></Link>
+          <Link href="/app/trades">
+            <ArrowLeft />
+          </Link>
         </Button>
         <h1 className="text-lg font-semibold">{describeInstrument(trade)}</h1>
         <Badge variant={trade.direction === "long" ? "profit" : "loss"}>{trade.direction}</Badge>
@@ -100,50 +103,104 @@ export function TradeDetail({ id }: { id: string }) {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>P&L breakdown</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>P&L breakdown</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-muted">Gross P&L</span><PnlText value={trade.gross_pnl} /></div>
-            <div className="flex justify-between"><span className="text-muted">Charges</span><span className="font-money">{formatINR(trade.charges, { decimals: true })}</span></div>
-            <div className="flex justify-between border-t pt-1.5 font-semibold"><span>Net P&L</span><PnlText value={trade.net_pnl} className="text-base" /></div>
+            <div className="flex justify-between">
+              <span className="text-muted">Gross P&L</span>
+              <PnlText value={trade.gross_pnl} />
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Charges</span>
+              <span className="font-money">{formatINR(trade.charges, { decimals: true })}</span>
+            </div>
+            <div className="flex justify-between border-t pt-1.5 font-semibold">
+              <span>Net P&L</span>
+              <PnlText value={trade.net_pnl} className="text-base" />
+            </div>
             {trade.r_multiple != null && (
-              <div className="flex justify-between"><span className="text-muted">R multiple</span><span className="font-money">{trade.r_multiple}R</span></div>
+              <div className="flex justify-between">
+                <span className="text-muted">R multiple</span>
+                <span className="font-money">{trade.r_multiple}R</span>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Execution</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Execution</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-muted">Qty</span><span className="font-money">{trade.qty}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Avg entry</span><span className="font-money">{trade.avg_entry.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Avg exit</span><span className="font-money">{trade.avg_exit?.toFixed(2) ?? "—"}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Hold time</span><span>{formatHoldTime(trade.opened_at, trade.closed_at)}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Opened</span><span className="text-xs">{new Date(trade.opened_at).toLocaleString("en-IN")}</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted">Qty</span>
+              <span className="font-money">{trade.qty}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Avg entry</span>
+              <span className="font-money">{trade.avg_entry.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Avg exit</span>
+              <span className="font-money">{trade.avg_exit?.toFixed(2) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Hold time</span>
+              <span>{formatHoldTime(trade.opened_at, trade.closed_at)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Opened</span>
+              <span className="text-xs">{new Date(trade.opened_at).toLocaleString("en-IN")}</span>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Plan vs actual</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Plan vs actual</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-1.5 text-sm">
-            <div className="flex justify-between"><span className="text-muted">Planned entry</span><span className="font-money">{trade.planned_entry?.toFixed(2) ?? "—"}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Stop loss</span><span className="font-money">{trade.planned_sl?.toFixed(2) ?? "—"}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Target</span><span className="font-money">{trade.planned_target?.toFixed(2) ?? "—"}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Confidence</span><span>{trade.confidence ? "★".repeat(trade.confidence) : "—"}</span></div>
-            <div className="flex justify-between"><span className="text-muted">Setup</span><span>{trade.playbook_name ?? "—"}</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted">Planned entry</span>
+              <span className="font-money">{trade.planned_entry?.toFixed(2) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Stop loss</span>
+              <span className="font-money">{trade.planned_sl?.toFixed(2) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Target</span>
+              <span className="font-money">{trade.planned_target?.toFixed(2) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Confidence</span>
+              <span>{trade.confidence ? "★".repeat(trade.confidence) : "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted">Setup</span>
+              <span>{trade.playbook_name ?? "—"}</span>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {trade.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {trade.tags.map((t) => <TagChip key={t.id} name={t.name} color={t.color} />)}
+          {trade.tags.map((t) => (
+            <TagChip key={t.id} name={t.name} color={t.color} />
+          ))}
         </div>
       )}
 
       {trade.notes && (
         <Card>
-          <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
-          <CardContent><p className="whitespace-pre-wrap text-sm">{trade.notes}</p></CardContent>
+          <CardHeader>
+            <CardTitle>Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap text-sm">{trade.notes}</p>
+          </CardContent>
         </Card>
       )}
 
@@ -170,13 +227,19 @@ export function TradeDetail({ id }: { id: string }) {
         </CardHeader>
         <CardContent>
           {trade.attachments.length === 0 ? (
-            <p className="text-xs text-muted">No screenshots yet. Paste a chart screenshot (Ctrl+V) to attach it.</p>
+            <p className="text-xs text-muted">
+              No screenshots yet. Paste a chart screenshot (Ctrl+V) to attach it.
+            </p>
           ) : (
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {trade.attachments.map((a) => (
                 <div key={a.id} className="group relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.data} alt={a.caption ?? "Trade screenshot"} className="rounded-lg border" />
+                  <img
+                    src={a.data}
+                    alt={a.caption ?? "Trade screenshot"}
+                    className="rounded-lg border"
+                  />
                   <button
                     onClick={() => deleteAttachment.mutate(a.id)}
                     className="absolute right-1 top-1 hidden rounded bg-black/70 p-1 text-white group-hover:block"
@@ -197,9 +260,21 @@ export function TradeDetail({ id }: { id: string }) {
       </Button>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit trade</DialogTitle></DialogHeader>
-          <TradeForm tradeId={id} defaults={formDefaults} onSaved={() => setEditOpen(false)} />
+        <DialogContent
+          onInteractOutside={(e) => {
+            // Unsaved edits? A misclick outside must not discard them.
+            if (editDirtyRef.current) e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Edit trade</DialogTitle>
+          </DialogHeader>
+          <TradeForm
+            tradeId={id}
+            defaults={formDefaults}
+            onSaved={() => setEditOpen(false)}
+            onDirtyChange={(d) => (editDirtyRef.current = d)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -224,7 +299,10 @@ export function TradeDetail({ id }: { id: string }) {
                 rMultiple: trade.r_multiple,
                 netPnl: trade.status === "closed" ? trade.net_pnl : null,
                 holdMins: trade.closed_at
-                  ? Math.round((new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime()) / 60000)
+                  ? Math.round(
+                      (new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime()) /
+                        60000
+                    )
                   : null,
                 openedAt: trade.opened_at,
               } satisfies TradeCard

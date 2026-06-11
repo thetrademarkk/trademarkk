@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PnlText } from "@/components/shared/pnl-text";
 import { cn } from "@/lib/utils";
 import { tradeFormSchema, type TradeFormValues } from "../schemas";
@@ -27,9 +33,21 @@ interface TradeFormProps {
   tradeId?: string;
   defaults?: Partial<TradeFormValues>;
   onSaved?: () => void;
+  /** Reports dirty state so the host dialog can guard accidental dismissal. */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Persists in-progress values (quick-add) so nothing is ever lost. */
+  onDraftChange?: (values: Partial<TradeFormValues>) => void;
+  onSavedClearDraft?: () => void;
 }
 
-export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
+export function TradeForm({
+  tradeId,
+  defaults,
+  onSaved,
+  onDirtyChange,
+  onDraftChange,
+  onSavedClearDraft,
+}: TradeFormProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: playbooks = [] } = usePlaybooks();
   const saveTrade = useSaveTrade();
@@ -54,6 +72,16 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
 
+  // Surface dirty state + stream a draft of every change to the host.
+  React.useEffect(() => {
+    onDirtyChange?.(formState.isDirty);
+  }, [formState.isDirty, onDirtyChange]);
+  React.useEffect(() => {
+    if (!onDraftChange) return;
+    const sub = watch((values) => onDraftChange(values as Partial<TradeFormValues>));
+    return () => sub.unsubscribe();
+  }, [watch, onDraftChange]);
+
   const values = watch();
   const account = accounts.find((a) => a.id === values.accountId);
   const preview = React.useMemo(() => {
@@ -70,13 +98,15 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
     try {
       await saveTrade.mutateAsync({ values: data, id: tradeId });
       toast.success(tradeId ? "Trade updated" : "Trade saved");
+      onSavedClearDraft?.();
       onSaved?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save trade");
     }
   });
 
-  const err = (name: keyof TradeFormValues) => formState.errors[name]?.message as string | undefined;
+  const err = (name: keyof TradeFormValues) =>
+    formState.errors[name]?.message as string | undefined;
   const segment = values.segment;
 
   return (
@@ -84,7 +114,11 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2 space-y-1">
           <Label>Symbol</Label>
-          <Input placeholder="NIFTY / RELIANCE" autoCapitalize="characters" {...register("symbol")} />
+          <Input
+            placeholder="NIFTY / RELIANCE"
+            autoCapitalize="characters"
+            {...register("symbol")}
+          />
           {err("symbol") && <p className="text-xs text-loss">{err("symbol")}</p>}
         </div>
         <div className="space-y-1">
@@ -94,7 +128,9 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
             name="segment"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="OPT">Options</SelectItem>
                   <SelectItem value="FUT">Futures</SelectItem>
@@ -120,7 +156,9 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
               name="optionType"
               render={({ field }) => (
                 <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CE">CE</SelectItem>
                     <SelectItem value="PE">PE</SelectItem>
@@ -183,91 +221,100 @@ export function TradeForm({ tradeId, defaults, onSaved }: TradeFormProps) {
       </div>
 
       <div className="space-y-4">
-          {/* Risk plan — SL first: it powers R-multiples and plan-vs-actual review. */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <Label>Stop loss</Label>
-              <Input type="number" step="any" placeholder="risk per trade" {...register("plannedSl")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Target</Label>
-              <Input type="number" step="any" {...register("plannedTarget")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Planned entry</Label>
-              <Input type="number" step="any" {...register("plannedEntry")} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label>Playbook / setup</Label>
-              <Controller
-                control={control}
-                name="playbookId"
-                render={({ field }) => (
-                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                    <SelectContent>
-                      {playbooks.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Confidence</Label>
-              <Controller
-                control={control}
-                name="confidence"
-                render={({ field }) => (
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => field.onChange(field.value === n ? undefined : n)}
-                        className={cn(
-                          "h-9 flex-1 rounded-lg border text-sm transition-colors",
-                          field.value && field.value >= n
-                            ? "border-accent bg-accent/15 text-accent"
-                            : "text-muted hover:bg-surface-2"
-                        )}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              />
-            </div>
-          </div>
-          <Controller
-            control={control}
-            name="tagIds"
-            render={({ field }) => <TagPicker value={field.value} onChange={field.onChange} />}
-          />
+        {/* Risk plan — SL first: it powers R-multiples and plan-vs-actual review. */}
+        <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
-            <Label>Notes</Label>
-            <Textarea placeholder="What was the thesis? What did you see?" {...register("notes")} />
-          </div>
-          {/* Timing auto-fills to "now" — editing it is the exception, so it sits low. */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label>Opened at</Label>
-              <Input type="datetime-local" {...register("openedAt")} />
-            </div>
-            <div className="space-y-1">
-              <Label>Closed at</Label>
-              <Input type="datetime-local" {...register("closedAt")} />
-            </div>
+            <Label>Stop loss</Label>
+            <Input
+              type="number"
+              step="any"
+              placeholder="risk per trade"
+              {...register("plannedSl")}
+            />
           </div>
           <div className="space-y-1">
-            <Label>Charges override ₹ (blank = auto-calculated)</Label>
-            <Input type="number" step="any" {...register("manualCharges")} />
+            <Label>Target</Label>
+            <Input type="number" step="any" {...register("plannedTarget")} />
+          </div>
+          <div className="space-y-1">
+            <Label>Planned entry</Label>
+            <Input type="number" step="any" {...register("plannedEntry")} />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label>Playbook / setup</Label>
+            <Controller
+              control={control}
+              name="playbookId"
+              render={({ field }) => (
+                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {playbooks.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Confidence</Label>
+            <Controller
+              control={control}
+              name="confidence"
+              render={({ field }) => (
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => field.onChange(field.value === n ? undefined : n)}
+                      className={cn(
+                        "h-9 flex-1 rounded-lg border text-sm transition-colors",
+                        field.value && field.value >= n
+                          ? "border-accent bg-accent/15 text-accent"
+                          : "text-muted hover:bg-surface-2"
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+            />
+          </div>
+        </div>
+        <Controller
+          control={control}
+          name="tagIds"
+          render={({ field }) => <TagPicker value={field.value} onChange={field.onChange} />}
+        />
+        <div className="space-y-1">
+          <Label>Notes</Label>
+          <Textarea placeholder="What was the thesis? What did you see?" {...register("notes")} />
+        </div>
+        {/* Timing auto-fills to "now" — editing it is the exception, so it sits low. */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label>Opened at</Label>
+            <Input type="datetime-local" {...register("openedAt")} />
+          </div>
+          <div className="space-y-1">
+            <Label>Closed at</Label>
+            <Input type="datetime-local" {...register("closedAt")} />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label>Charges override ₹ (blank = auto-calculated)</Label>
+          <Input type="number" step="any" {...register("manualCharges")} />
+        </div>
+      </div>
 
       {preview && (
         <div className="flex items-center justify-between rounded-lg border bg-surface-2 px-3 py-2 text-sm">
