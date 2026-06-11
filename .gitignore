@@ -37,3 +37,10 @@ scripts/seed-demo-user.ts
 # local-only e2e helper scripts (verification scratchpads)
 scripts/diag.mjs
 scripts/diag2.mjs
+# transient demo-recording artifacts (auth.json holds a session token!)
+demo/auth.json
+demo/*.webm
+demo/*.wav
+demo/*.pcm
+demo/*.jpg
+demo/clicks.json
