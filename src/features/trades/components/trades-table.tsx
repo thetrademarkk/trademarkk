@@ -1,21 +1,29 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { ArrowUpDown } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PnlText } from "@/components/shared/pnl-text";
 import { TagChip } from "@/components/shared/tag-chip";
 import { formatHoldTime } from "@/lib/utils";
 import { describeInstrument, type TradeWithMeta } from "../types";
+import { TradeQuickView } from "./trade-quick-view";
 
 type SortKey = "opened_at" | "net_pnl" | "r_multiple" | "symbol";
 
-/** Desktop dense table. Mobile uses TradeCards instead. */
+/** Desktop dense table; rows open a quick-view modal. Mobile uses TradeCards. */
 export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
   const [sortKey, setSortKey] = React.useState<SortKey>("opened_at");
   const [asc, setAsc] = React.useState(false);
+  const [quickView, setQuickView] = React.useState<TradeWithMeta | null>(null);
 
   const sorted = React.useMemo(() => {
     const copy = [...trades];
@@ -64,20 +72,28 @@ export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
         </TableHeader>
         <TableBody>
           {sorted.map((t) => (
-            <TableRow key={t.id} className="cursor-pointer">
+            <TableRow
+              key={t.id}
+              className="cursor-pointer"
+              onClick={() => setQuickView(t)}
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && setQuickView(t)}
+              aria-label={`Quick view ${describeInstrument(t)}`}
+            >
               <TableCell className="text-muted text-xs">
-                <Link href={`/app/trades/${t.id}`} className="block">
-                  {new Date(t.opened_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
-                  <span className="ml-1 opacity-60">
-                    {new Date(t.opened_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}
-                  </span>
-                </Link>
+                {new Date(t.opened_at).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                })}
+                <span className="ml-1 opacity-60">
+                  {new Date(t.opened_at).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })}
+                </span>
               </TableCell>
-              <TableCell className="font-medium">
-                <Link href={`/app/trades/${t.id}`} className="block">
-                  {describeInstrument(t)}
-                </Link>
-              </TableCell>
+              <TableCell className="font-medium">{describeInstrument(t)}</TableCell>
               <TableCell>
                 <Badge variant={t.direction === "long" ? "profit" : "loss"}>{t.direction}</Badge>
               </TableCell>
@@ -100,14 +116,19 @@ export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
                   {t.tags.slice(0, 2).map((tag) => (
                     <TagChip key={tag.id} name={tag.name} color={tag.color} />
                   ))}
-                  {t.tags.length > 2 && <span className="text-[11px] text-muted">+{t.tags.length - 2}</span>}
+                  {t.tags.length > 2 && (
+                    <span className="text-[11px] text-muted">+{t.tags.length - 2}</span>
+                  )}
                 </div>
               </TableCell>
-              <TableCell className="text-xs text-muted">{formatHoldTime(t.opened_at, t.closed_at)}</TableCell>
+              <TableCell className="text-xs text-muted">
+                {formatHoldTime(t.opened_at, t.closed_at)}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <TradeQuickView trade={quickView} onOpenChange={(open) => !open && setQuickView(null)} />
     </div>
   );
 }

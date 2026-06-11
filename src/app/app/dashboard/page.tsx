@@ -12,8 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { todayKey } from "@/lib/utils";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { period } = useFilterStore();
   const { from, to } = periodToRange(period);
   const { data: trades, isLoading } = useTrades({ from, to });
@@ -64,6 +66,7 @@ export default function DashboardPage() {
               month={now.getMonth()}
               dailyPnl={monthPnl}
               journaledDates={new Set(journalDates)}
+              onSelect={(date) => router.push(`/app/calendar?date=${date}`)}
               compact
             />
           </CardContent>

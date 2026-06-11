@@ -20,7 +20,11 @@ function DayPanel({ date }: { date: string }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>
-          {new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "long" })}
+          {new Date(date + "T12:00:00").toLocaleDateString("en-IN", {
+            weekday: "short",
+            day: "numeric",
+            month: "long",
+          })}
         </CardTitle>
         {trades.length > 0 && <PnlText value={pnl} className="font-semibold" />}
       </CardHeader>
@@ -30,9 +34,17 @@ function DayPanel({ date }: { date: string }) {
         ) : (
           <div className="divide-y">
             {trades.map((t) => (
-              <Link key={t.id} href={`/app/trades/${t.id}`} className="flex items-center justify-between py-2 text-sm hover:bg-surface-2 -mx-2 px-2 rounded">
+              <Link
+                key={t.id}
+                href={`/app/trades/${t.id}`}
+                className="flex items-center justify-between py-2 text-sm hover:bg-surface-2 -mx-2 px-2 rounded"
+              >
                 <span>{describeInstrument(t)}</span>
-                {t.status === "closed" ? <PnlText value={t.net_pnl} /> : <Badge variant="warning">open</Badge>}
+                {t.status === "closed" ? (
+                  <PnlText value={t.net_pnl} />
+                ) : (
+                  <Badge variant="warning">open</Badge>
+                )}
               </Link>
             ))}
           </div>
@@ -50,6 +62,15 @@ export default function CalendarPage() {
   const [year, setYear] = React.useState(now.getFullYear());
   const [month, setMonth] = React.useState(now.getMonth());
   const [selected, setSelected] = React.useState<string | null>(null);
+
+  // Deep link from the dashboard heatmap: /app/calendar?date=YYYY-MM-DD
+  React.useEffect(() => {
+    const date = new URLSearchParams(window.location.search).get("date");
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    setSelected(date);
+    setYear(Number(date.slice(0, 4)));
+    setMonth(Number(date.slice(5, 7)) - 1);
+  }, []);
   const { data: trades = [] } = useTrades({});
   const { data: journalDates = [] } = useJournalDates();
 
@@ -68,11 +89,15 @@ export default function CalendarPage() {
     <div className="space-y-4">
       <PageHeader title="Calendar" description="Your P&L, day by day. Dots mark journaled days." />
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => shift(-1)}><ChevronLeft /></Button>
+        <Button variant="outline" size="icon" onClick={() => shift(-1)}>
+          <ChevronLeft />
+        </Button>
         <div className="min-w-[160px] text-center text-sm font-semibold">
           {new Date(year, month).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
         </div>
-        <Button variant="outline" size="icon" onClick={() => shift(1)}><ChevronRight /></Button>
+        <Button variant="outline" size="icon" onClick={() => shift(1)}>
+          <ChevronRight />
+        </Button>
         <div className="ml-auto text-sm">
           Month: <PnlText value={monthTotal} className="font-semibold" />
         </div>

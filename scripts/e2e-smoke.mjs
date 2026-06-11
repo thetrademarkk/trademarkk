@@ -19,7 +19,9 @@ const page = await ctx.newPage();
 page.on("console", (m) => {
   if (m.type() === "error") issues.push(`[console] ${page.url()} :: ${m.text().slice(0, 250)}`);
 });
-page.on("pageerror", (e) => issues.push(`[pageerror] ${page.url()} :: ${String(e.message).slice(0, 250)}`));
+page.on("pageerror", (e) =>
+  issues.push(`[pageerror] ${page.url()} :: ${String(e.message).slice(0, 250)}`)
+);
 page.on("response", (r) => {
   if (r.status() >= 400) issues.push(`[http ${r.status()}] ${r.url()}`);
 });
@@ -39,7 +41,16 @@ const step = async (name, fn) => {
 };
 
 console.log("— Marketing pages —");
-for (const path of ["/", "/features", "/faq", "/docs", "/blog", "/blog/why-every-fno-trader-needs-a-journal", "/changelog", "/compare/tradezella-alternative"]) {
+for (const path of [
+  "/",
+  "/features",
+  "/faq",
+  "/docs",
+  "/blog",
+  "/blog/why-every-fno-trader-needs-a-journal",
+  "/changelog",
+  "/compare/tradezella-alternative",
+]) {
   await step(`marketing ${path}`, async () => {
     await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
     await page.locator("h1").first().waitFor({ timeout: 10000 });
@@ -66,7 +77,10 @@ console.log("— Dashboard —");
 await step("dashboard renders fresh journal (rules checklist, empty states)", async () => {
   await page.getByText("Equity curve").waitFor({ timeout: 15000 });
   // 6 starter rules seeded by setup → checklist shows "0/6 followed".
-  await page.getByText(/0\/6 followed/).first().waitFor({ timeout: 20000 });
+  await page
+    .getByText(/0\/6 followed/)
+    .first()
+    .waitFor({ timeout: 20000 });
   await page.getByText("No trades yet").waitFor({ timeout: 15000 });
 });
 
@@ -96,8 +110,11 @@ await step("search filter finds it", async () => {
   await page.getByPlaceholder("Symbol…").fill("");
 });
 
-await step("trade detail opens", async () => {
-  await page.locator("table tbody tr a").first().click();
+await step("trade quick-view modal → full detail page", async () => {
+  await page.locator("table tbody tr").first().click();
+  const modal = page.getByRole("dialog");
+  await modal.getByText("Net P&L").waitFor({ timeout: 15000 });
+  await modal.getByRole("link", { name: /Open full view/ }).click();
   await page.getByText("P&L breakdown").waitFor({ timeout: 15000 });
   await page.getByText("Execution").waitFor();
 });
@@ -146,11 +163,17 @@ await step("playbooks render with stats", async () => {
 console.log("— Reports —");
 await step("reports: weekly + monthly render", async () => {
   await page.goto(`${BASE}/app/reports`, { waitUntil: "networkidle" });
-  await page.getByText(/review/).first().waitFor({ timeout: 15000 });
+  await page
+    .getByText(/review/)
+    .first()
+    .waitFor({ timeout: 15000 });
   // The report's own period selector shows "Weekly" (the topbar one shows a day range).
   await page.getByRole("combobox").filter({ hasText: "Weekly" }).click();
   await page.getByRole("option", { name: "Monthly" }).click();
-  await page.getByText(/review/).first().waitFor();
+  await page
+    .getByText(/review/)
+    .first()
+    .waitFor();
 });
 
 console.log("— Settings —");
