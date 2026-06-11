@@ -70,6 +70,12 @@ export function usePost(id: string) {
   });
 }
 
+/** Posts render in feeds AND on profile pages — writes must refresh both instantly. */
+function invalidatePostLists(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: ["community-feed"] });
+  void qc.invalidateQueries({ queryKey: ["community-user"] }); // all profile pages
+}
+
 export function useCreatePost() {
   const qc = useQueryClient();
   return useMutation({
@@ -78,7 +84,7 @@ export function useCreatePost() {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-feed"] }),
+    onSuccess: () => invalidatePostLists(qc),
   });
 }
 
@@ -86,7 +92,7 @@ export function useDeletePost() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => request(`/api/community/posts/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-feed"] }),
+    onSuccess: () => invalidatePostLists(qc),
   });
 }
 
@@ -124,6 +130,8 @@ export function useToggleLike() {
       }),
     onMutate: (id) => patchEverywhere(id),
     onError: (_e, id) => patchEverywhere(id), // revert
+    // Profile pages cache posts separately — refresh them with the server truth.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-user"] }),
   });
 }
 
@@ -155,6 +163,7 @@ export function useToggleBookmark() {
       request<{ bookmarked: boolean }>(`/api/community/posts/${id}/bookmark`, { method: "POST" }),
     onMutate: (id) => patchEverywhere(id),
     onError: (_e, id) => patchEverywhere(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-user"] }),
   });
 }
 
