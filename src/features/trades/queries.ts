@@ -8,6 +8,7 @@ import type {
   AccountRow,
   AttachmentRow,
   FillRow,
+  TradeLegRow,
   PlaybookRow,
   Tag,
   TradeFilters,
@@ -15,7 +16,7 @@ import type {
   TradeWithMeta,
 } from "./types";
 import type { TradeFormValues } from "./schemas";
-import { deriveTradeNumbers, localInputToIso } from "./utils";
+import { allLegs, deriveTradeNumbers, localInputToIso } from "./utils";
 
 const cast = <T>(rows: Record<string, unknown>[]): T[] => rows as unknown as T[];
 
@@ -100,19 +101,21 @@ export function useTrade(id: string) {
       );
       const trade = cast<TradeWithMeta>(res.rows)[0];
       if (!trade) return null;
-      const [fills, tags, attachments] = await Promise.all([
+      const [fills, tags, attachments, legs] = await Promise.all([
         db.execute(`SELECT * FROM trade_fills WHERE trade_id = ? ORDER BY fill_time`, [id]),
         db.execute(
           `SELECT g.* FROM trade_tags tt JOIN tags g ON g.id = tt.tag_id WHERE tt.trade_id = ?`,
           [id]
         ),
         db.execute(`SELECT * FROM attachments WHERE trade_id = ? ORDER BY created_at`, [id]),
+        db.execute(`SELECT * FROM trade_legs WHERE trade_id = ? ORDER BY leg_no`, [id]),
       ]);
       return {
         ...trade,
         tags: cast<Tag>(tags.rows),
         fills: cast<FillRow>(fills.rows),
         attachments: cast<AttachmentRow>(attachments.rows),
+        legs: cast<TradeLegRow>(legs.rows),
       };
     },
   });
@@ -159,8 +162,9 @@ async function buildSaveStatements(
   const id = existingId ?? newId();
   const ts = new Date().toISOString();
   const openedIso = localInputToIso(values.openedAt);
+  // Closed only when every leg has exited (single-leg trades: leg 1).
   const closedIso =
-    values.avgExit != null ? localInputToIso(values.closedAt || values.openedAt) : null;
+    d.status === "closed" ? localInputToIso(values.closedAt || values.openedAt) : null;
 
   const statements: DbStatement[] = [];
   const row: DbValue[] = [
@@ -196,6 +200,7 @@ async function buildSaveStatements(
   if (existingId) {
     statements.push(
       { sql: `DELETE FROM trade_fills WHERE trade_id = ?`, args: [id] },
+      { sql: `DELETE FROM trade_legs WHERE trade_id = ?`, args: [id] },
       { sql: `DELETE FROM trade_tags WHERE trade_id = ?`, args: [id] },
       { sql: `DELETE FROM trades WHERE id = ?`, args: [id] }
     );
@@ -205,36 +210,47 @@ async function buildSaveStatements(
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: row,
   });
-  if (values.legs && values.legs.length > 0) {
-    // Multi-leg: store every executed order exactly as entered.
-    for (const leg of values.legs) {
-      statements.push({
-        sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [newId(), id, leg.side, leg.qty, leg.price, localInputToIso(leg.time)],
-      });
-    }
-  } else {
+  // Each strategy leg → entry/exit fills + (for multi-leg trades) a legs row.
+  const legs = allLegs(values);
+  for (const [i, leg] of legs.entries()) {
     statements.push({
       sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
       args: [
         newId(),
         id,
-        values.direction === "long" ? "buy" : "sell",
-        values.qty,
-        values.avgEntry,
+        leg.direction === "long" ? "buy" : "sell",
+        leg.qty,
+        leg.avgEntry,
         openedIso,
       ],
     });
-    if (values.avgExit != null && closedIso) {
+    if (leg.avgExit != null) {
       statements.push({
         sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
         args: [
           newId(),
           id,
-          values.direction === "long" ? "sell" : "buy",
-          values.qty,
-          values.avgExit,
-          closedIso,
+          leg.direction === "long" ? "sell" : "buy",
+          leg.qty,
+          leg.avgExit,
+          closedIso ?? openedIso,
+        ],
+      });
+    }
+    if (legs.length > 1) {
+      statements.push({
+        sql: `INSERT INTO trade_legs (id, trade_id, leg_no, strike, option_type, direction, qty, avg_entry, avg_exit)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          newId(),
+          id,
+          i + 1,
+          leg.strike ?? null,
+          leg.optionType ?? null,
+          leg.direction,
+          leg.qty,
+          leg.avgEntry,
+          leg.avgExit ?? null,
         ],
       });
     }

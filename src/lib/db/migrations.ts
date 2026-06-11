@@ -136,6 +136,25 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       )`,
     ],
   },
+  {
+    version: 3,
+    statements: [
+      // Strategy legs (straddles, spreads…): each leg has its own instrument
+      // details + execution. The trades row keeps leg-1 values + totals.
+      `CREATE TABLE IF NOT EXISTS trade_legs (
+        id TEXT PRIMARY KEY,
+        trade_id TEXT NOT NULL,
+        leg_no INTEGER NOT NULL,
+        strike REAL,
+        option_type TEXT,
+        direction TEXT NOT NULL,
+        qty INTEGER NOT NULL,
+        avg_entry REAL NOT NULL,
+        avg_exit REAL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_trade_legs_trade ON trade_legs (trade_id)`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
@@ -154,6 +173,7 @@ export const JOURNAL_TABLES = [
   "attachments",
   "settings",
   "no_trade_days",
+  "trade_legs",
 ] as const;
 
 export async function runMigrations(db: DbClient): Promise<void> {

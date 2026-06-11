@@ -6,12 +6,17 @@ const optionalNumber = (schema: z.ZodNumber) =>
     z.coerce.number().pipe(schema).optional()
   );
 
-/** One executed order. A trade can have many (scale-in / scale-out / partial exits). */
+/**
+ * One strategy leg (e.g. the short PE of a straddle): its own instrument
+ * details + execution. Symbol/expiry/plan/psychology stay per-trade.
+ */
 export const legSchema = z.object({
-  side: z.enum(["buy", "sell"]),
-  qty: z.coerce.number().int("Whole number").positive("Qty"),
-  price: z.coerce.number().positive("Price"),
-  time: z.string().min(1, "Time"),
+  strike: optionalNumber(z.number().positive()),
+  optionType: z.enum(["CE", "PE"]).optional(),
+  direction: z.enum(["long", "short"]),
+  qty: z.coerce.number().int("Whole number").positive("Qty required"),
+  avgEntry: z.coerce.number().positive("Entry required"),
+  avgExit: optionalNumber(z.number().positive()),
 });
 
 export type TradeLeg = z.infer<typeof legSchema>;
@@ -38,8 +43,8 @@ export const tradeFormSchema = z
     notes: z.string().optional(),
     tagIds: z.array(z.string()),
     manualCharges: optionalNumber(z.number().min(0)),
-    /** When present, qty/avgEntry/avgExit/openedAt/closedAt are derived from these. */
-    legs: z.array(legSchema).optional(),
+    /** Legs 2..N of a multi-leg strategy; the top-level fields are Leg 1. */
+    extraLegs: z.array(legSchema).optional(),
   })
   .refine((v) => v.segment !== "OPT" || (v.strike && v.optionType), {
     message: "Options need strike & CE/PE",

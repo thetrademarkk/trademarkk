@@ -49,6 +49,19 @@ export interface FillRow {
   fill_time: string;
 }
 
+/** A strategy leg of a multi-leg trade (straddle, spread…). */
+export interface TradeLegRow {
+  id: string;
+  trade_id: string;
+  leg_no: number;
+  strike: number | null;
+  option_type: "CE" | "PE" | null;
+  direction: "long" | "short";
+  qty: number;
+  avg_entry: number;
+  avg_exit: number | null;
+}
+
 export interface AccountRow {
   id: string;
   name: string;

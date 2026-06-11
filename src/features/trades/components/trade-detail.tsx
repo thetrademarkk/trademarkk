@@ -68,14 +68,16 @@ export function TradeDetail({ id }: { id: string }) {
     confidence: trade.confidence ?? undefined,
     notes: trade.notes ?? undefined,
     tagIds: trade.tags.map((t) => t.id),
-    // Multi-leg trades keep their individual fills editable.
-    legs:
-      trade.fills.length > 2
-        ? trade.fills.map((f) => ({
-            side: f.side as "buy" | "sell",
-            qty: f.qty,
-            price: f.price,
-            time: isoToLocalInput(f.fill_time),
+    // Strategy legs 2..N (leg 1 already lives in the top-level fields).
+    extraLegs:
+      trade.legs.length > 1
+        ? trade.legs.slice(1).map((l) => ({
+            strike: l.strike ?? undefined,
+            optionType: l.option_type ?? undefined,
+            direction: l.direction,
+            qty: l.qty,
+            avgEntry: l.avg_entry,
+            avgExit: l.avg_exit ?? undefined,
           }))
         : undefined,
   };
