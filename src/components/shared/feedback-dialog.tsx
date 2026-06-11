@@ -2,11 +2,17 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Loader2, MessageSquarePlus } from "lucide-react";
+import { Bug, Lightbulb, Loader2, MessageCircle, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -14,9 +20,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
-  { id: "idea", label: "💡 Idea" },
-  { id: "bug", label: "🐞 Bug" },
-  { id: "other", label: "💬 Other" },
+  { id: "idea", label: "Idea", icon: Lightbulb },
+  { id: "bug", label: "Bug", icon: Bug },
+  { id: "other", label: "Other", icon: MessageCircle },
 ] as const;
 
 /** Product feedback dialog — anonymous-friendly, works on every surface. */
@@ -47,7 +53,7 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Could not send feedback");
-      toast.success("Thank you! Feedback received 🙏");
+      toast.success("Thank you! Feedback received.");
       setMessage("");
       setOpen(false);
     } catch (e) {
@@ -82,9 +88,12 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
                   onClick={() => setCategory(c.id)}
                   className={cn(
                     "flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
-                    category === c.id ? "border-accent bg-accent/15 text-accent" : "text-muted hover:bg-surface-2"
+                    category === c.id
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "text-muted hover:bg-surface-2"
                   )}
                 >
+                  <c.icon className="mr-1 inline h-3.5 w-3.5" aria-hidden />
                   {c.label}
                 </button>
               ))}
@@ -107,9 +116,13 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
                   Send anonymously
                 </Label>
                 {!anonymous && knownEmail && (
-                  <p className="truncate text-xs text-muted">We&apos;ll follow up at {knownEmail}</p>
+                  <p className="truncate text-xs text-muted">
+                    We&apos;ll follow up at {knownEmail}
+                  </p>
                 )}
-                {anonymous && <p className="text-xs text-muted">No name or email will be attached</p>}
+                {anonymous && (
+                  <p className="text-xs text-muted">No name or email will be attached</p>
+                )}
               </div>
               <Switch id="fb-anon" checked={anonymous} onCheckedChange={setAnonymous} />
             </div>
@@ -125,7 +138,12 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
                 />
               </div>
             )}
-            <Button className="w-full" onClick={submit} disabled={busy || message.trim().length < 5} aria-busy={busy}>
+            <Button
+              className="w-full"
+              onClick={submit}
+              disabled={busy || message.trim().length < 5}
+              aria-busy={busy}
+            >
               {busy && <Loader2 className="animate-spin" aria-hidden />}
               Send feedback
             </Button>

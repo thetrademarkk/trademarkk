@@ -28,7 +28,9 @@ function KpiLink({
     <Link
       href={href}
       className={cn(
-        "block rounded-xl transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-accent",
+        // h-full + stretching children keeps all KPI boxes the same height
+        // even when one card carries a sub-line ("per trade").
+        "block h-full rounded-xl transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-accent [&>*]:h-full",
         className
       )}
     >

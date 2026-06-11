@@ -58,7 +58,7 @@ export function BlogSubmitForm() {
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border bg-surface p-8 text-center">
         <CheckCircle2 className="h-10 w-10 text-profit" aria-hidden />
-        <h2 className="text-lg font-semibold">Submitted for review 🎉</h2>
+        <h2 className="text-lg font-semibold">Submitted for review</h2>
         <p className="max-w-sm text-sm text-muted">
           Thanks for contributing! Our team will review your post and publish it if it&apos;s a good
           fit. You&apos;ll see it on the blog once approved.
@@ -92,13 +92,24 @@ export function BlogSubmitForm() {
       </div>
       <div className="space-y-1.5">
         <Label>Article</Label>
-        <RichEditor value={content} onChange={setContent} placeholder="Write your article…" minHeight={280} />
+        <RichEditor
+          value={content}
+          onChange={setContent}
+          placeholder="Write your article…"
+          minHeight={280}
+        />
       </div>
 
-      {error && <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-sm text-loss">{error}</p>}
+      {error && (
+        <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-sm text-loss">
+          {error}
+        </p>
+      )}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">Posts are reviewed before publishing. Educational content only.</p>
+        <p className="text-xs text-muted">
+          Posts are reviewed before publishing. Educational content only.
+        </p>
         <Button onClick={submit} disabled={busy} aria-busy={busy}>
           {busy && <Loader2 className="animate-spin" aria-hidden />}
           Submit for review

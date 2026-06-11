@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { MessagesSquare } from "lucide-react";
+import { CheckCheck, MessagesSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useFeed, type FeedScope, type FeedSort } from "../api";
@@ -90,7 +90,9 @@ export function Feed({
       <div ref={sentinelRef} aria-hidden />
       {isFetchingNextPage && <Skeleton className="h-44 rounded-xl" />}
       {!hasNextPage && posts.length > 5 && (
-        <p className="py-6 text-center text-xs text-muted">You&apos;re all caught up 🎉</p>
+        <p className="flex items-center justify-center gap-1.5 py-6 text-center text-xs text-muted">
+          <CheckCheck className="h-3.5 w-3.5" aria-hidden /> You&apos;re all caught up
+        </p>
       )}
     </div>
   );

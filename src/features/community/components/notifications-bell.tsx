@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, Inbox } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,10 @@ export function NotificationsBell() {
         </div>
         <div className="max-h-80 overflow-y-auto">
           {items.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-muted">Nothing yet — go say hi 👋</p>
+            <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-sm text-muted">
+              <Inbox className="h-6 w-6" aria-hidden />
+              Nothing yet — say hi
+            </div>
           ) : (
             items.map((n) => (
               <Link

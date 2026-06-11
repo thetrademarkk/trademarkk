@@ -82,7 +82,7 @@ function SubmissionsTab() {
       return action;
     },
     onSuccess: (action) => {
-      toast.success(action === "approve" ? "Published 🎉" : "Rejected");
+      toast.success(action === "approve" ? "Published" : "Rejected");
       void qc.invalidateQueries({ queryKey: ["admin-submissions"] });
     },
     onError: () => toast.error("Action failed"),

@@ -1,5 +1,6 @@
 "use client";
 
+import { TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PnlText } from "@/components/shared/pnl-text";
@@ -22,8 +23,10 @@ export function AdherencePanel({ from, to }: { from: string | null; to: string |
       <CardContent className="space-y-3">
         {worst && worst.brokenDayCost < 0 && (
           <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
-            💸 Your most expensive habit: <span className="font-medium">“{worst.rule.text}”</span> —
-            broken-rule days cost you <PnlText value={worst.brokenDayCost} className="font-semibold" />
+            <TrendingDown className="mr-1 inline h-3.5 w-3.5 text-warning" aria-hidden />
+            Your most expensive habit: <span className="font-medium">“{worst.rule.text}”</span> —
+            broken-rule days cost you{" "}
+            <PnlText value={worst.brokenDayCost} className="font-semibold" />
           </div>
         )}
         {data.rules.map(({ rule, followed, broken, adherencePct, brokenDayCost }) => (

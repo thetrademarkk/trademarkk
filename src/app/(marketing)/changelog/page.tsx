@@ -11,7 +11,7 @@ const RELEASES = [
     version: "0.1.0",
     date: "June 2026",
     items: [
-      "Initial release 🎉",
+      "Initial release",
       "Trade logging with Indian FnO charges engine (STT, GST, stamp duty, SEBI, exchange)",
       "Daily journal with pre/post-market sections, mood and streaks",
       "Rules engine: daily checklist, adherence %, ₹ cost of broken rules",

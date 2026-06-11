@@ -21,10 +21,13 @@ function CalendarGrid({
   view,
   value,
   onPick,
+  disableFuture,
 }: {
   view: Date;
   value: string | null;
   onPick: (key: string) => void;
+  /** Trades can't be logged for days that haven't happened yet. */
+  disableFuture?: boolean;
 }) {
   const year = view.getFullYear();
   const month = view.getMonth();
@@ -45,17 +48,23 @@ function CalendarGrid({
       {Array.from({ length: days }).map((_, i) => {
         const key = toDateKey(new Date(year, month, i + 1));
         const selected = value === key;
+        const disabled = Boolean(disableFuture && key > todayK);
         return (
           <button
             key={key}
             type="button"
+            disabled={disabled}
             onClick={() => onPick(key)}
             aria-label={key}
             aria-pressed={selected}
             className={cn(
               "h-8 rounded-md text-sm transition-colors",
-              selected ? "bg-accent font-semibold text-accent-fg" : "hover:bg-surface-2",
-              !selected && key === todayK && "ring-1 ring-accent/60"
+              disabled
+                ? "cursor-not-allowed text-muted/40"
+                : selected
+                  ? "bg-accent font-semibold text-accent-fg"
+                  : "hover:bg-surface-2",
+              !selected && !disabled && key === todayK && "ring-1 ring-accent/60"
             )}
           >
             {i + 1}
@@ -66,7 +75,20 @@ function CalendarGrid({
   );
 }
 
-function MonthNav({ view, setView }: { view: Date; setView: (d: Date) => void }) {
+function MonthNav({
+  view,
+  setView,
+  disableFuture,
+}: {
+  view: Date;
+  setView: (d: Date) => void;
+  disableFuture?: boolean;
+}) {
+  const now = new Date();
+  const atCurrentMonth =
+    view.getFullYear() > now.getFullYear() ||
+    (view.getFullYear() === now.getFullYear() && view.getMonth() >= now.getMonth());
+  const nextDisabled = Boolean(disableFuture && atCurrentMonth);
   return (
     <div className="mb-2 flex items-center justify-between">
       <button
@@ -83,7 +105,8 @@ function MonthNav({ view, setView }: { view: Date; setView: (d: Date) => void })
       <button
         type="button"
         aria-label="Next month"
-        className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground"
+        disabled={nextDisabled}
+        className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
         onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
       >
         <ChevronRight className="h-4 w-4" />
@@ -101,12 +124,14 @@ export function DatePicker({
   onChange,
   placeholder = "Pick a date",
   disabled,
+  disableFuture,
   "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  disableFuture?: boolean;
   "aria-label"?: string;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -135,10 +160,11 @@ export function DatePicker({
         </button>
       </PopoverTrigger>
       <PopoverContent>
-        <MonthNav view={view} setView={setView} />
+        <MonthNav view={view} setView={setView} disableFuture={disableFuture} />
         <CalendarGrid
           view={view}
           value={value || null}
+          disableFuture={disableFuture}
           onPick={(key) => {
             onChange(key);
             setOpen(false);
@@ -154,11 +180,13 @@ export function DateTimePicker({
   value,
   onChange,
   placeholder = "Pick date & time",
+  disableFuture,
   "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  disableFuture?: boolean;
   "aria-label"?: string;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -166,8 +194,19 @@ export function DateTimePicker({
   const time = value ? value.slice(11, 16) : "09:15"; // NSE open as the friendly default
   const [view, setView] = React.useState(() => (dateKey ? new Date(dateKey) : new Date()));
 
+  const now = new Date();
+  const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  // With disableFuture, "today at a future time" is clamped back to now.
+  const clampToday = dateKey === toDateKey(now) && Boolean(disableFuture);
+  const maxHour = clampToday ? now.getHours() : 23;
+  const maxMinute =
+    clampToday && Number(time.slice(0, 2)) === now.getHours() ? now.getMinutes() : 59;
+
   const setPart = (nextDate: string | null, nextTime: string) => {
-    onChange(`${nextDate ?? toDateKey(new Date())}T${nextTime}`);
+    const date = nextDate ?? toDateKey(new Date());
+    let t = nextTime;
+    if (disableFuture && date === toDateKey(new Date()) && t > nowTime) t = nowTime;
+    onChange(`${date}T${t}`);
   };
 
   return (
@@ -192,8 +231,13 @@ export function DateTimePicker({
         </button>
       </PopoverTrigger>
       <PopoverContent>
-        <MonthNav view={view} setView={setView} />
-        <CalendarGrid view={view} value={dateKey} onPick={(key) => setPart(key, time)} />
+        <MonthNav view={view} setView={setView} disableFuture={disableFuture} />
+        <CalendarGrid
+          view={view}
+          value={dateKey}
+          disableFuture={disableFuture}
+          onPick={(key) => setPart(key, time)}
+        />
         <div className="mt-3 flex items-center gap-2 border-t pt-3">
           <Clock className="h-4 w-4 text-muted" aria-hidden />
           <select
@@ -203,7 +247,7 @@ export function DateTimePicker({
             onChange={(e) => setPart(dateKey, `${e.target.value}:${time.slice(3, 5)}`)}
           >
             {Array.from({ length: 24 }).map((_, h) => (
-              <option key={h} value={String(h).padStart(2, "0")}>
+              <option key={h} value={String(h).padStart(2, "0")} disabled={h > maxHour}>
                 {String(h).padStart(2, "0")}
               </option>
             ))}
@@ -216,7 +260,7 @@ export function DateTimePicker({
             onChange={(e) => setPart(dateKey, `${time.slice(0, 2)}:${e.target.value}`)}
           >
             {Array.from({ length: 60 }).map((_, m) => (
-              <option key={m} value={String(m).padStart(2, "0")}>
+              <option key={m} value={String(m).padStart(2, "0")} disabled={m > maxMinute}>
                 {String(m).padStart(2, "0")}
               </option>
             ))}

@@ -444,6 +444,7 @@ export function TradeForm({
                 <DateTimePicker
                   value={field.value}
                   onChange={field.onChange}
+                  disableFuture
                   aria-label="Opened at"
                 />
               )}
@@ -458,6 +459,7 @@ export function TradeForm({
                 <DateTimePicker
                   value={field.value ?? ""}
                   onChange={field.onChange}
+                  disableFuture
                   aria-label="Closed at"
                 />
               )}

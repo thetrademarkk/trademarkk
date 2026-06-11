@@ -3,7 +3,15 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { ArrowLeft, ArrowRight, CandlestickChart, Check, Cloud, Database, PlayCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CandlestickChart,
+  Check,
+  Cloud,
+  Database,
+  PlayCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useDbSession } from "@/providers/db-session-provider";
 import { useSession } from "@/lib/auth-client";
@@ -164,7 +172,9 @@ export function OnboardingFlow() {
             ))}
           </ul>
         </div>
-        <p className="relative text-xs text-muted">Open source · MIT licensed · No paywall, ever.</p>
+        <p className="relative text-xs text-muted">
+          Open source · MIT licensed · No paywall, ever.
+        </p>
       </div>
 
       {/* ── Flow panel ── */}
@@ -175,7 +185,7 @@ export function OnboardingFlow() {
           {step === "choose" && (
             <div className="space-y-3">
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                <h1 className="text-2xl font-bold">Welcome 👋</h1>
+                <h1 className="text-2xl font-bold">Welcome</h1>
                 <p className="mt-1 text-sm text-muted">How do you want to store your journal?</p>
               </motion.div>
               {MODE_CARDS.map((card, i) => (
@@ -209,13 +219,22 @@ export function OnboardingFlow() {
           )}
 
           {(step === "hosted" || step === "byod") && (
-            <Button variant="ghost" size="sm" className="mb-4 -ml-2" onClick={() => setStep("choose")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4 -ml-2"
+              onClick={() => setStep("choose")}
+            >
               <ArrowLeft className="h-4 w-4" /> Back
             </Button>
           )}
 
           {step === "hosted" && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
               <div>
                 <h2 className="text-xl font-bold">Create your free account</h2>
                 <p className="mt-1 text-sm text-muted">
@@ -238,20 +257,32 @@ export function OnboardingFlow() {
           )}
 
           {step === "byod" && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
               <div>
                 <h2 className="text-xl font-bold">Connect your Turso database</h2>
-                <p className="mt-1 text-sm text-muted">We never see your data — promise, verifiable in the source.</p>
+                <p className="mt-1 text-sm text-muted">
+                  We never see your data — promise, verifiable in the source.
+                </p>
               </div>
               <ByodWizard onConnected={() => undefined /* effect handles next step */} />
             </motion.div>
           )}
 
           {step === "setup" && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
               <div>
                 <h2 className="text-xl font-bold">Set up your journal</h2>
-                <p className="mt-1 text-sm text-muted">30 seconds — you can change all of this later.</p>
+                <p className="mt-1 text-sm text-muted">
+                  30 seconds — you can change all of this later.
+                </p>
               </div>
               <SetupForm onDone={goDashboard} />
             </motion.div>

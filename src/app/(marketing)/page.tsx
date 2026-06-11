@@ -30,9 +30,21 @@ const jsonLd = {
 const BROKERS = ["Zerodha", "Upstox", "Angel One", "Dhan", "Fyers", "Groww"];
 
 const STEPS = [
-  { n: "01", title: "Mark the trade", text: "Press T. Strike, qty, entry, exit — saved with charges and R-multiple in 15 seconds." },
-  { n: "02", title: "Mark the mistake", text: "Revenge trade? Oversized? Tag it. Tick your rules off before close." },
-  { n: "03", title: "Review & improve", text: "Saturday morning: your week, priced. Adherence, expectancy, and your costliest habit." },
+  {
+    n: "01",
+    title: "Mark the trade",
+    text: "Press T. Strike, qty, entry, exit — saved with charges and R-multiple in 15 seconds.",
+  },
+  {
+    n: "02",
+    title: "Mark the mistake",
+    text: "Revenge trade? Oversized? Tag it. Tick your rules off before close.",
+  },
+  {
+    n: "03",
+    title: "Review & improve",
+    text: "Saturday morning: your week, priced. Adherence, expectancy, and your costliest habit.",
+  },
 ];
 
 const STATS = [
@@ -45,7 +57,10 @@ const STATS = [
 export default function LandingPage() {
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
+      />
       <ReturningUserRedirect />
 
       {/* ── Hero ── */}
@@ -56,7 +71,7 @@ export default function LandingPage() {
           <Reveal>
             <p className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border bg-surface/60 px-3.5 py-1.5 text-xs text-muted backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
-              Open source · Free forever · Built for India 🇮🇳
+              Open source · Free forever · Built for India
             </p>
           </Reveal>
           <Reveal delay={0.08}>
@@ -94,7 +109,10 @@ export default function LandingPage() {
               <p className="micro-label">Import tradebooks from</p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 {BROKERS.map((b) => (
-                  <span key={b} className="rounded-full border bg-surface/60 px-3 py-1 text-xs text-muted">
+                  <span
+                    key={b}
+                    className="rounded-full border bg-surface/60 px-3 py-1 text-xs text-muted"
+                  >
                     {b}
                   </span>
                 ))}
@@ -152,7 +170,9 @@ export default function LandingPage() {
       <section className="border-t bg-surface/30">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
-            <h2 className="text-center text-2xl font-bold md:text-4xl">Everything a serious trader needs</h2>
+            <h2 className="text-center text-2xl font-bold md:text-4xl">
+              Everything a serious trader needs
+            </h2>
             <p className="mx-auto mt-3 max-w-lg text-center text-sm text-muted">
               No paywall, no premium tier. The whole journal, free and open source.
             </p>
@@ -194,13 +214,28 @@ export default function LandingPage() {
           <Reveal>
             <h2 className="text-2xl font-bold md:text-4xl">Built for speed</h2>
             <p className="mx-auto mt-3 max-w-md text-sm text-muted">
-              Journaling only works if it&apos;s effortless. TradeMark is keyboard-first and installs
-              on your phone like a native app.
+              Journaling only works if it&apos;s effortless. TradeMark is keyboard-first and
+              installs on your phone like a native app.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-muted">
-              <span><kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">T</kbd> new trade</span>
-              <span><kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">J</kbd> today&apos;s journal</span>
-              <span><kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">⌘K</kbd> anywhere</span>
+              <span>
+                <kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">
+                  T
+                </kbd>{" "}
+                new trade
+              </span>
+              <span>
+                <kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">
+                  J
+                </kbd>{" "}
+                today&apos;s journal
+              </span>
+              <span>
+                <kbd className="rounded-md border bg-surface px-2.5 py-1.5 font-money text-foreground shadow-sm">
+                  ⌘K
+                </kbd>{" "}
+                anywhere
+              </span>
             </div>
           </Reveal>
         </div>
@@ -215,8 +250,8 @@ export default function LandingPage() {
               Stop repeating the same <span className="text-loss">mistakes</span>.
             </h2>
             <p className="mx-auto mt-4 max-w-md text-sm text-muted md:text-base">
-              The traders who journal are the traders who last. MIT-licensed, self-hostable,
-              and free — today and always.
+              The traders who journal are the traders who last. MIT-licensed, self-hostable, and
+              free — today and always.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button size="lg" asChild className="group">

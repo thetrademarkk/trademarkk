@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Layers, Plus, Trash2 } from "lucide-react";
+import { Layers, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDb } from "@/providers/db-session-provider";
@@ -77,7 +77,12 @@ export function PlaybooksPanel() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted">
-          {unassigned > 0 && <>⚠️ {unassigned} closed trades have no setup assigned.</>}
+          {unassigned > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              <TriangleAlert className="h-3.5 w-3.5 text-warning" aria-hidden />
+              {unassigned} closed trades have no setup assigned.
+            </span>
+          )}
         </p>
         <Button size="sm" onClick={() => setEditing("new")}>
           <Plus /> New playbook

@@ -2,7 +2,19 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Flame } from "lucide-react";
+import {
+  Angry,
+  CandlestickChart,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  Frown,
+  Laugh,
+  Meh,
+  MoonStar,
+  Smile,
+  Sunrise,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +25,21 @@ import { Badge } from "@/components/ui/badge";
 import { PnlText } from "@/components/shared/pnl-text";
 import { cn, toDateKey, todayKey } from "@/lib/utils";
 import { describeInstrument } from "@/features/trades";
-import { journalStreak, useDayTrades, useJournalDates, useJournalEntry, useSaveJournal } from "../queries";
+import {
+  journalStreak,
+  useDayTrades,
+  useJournalDates,
+  useJournalEntry,
+  useSaveJournal,
+} from "../queries";
 
-const MOODS = ["😖", "😕", "😐", "🙂", "😎"];
+const MOODS = [
+  { icon: Angry, label: "Awful" },
+  { icon: Frown, label: "Tense" },
+  { icon: Meh, label: "Okay" },
+  { icon: Smile, label: "Calm" },
+  { icon: Laugh, label: "Sharp" },
+];
 
 export function JournalEditor({ date }: { date: string }) {
   const { data: entry, isLoading } = useJournalEntry(date);
@@ -63,7 +87,9 @@ export function JournalEditor({ date }: { date: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="icon" asChild>
-          <Link href={`/app/journal?date=${shift(-1)}`}><ChevronLeft /></Link>
+          <Link href={`/app/journal?date=${shift(-1)}`}>
+            <ChevronLeft />
+          </Link>
         </Button>
         <div className="text-sm font-semibold">
           {new Date(date + "T12:00:00").toLocaleDateString("en-IN", {
@@ -72,8 +98,19 @@ export function JournalEditor({ date }: { date: string }) {
             month: "long",
           })}
         </div>
-        <Button variant="outline" size="icon" disabled={date >= todayKey()} asChild={date < todayKey()}>
-          {date < todayKey() ? <Link href={`/app/journal?date=${shift(1)}`}><ChevronRight /></Link> : <ChevronRight />}
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={date >= todayKey()}
+          asChild={date < todayKey()}
+        >
+          {date < todayKey() ? (
+            <Link href={`/app/journal?date=${shift(1)}`}>
+              <ChevronRight />
+            </Link>
+          ) : (
+            <ChevronRight />
+          )}
         </Button>
         {date !== todayKey() && (
           <Button variant="link" size="sm" asChild>
@@ -92,7 +129,11 @@ export function JournalEditor({ date }: { date: string }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader><CardTitle>🌅 Pre-market plan</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5">
+              <Sunrise className="h-4 w-4 text-muted" aria-hidden /> Pre-market plan
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Textarea
               rows={7}
@@ -103,7 +144,11 @@ export function JournalEditor({ date }: { date: string }) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>📈 During market</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5">
+              <CandlestickChart className="h-4 w-4 text-muted" aria-hidden /> During market
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Textarea
               rows={7}
@@ -114,7 +159,11 @@ export function JournalEditor({ date }: { date: string }) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>🌙 Post-market review</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1.5">
+              <MoonStar className="h-4 w-4 text-muted" aria-hidden /> Post-market review
+            </CardTitle>
+          </CardHeader>
           <CardContent>
             <Textarea
               rows={7}
@@ -134,13 +183,18 @@ export function JournalEditor({ date }: { date: string }) {
               <button
                 key={i}
                 type="button"
+                aria-label={m.label}
+                title={m.label}
+                aria-pressed={mood === i + 1}
                 onClick={() => setMood(mood === i + 1 ? null : i + 1)}
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition-transform",
-                  mood === i + 1 ? "border-accent bg-accent/15 scale-110" : "opacity-50 hover:opacity-100"
+                  "flex h-9 w-9 items-center justify-center rounded-lg border transition-colors",
+                  mood === i + 1
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "text-muted hover:bg-surface-2 hover:text-foreground"
                 )}
               >
-                {m}
+                <m.icon className="h-5 w-5" aria-hidden />
               </button>
             ))}
           </div>
@@ -158,7 +212,9 @@ export function JournalEditor({ date }: { date: string }) {
 
       {dayTrades.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Trades this day ({dayTrades.length})</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Trades this day ({dayTrades.length})</CardTitle>
+          </CardHeader>
           <CardContent className="divide-y">
             {dayTrades.map((t) => (
               <Link
@@ -168,9 +224,15 @@ export function JournalEditor({ date }: { date: string }) {
               >
                 <span>
                   {describeInstrument(t)}{" "}
-                  <span className="text-xs text-muted">· {t.direction} · {t.qty} qty</span>
+                  <span className="text-xs text-muted">
+                    · {t.direction} · {t.qty} qty
+                  </span>
                 </span>
-                {t.status === "closed" ? <PnlText value={t.net_pnl} /> : <Badge variant="warning">open</Badge>}
+                {t.status === "closed" ? (
+                  <PnlText value={t.net_pnl} />
+                ) : (
+                  <Badge variant="warning">open</Badge>
+                )}
               </Link>
             ))}
           </CardContent>

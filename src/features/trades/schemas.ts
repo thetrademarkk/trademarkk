@@ -49,6 +49,16 @@ export const tradeFormSchema = z
   .refine((v) => v.segment !== "OPT" || (v.strike && v.optionType), {
     message: "Options need strike & CE/PE",
     path: ["strike"],
+  })
+  // Defense in depth behind the picker: trades can't be logged for the future.
+  // (2-minute slack absorbs clock skew between devices.)
+  .refine((v) => new Date(v.openedAt).getTime() <= Date.now() + 2 * 60_000, {
+    message: "Trades can't be in the future",
+    path: ["openedAt"],
+  })
+  .refine((v) => !v.closedAt || new Date(v.closedAt).getTime() <= Date.now() + 2 * 60_000, {
+    message: "Exit time can't be in the future",
+    path: ["closedAt"],
   });
 
 export type TradeFormValues = z.infer<typeof tradeFormSchema>;

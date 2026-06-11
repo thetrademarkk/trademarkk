@@ -56,7 +56,7 @@ export function ReportsTab() {
   if (reports.length === 0) {
     return (
       <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted">
-        No open reports. 🎉
+        No open reports.
       </p>
     );
   }

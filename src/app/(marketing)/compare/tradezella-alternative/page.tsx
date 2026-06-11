@@ -11,11 +11,15 @@ export const metadata: Metadata = {
 
 const ROWS: [string, string, string][] = [
   ["Price", "Free, open source (MIT)", "Paid subscription (USD)"],
-  ["Made for Indian FnO", "✅ NIFTY/BANKNIFTY strikes, lot sizes, STT/GST/stamp duty", "❌ US-centric"],
+  [
+    "Made for Indian FnO",
+    "✓ NIFTY/BANKNIFTY strikes, lot sizes, STT/GST/stamp duty",
+    "✗ US-centric",
+  ],
   ["Broker imports", "Zerodha, Upstox, Angel One, Dhan, Fyers, Groww CSVs", "US brokers"],
   ["Data ownership", "Your own database (BYOD) or isolated hosted DB", "Their cloud only"],
   ["Rules engine", "Daily checklist + ₹ cost of broken rules", "Basic"],
-  ["Self-hosting", "✅ One-click Vercel deploy", "❌"],
+  ["Self-hosting", "✓ One-click Vercel deploy", "✗"],
   ["Mobile", "Installable PWA", "Web app"],
 ];
 

@@ -25,7 +25,7 @@ export function StreakIndicator() {
 
   const mark = () =>
     toggle.mutate(true, {
-      onSuccess: () => toast.success("Rest day logged — streak protected 🛡️"),
+      onSuccess: () => toast.success("Rest day logged — streak protected"),
       onError: () => toast.error("Could not log the rest day"),
     });
 
