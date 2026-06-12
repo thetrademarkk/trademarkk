@@ -87,6 +87,77 @@ trade logged from the web app.
 | Allow the pinned extension origin            | `src/server/origin-check.ts` | `POST /api/db/token` from the panel |
 | Trust the pinned origin                      | `src/server/auth.ts`         | sign-out from the panel             |
 
+## Architecture decision record (v2) — broker-page capture
+
+### Opt-in content scripts, registered dynamically
+
+- **Decision:** no broker host is requested at install. The "Broker capture"
+  section in the panel settings asks per broker; enabling runs
+  `chrome.permissions.request` (Chrome's own consent prompt — declining is
+  always honored, the toggle just stays off) and then registers the broker's
+  content script via `chrome.scripting.registerContentScripts`
+  (`persistAcrossSessions: true`). Disabling unregisters the script **and
+  returns the host permission**. Chrome's registration list is the single
+  source of truth for the toggle — no shadow "enabled" flag to drift.
+- The manifest gains only the `scripting` permission; broker origins stay
+  under `optional_host_permissions`.
+
+### Per-broker adapters with versioned, layered selectors
+
+- **Interface:** `extension/src/brokers/types.ts` —
+  `BrokerCaptureAdapter { id, label, version, originPattern, contentScript, findOrderPanel(), readOrder() }`,
+  registered in `extension/src/brokers/index.ts`. Adding Upstox/Groww later is
+  a new adapter file + content entry + build pass; the settings toggle,
+  permission flow and panel prefill pick new adapters up from the registry.
+- **Kite (v1 selectors):** the order dialog is `.order-window` carrying a
+  `buy`/`sell` class, `input[name=quantity]` / `input[name=price]`, an
+  `.instrument-name` header and `span.tradingsymbol`/`span.exchange-tag`
+  idioms (long-standing Kite markup, cross-checked against community
+  userscripts; real Kite sits behind a login so selectors are best-effort by
+  design). Every read is layered: name attributes → label-text anchors →
+  text anchors, with a pure `assembleCapture()` step (unit-tested) separated
+  from DOM collection (fixture-tested).
+- **Brittleness contract:** broker DOMs change without notice, so the adapter
+  **degrades silently** — unparseable panel ⇒ no button, never a console
+  error, never a guessed value (unknown side ⇒ no capture; market orders fall
+  back to the visible last price; a zero/garbage qty is captured as empty,
+  not invented). `version` is bumped on every selector change and travels
+  with each capture (`adapterVersion`, also stamped on the injected button as
+  `data-tm-capture="<v>"`), so breakage reports can name the selector
+  generation.
+
+### Capture hand-off: content script → SW → side panel
+
+- The injected "Log in TradeMark" pill (inline styles, no stylesheet leakage
+  into the broker page) reads the order fields on click and
+  `chrome.runtime.sendMessage`s them. The SW stages the capture in
+  `chrome.storage.session` (5-minute TTL — stale context is dropped) and
+  best-effort opens the side panel on that tab. The panel consumes the
+  capture whether it was already open (storage change event) or opens later
+  (read-and-clear on mount) and prefills instrument/side/qty/entry with a
+  dismissible "From Zerodha Kite" chip. Captures cross a privilege boundary,
+  so the panel re-validates the full shape before touching form state.
+- **Manual logging is unchanged** — capture is purely additive sugar.
+
+### Privacy boundary
+
+- Adapters read **only the visible order-entry fields** (instrument,
+  exchange, side, quantity, price). Balances, holdings, positions and order
+  history are out of bounds by design, and nothing is read until the user
+  clicks the capture button. See docs/extension.md → Privacy.
+
+### Testing without a Kite login
+
+- Real Kite requires a broker login, so `extension/test-fixtures/` carries a
+  static replica of the order-window DOM (plus a deliberately "redesigned"
+  variant). The e2e (`scripts/e2e-extension.mjs`) serves the fixtures on
+  localhost, registers the **real built content bundle** through the same
+  `chrome.scripting` API the settings toggle uses (Chrome's native permission
+  prompt is unreachable from Playwright — the prompt is skipped, never the
+  code path), and walks: button injection → buy-limit prefill → journal row →
+  sell-market prefill with last-price fallback → changed-DOM silent
+  degradation. Pure parsing is unit-tested in `kite.test.ts`.
+
 ## v1 scope (shipped)
 
 - Side panel + runtime popup fallback sharing one UI; 320 px-min layouts;
@@ -109,10 +180,15 @@ trade logged from the web app.
 
 ### v2 — broker-page capture
 
-- [ ] Content scripts per broker that read the order panel / positions table
-      (Kite first, then Upstox) and prefill the trade form via one click —
-      "capture this order". Strict allowlist of broker domains, read-only DOM
-      access, no injected UI beyond the capture affordance.
+- [x] Content scripts per broker that read the order panel and prefill the
+      trade form via one click — "capture this order". Strict allowlist of
+      broker domains, read-only DOM access, no injected UI beyond the capture
+      affordance. _(Kite shipped; adapter registry ready for more brokers.)_
+- [ ] Upstox adapter (`extension/src/brokers/upstox.ts`) on the v2 registry.
+- [ ] Groww adapter (`extension/src/brokers/groww.ts`) on the v2 registry.
+- [ ] Executed-order toast capture on Kite (deferred from v2: toast DOM is
+      unverifiable without a live session; order-window capture is the
+      high-value path).
 - [ ] Popup mode polish (compact width) + keyboard shortcut to open the panel.
 - [ ] Optional reminder badge when the day has trades but unticked rules.
 
@@ -134,3 +210,8 @@ trade logged from the web app.
   statement builder, quick trade log with contract parsing, today's rules
   tri-state checklist, P&L + streak glance strip, settings (app URL override +
   sign-out), Playwright extension e2e. (PR #22)
+- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker
+  content scripts (optional host permission + dynamic registration), versioned
+  adapter registry (`extension/src/brokers/`), "Log in TradeMark" pill that
+  prefills the quick log via SW-staged captures, silent degradation on DOM
+  drift, Kite DOM fixtures + 6 new e2e steps, 26 new unit tests. (PR #37)

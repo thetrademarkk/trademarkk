@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Negative fixture: the same order dialog after a hypothetical Kite redesign
+    that renamed every hook the adapter relies on (.order-window → .ow-dialog,
+    name=quantity → name=q, no buy/sell class, submit text "Place order").
+
+    The capture content script must inject NOTHING here and log NOTHING —
+    "degrade silently" is part of the adapter contract (ADR v2).
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Kite fixture — changed DOM</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #f9f9f9;
+        color: #444;
+      }
+      .ow-dialog {
+        position: fixed;
+        left: 120px;
+        top: 90px;
+        width: 480px;
+        background: #fff;
+        border-radius: 4px;
+        box-shadow: 0 3px 12px rgb(0 0 0 / 0.22);
+        padding: 16px;
+      }
+      .ow-dialog input {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <button type="button" data-fixture="open-changed">Open redesigned order dialog</button>
+    <script>
+      document.querySelector("[data-fixture='open-changed']").addEventListener("click", () => {
+        const win = document.createElement("div");
+        win.className = "ow-dialog";
+        win.innerHTML = `
+          <div class="ow-head"><b>INFY</b> <small>NSE</small> <span>1,519.95</span></div>
+          <div class="ow-fields">
+            <input type="number" name="q" value="1" />
+            <input type="number" name="p" value="1519.95" />
+          </div>
+          <div class="ow-foot"><button type="button">Place order</button></div>`;
+        document.body.appendChild(win);
+      });
+    </script>
+  </body>
+</html>

@@ -1,7 +1,18 @@
 import * as React from "react";
-import { Check, ChevronDown, ChevronUp, CircleAlert, ExternalLink, Zap } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
+  ExternalLink,
+  Import,
+  X,
+  Zap,
+} from "lucide-react";
 import { parseContractName } from "@/features/trades/instrument-parse";
+import { brokerLabel } from "../brokers";
 import { openAppTab } from "../lib/app-api";
+import { onPendingCapture, takePendingCapture, type PendingCapture } from "../lib/capture";
 import { buildQuickTradeValues, describeParsed } from "../lib/quick-trade";
 import { useAccounts, usePlaybooks, useSaveTrade } from "../lib/journal";
 
@@ -27,7 +38,32 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
   const [showMore, setShowMore] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<SavedTrade | null>(null);
+  const [capturedFrom, setCapturedFrom] = React.useState<PendingCapture | null>(null);
   const instrumentRef = React.useRef<HTMLInputElement>(null);
+
+  // Broker-page capture (purely additive sugar): a "Log in TradeMark" click on
+  // the broker's order window staged a CapturedOrder — prefill the quick log.
+  // Everything stays editable; manual logging is unchanged when nothing lands.
+  React.useEffect(() => {
+    let active = true;
+    const apply = (c: PendingCapture) => {
+      if (!active) return;
+      setSaved(null);
+      setError(null);
+      setInstrument(c.symbol);
+      setSide(c.side);
+      setQty(c.qty != null ? String(c.qty) : "");
+      setEntry(c.price != null ? String(c.price) : "");
+      setExit("");
+      setCapturedFrom(c);
+    };
+    void takePendingCapture().then((c) => c && apply(c));
+    const off = onPendingCapture(apply);
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
 
   const effectiveAccountId = accountId || accounts[0]?.id || "";
   const parsed = React.useMemo(
@@ -43,6 +79,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
     setNotes("");
     setError(null);
     setSaved(null);
+    setCapturedFrom(null);
     requestAnimationFrame(() => instrumentRef.current?.focus());
   };
 
@@ -130,6 +167,19 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
         Quick log
         <span className="meta">Enter saves</span>
       </h2>
+      {capturedFrom && (
+        <div className="capture-chip" data-testid="capture-chip" role="status">
+          <Import size={12} />
+          From {brokerLabel(capturedFrom.broker)}
+          <button
+            type="button"
+            aria-label="Dismiss broker capture"
+            onClick={() => setCapturedFrom(null)}
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
       <form onSubmit={onSubmit}>
         <div className="field">
           <label htmlFor="tm-instrument">Instrument</label>

@@ -3,13 +3,16 @@
  * Chromium profile beside the app and walks the full companion flow —
  * signed-out panel → sign-in tab → auto-detected session → quick trade log →
  * trade visible in the web journal → rule check-off → synced on the web
- * dashboard → account deletion (cleans up the provisioned Turso DB).
+ * dashboard → broker-page capture (Kite order-window fixture → prefilled
+ * quick log → journal row, plus changed-DOM silent degradation) → account
+ * deletion (cleans up the provisioned Turso DB).
  *
  * Prereqs:  npm run ext:build   and the app serving on BASE_URL.
  *   BASE_URL=http://localhost:3400 node scripts/e2e-extension.mjs
  */
 import { chromium } from "playwright";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -46,9 +49,14 @@ const ctx = await chromium.launchPersistentContext(userDataDir, {
 
 // 401/404 resource logs are by-design here: the panel polls /api/db/status
 // while signed out (401) and the token-vending flow probes before provisioning
-// (404). Chromium logs every non-2xx load as a console error; anything else
-// (403s, 5xx, JS errors) still fails the run.
-const benign = (text) => /Failed to load resource: .*(401|404)/.test(text);
+// (404). Turso's edge also occasionally answers one request without CORS
+// headers — Chromium logs a CORS error plus a bare ERR_FAILED; the libsql
+// client retries and the step assertions still gate the real outcome.
+// Anything else (403s, 5xx, JS errors) still fails the run.
+const benign = (text) =>
+  /Failed to load resource: .*(401|404)/.test(text) ||
+  /turso\.io.*blocked by CORS policy/.test(text) ||
+  /^Failed to load resource: net::ERR_FAILED$/.test(text);
 const watchPage = (p) => {
   p.on("console", (m) => {
     if (m.type() === "error" && !benign(m.text()))
@@ -69,13 +77,56 @@ const panel = await ctx.newPage();
 await step("panel loads and opens settings", async () => {
   await panel.goto(`chrome-extension://${EXT_ID}/sidepanel.html`, { waitUntil: "load" });
   await panel.getByText("TradeMark").first().waitFor({ timeout: 15000 });
-  await panel.getByRole("button", { name: "Settings" }).click();
-  await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+  // The very first page of a freshly installed extension occasionally stalls
+  // (SW still wiring surfaces) — one reload recovers it.
+  try {
+    await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
+    await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+  } catch {
+    await panel.reload({ waitUntil: "load" });
+    await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
+    await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+  }
 });
 
 await step("app URL override saves (self-hoster flow)", async () => {
-  await panel.getByLabel("TradeMark app URL").fill(BASE);
-  await panel.getByRole("button", { name: "Save URL" }).click();
+  // A just-installed extension page can silently drop its first
+  // chrome.storage.local write (observed ~1 in 3 fresh profiles) — without
+  // verification the whole suite would run against the DEFAULT (production!)
+  // app URL. Verify the stored value and retry through a drawer remount.
+  let saved = false;
+  for (let i = 0; i < 3 && !saved; i++) {
+    if (
+      !(await panel
+        .getByLabel("TradeMark app URL")
+        .isVisible()
+        .catch(() => false))
+    ) {
+      await panel.getByRole("button", { name: "Settings" }).click();
+      await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+    }
+    await panel.getByLabel("TradeMark app URL").fill(BASE);
+    await panel.getByRole("button", { name: "Save URL" }).click();
+    saved = await panel
+      .waitForFunction(
+        async (base) => (await chrome.storage.local.get("appUrl")).appUrl === base,
+        BASE,
+        { timeout: 4000, polling: 250 }
+      )
+      .then(
+        () => true,
+        () => false
+      );
+    if (!saved) {
+      await panel
+        .getByRole("button", { name: "Close settings" })
+        .click()
+        .catch(() => undefined);
+    }
+  }
+  if (!saved) throw new Error("app URL was never persisted to chrome.storage.local");
+  // Reboot the panel so it deterministically points at BASE before sign-in.
+  await panel.reload({ waitUntil: "load" });
   await panel.getByText("Sign in to TradeMark").first().waitFor({ timeout: 15000 });
 });
 
@@ -84,7 +135,8 @@ await step("sign-in button opens an app tab on onboarding", async () => {
   const tabPromise = ctx.waitForEvent("page", { timeout: 10000 });
   await panel.getByRole("button", { name: "Sign in to TradeMark" }).click();
   appTab = await tabPromise;
-  await appTab.waitForURL("**/app/onboarding", { timeout: 20000 });
+  // Exact-origin assertion: the suite must never silently sign up on prod.
+  await appTab.waitForURL(`${BASE}/app/onboarding`, { timeout: 20000 });
 });
 
 // ── Web app: create the account (hosted mode, real Turso provisioning) ────
@@ -168,6 +220,125 @@ await step("rule check-off is visible on the web dashboard", async () => {
   if (!firstRule) throw new Error("first rule text was empty");
 });
 
+// ── v2: broker-page capture (Kite order-window fixture) ───────────────────
+// Real Kite sits behind a login, so the adapter runs against a static fixture
+// replicating Kite's order-window DOM (extension/test-fixtures/). The content
+// script is the REAL built bundle, registered through the same
+// chrome.scripting API the settings toggle uses — Playwright cannot accept
+// Chrome's native permission prompt, so the e2e skips the prompt, never the
+// code path. localhost is already within the manifest's host permissions.
+const FIXTURE_PORT = 3401;
+const fixtureDir = path.resolve("extension/test-fixtures");
+const fixtureServer = createServer((req, res) => {
+  const file = req.url?.startsWith("/changed")
+    ? "kite-order-window-changed.html"
+    : "kite-order-window.html";
+  try {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(readFileSync(path.join(fixtureDir, file)));
+  } catch {
+    res.writeHead(404);
+    res.end();
+  }
+});
+await new Promise((resolve) => fixtureServer.listen(FIXTURE_PORT, resolve));
+
+let kitePage;
+await step("capture: kite content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-kite-e2e",
+        js: ["content-kite.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-kite-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("capture: affordance appears on the Kite order window", async () => {
+  kitePage = await ctx.newPage();
+  await kitePage.goto(`http://localhost:${FIXTURE_PORT}/`, { waitUntil: "load" });
+  await kitePage.locator("[data-fixture-row='INFY'] [data-fixture='buy']").click();
+  await kitePage.locator(".order-window.buy").waitFor({ timeout: 5000 });
+  const btn = kitePage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMark")) throw new Error(`wrong label: ${label}`);
+  // Captures are version-tagged so adapter breakage is detectable in reports.
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("capture: click prefills the quick log (buy, limit price)", async () => {
+  await kitePage.locator(".order-window input[name='quantity']").fill("75");
+  await kitePage.locator(".order-window input[name='price']").fill("1520.4");
+  await kitePage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Zerodha Kite")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "INFY") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "1520.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+});
+
+await step("capture: captured trade saves into the journal", async () => {
+  await panel.getByLabel("Exit", { exact: true }).fill("1531.2");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("INFY logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "INFY" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("capture: sell market order → Sell side + last-price fallback", async () => {
+  await kitePage.bringToFront();
+  await kitePage.locator("[data-fixture-row='NIFTY2661924500CE'] [data-fixture='sell']").click();
+  await kitePage.locator(".order-window.sell").waitFor({ timeout: 5000 });
+  await kitePage.locator(".order-window input[name='quantity']").fill("150");
+  const btn = kitePage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "NIFTY2661924500CE")
+    throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "150") throw new Error("qty not prefilled");
+  // The fixture's option row is a market order (price disabled at 0) — the
+  // adapter must fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "145.3")
+    throw new Error(`expected LTP fallback 145.3, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24500") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+});
+
+await step("capture: changed broker DOM degrades silently", async () => {
+  await kitePage.goto(`http://localhost:${FIXTURE_PORT}/changed`, { waitUntil: "load" });
+  await kitePage.locator("[data-fixture='open-changed']").click();
+  await kitePage.locator(".ow-dialog").waitFor({ timeout: 5000 });
+  await kitePage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await kitePage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await kitePage.close();
+});
+
 // ── Sign out from the panel ────────────────────────────────────────────────
 await step("panel sign-out returns to the signed-out state", async () => {
   await panel.bringToFront();
@@ -200,6 +371,7 @@ await step("account deletion cleans up", async () => {
 });
 
 await ctx.close();
+fixtureServer.close();
 try {
   rmSync(userDataDir, { recursive: true, force: true });
 } catch {
