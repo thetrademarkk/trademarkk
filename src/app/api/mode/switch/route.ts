@@ -6,6 +6,7 @@ import { auth } from "@/server/auth";
 import { platformDb } from "@/server/db/platform";
 import { userDatabases } from "@/server/db/platform-schema";
 import { isAllowedOrigin } from "@/server/origin-check";
+import { rateLimit } from "@/server/rate-limit";
 
 const bodySchema = z.object({ mode: z.enum(["hosted", "byod"]) });
 
@@ -18,6 +19,9 @@ export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { allowed } = await rateLimit(`mode-switch:${session.user.id}`, 10, 3600);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid body" }, { status: 400 });

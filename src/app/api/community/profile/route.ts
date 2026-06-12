@@ -4,6 +4,7 @@ import { platformDb } from "@/server/db/platform";
 import { profiles } from "@/server/db/platform-schema";
 import { ensureProfile, getSession, isReservedUsername } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
+import { rateLimit } from "@/server/rate-limit";
 import { updateProfileSchema } from "@/features/community/schemas";
 
 /** The signed-in user's own community profile (creates it on first call). */
@@ -25,6 +26,9 @@ export async function PUT(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { allowed } = await rateLimit(`profile:${session.user.id}`, 20, 3600);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const parsed = updateProfileSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

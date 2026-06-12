@@ -35,11 +35,8 @@ public/sqljs/
 
 .vercel
 
-# contains demo account credentials — keep local, never publish
-scripts/seed-demo-user.ts
 # local-only e2e helper scripts (verification scratchpads)
-scripts/diag.mjs
-scripts/diag2.mjs
+scripts/diag*.mjs
 # transient demo-recording artifacts (auth.json holds a session token!)
 demo/auth.json
 demo/*.webm

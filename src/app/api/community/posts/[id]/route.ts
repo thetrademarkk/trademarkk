@@ -17,7 +17,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .select()
     .from(comments)
     .where(eq(comments.postId, id))
-    .orderBy(asc(comments.createdAt));
+    .orderBy(asc(comments.createdAt))
+    .limit(500); // hard cap — keeps a hot thread from becoming an unbounded scan
   if (session && commentRows.length) {
     // Blocked users' comments are hidden from the viewer.
     const myBlocks = await platformDb

@@ -169,7 +169,7 @@ export function ProfileView({ username }: { username: string }) {
           {profile.bio && (
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{profile.bio}</p>
           )}
-          {profile.website && (
+          {profile.website && /^https?:\/\//i.test(profile.website) && (
             <a
               href={profile.website}
               target="_blank"

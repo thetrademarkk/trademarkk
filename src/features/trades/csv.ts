@@ -1,5 +1,6 @@
 import { computeCharges, computeGrossPnl } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
+import { parseContractName } from "./instrument-parse";
 import type { TradeRow } from "./types";
 
 export interface RawFill {
@@ -9,6 +10,10 @@ export interface RawFill {
   price: number;
   time: string; // ISO
   expiry?: string | null;
+  /** Pre-parsed instrument fields — set by broker-specific mappers only. */
+  segment?: "EQ" | "FUT" | "OPT" | null;
+  strike?: number | null;
+  optionType?: "CE" | "PE" | null;
 }
 
 export interface ColumnMapping {
@@ -49,20 +54,17 @@ function stableId(parts: (string | number)[]): string {
 }
 
 function guessInstrument(symbol: string, expiry: string | null) {
-  const opt = symbol.match(/^(.+?)(\d{4,6})(CE|PE)$/);
-  if (opt) {
-    const base = opt[1]!.replace(/\d{2}[A-Z]{3}$|\d{2}[A-Z]\d{2}$|\d{5}$/, "").replace(/\d+$/, "");
+  const p = parseContractName(symbol);
+  // Dated contract that isn't an option (expiry column set) → futures.
+  if (p.segment === "EQ" && expiry) {
     return {
-      symbol: base || opt[1]!,
-      segment: "OPT" as const,
-      strike: Number(opt[2]),
-      optionType: opt[3] as "CE" | "PE",
+      symbol: p.symbol.replace(/\d.*FUT$/, "").replace(/FUT$/, ""),
+      segment: "FUT" as const,
+      strike: null,
+      optionType: null,
     };
   }
-  if (/FUT$/.test(symbol) || (expiry && !opt)) {
-    return { symbol: symbol.replace(/\d.*FUT$/, "").replace(/FUT$/, ""), segment: "FUT" as const, strike: null, optionType: null };
-  }
-  return { symbol, segment: "EQ" as const, strike: null, optionType: null };
+  return { symbol: p.symbol, segment: p.segment, strike: p.strike, optionType: p.optionType };
 }
 
 export function rowsToFills(rows: Record<string, string>[], map: ColumnMapping): RawFill[] {
@@ -72,7 +74,8 @@ export function rowsToFills(rows: Record<string, string>[], map: ColumnMapping):
     const qty = Math.abs(Number(r[map.qty]));
     const price = Number(r[map.price]);
     const rawTime = r[map.time] ?? "";
-    const time = new Date(rawTime).toString() !== "Invalid Date" ? new Date(rawTime).toISOString() : null;
+    const time =
+      new Date(rawTime).toString() !== "Invalid Date" ? new Date(rawTime).toISOString() : null;
     const symbol = (r[map.symbol] ?? "").trim().toUpperCase();
     if (!symbol || !qty || !price || !time) continue;
     fills.push({
@@ -96,7 +99,9 @@ export function pairFillsToTrades(
   const profile = getChargeProfile(chargeProfileId);
   const groups = new Map<string, RawFill[]>();
   for (const f of fills) {
-    const key = `${f.symbol}::${f.expiry ?? ""}`;
+    // Pre-parsed instrument fields join the key so two contracts that share a
+    // base symbol (different strikes/expiries) never merge into one trade.
+    const key = `${f.symbol}::${f.expiry ?? ""}::${f.segment ?? ""}::${f.strike ?? ""}::${f.optionType ?? ""}`;
     const arr = groups.get(key);
     if (arr) arr.push(f);
     else groups.set(key, [f]);
@@ -158,7 +163,14 @@ function buildTrade(
   };
   const e = wavg(entries);
   const first = entries[0]!;
-  const inst = guessInstrument(first.symbol, first.expiry ?? null);
+  const inst = first.segment
+    ? {
+        symbol: first.symbol,
+        segment: first.segment,
+        strike: first.strike ?? null,
+        optionType: first.optionType ?? null,
+      }
+    : guessInstrument(first.symbol, first.expiry ?? null);
   const closed = exits.length > 0;
   const x = closed ? wavg(exits) : null;
   const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -180,8 +192,20 @@ function buildTrade(
   const closedAt = closed ? exits[exits.length - 1]!.time : null;
   const ts = new Date().toISOString();
 
+  // Legacy id parts stay untouched (re-import dedupe for existing imports);
+  // broker-mapped fills carry a base symbol, so the instrument joins the id.
+  const idParts: (string | number)[] = [
+    first.symbol,
+    openedAt,
+    e.qty,
+    round2(e.price),
+    x ? round2(x.price) : "open",
+  ];
+  if (first.segment)
+    idParts.push(first.segment, first.strike ?? "", first.optionType ?? "", first.expiry ?? "");
+
   return {
-    id: stableId([first.symbol, openedAt, e.qty, round2(e.price), x ? round2(x.price) : "open"]),
+    id: stableId(idParts),
     account_id: accountId,
     symbol: inst.symbol,
     exchange: "NSE",

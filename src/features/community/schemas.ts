@@ -45,7 +45,15 @@ export const updateProfileSchema = z.object({
     .optional(),
   displayName: z.string().min(1).max(40).optional(),
   bio: z.string().max(280).optional(),
-  website: z.string().url("Enter a full URL (https://…)").max(120).or(z.literal("")).optional(),
+  // .url() alone accepts javascript: URLs — the value is rendered as an href,
+  // so the scheme must be pinned to http(s).
+  website: z
+    .string()
+    .url("Enter a full URL (https://…)")
+    .max(120)
+    .regex(/^https?:\/\//i, "Enter a full URL (https://…)")
+    .or(z.literal(""))
+    .optional(),
   /** Compressed data-url ≤ ~120KB; empty string removes the photo. */
   avatar: z
     .string()

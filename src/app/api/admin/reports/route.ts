@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { comments, posts, profiles, reports } from "@/server/db/platform-schema";
@@ -59,12 +60,11 @@ export async function POST(req: Request) {
   if (!isAdmin(session?.user.email))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = (await req.json().catch(() => null)) as {
-    reportId?: string;
-    action?: "dismiss" | "delete-content";
-  } | null;
-  if (!body?.reportId || !body.action)
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  const parsed = z
+    .object({ reportId: z.string().min(1).max(40), action: z.enum(["dismiss", "delete-content"]) })
+    .safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  const body = parsed.data;
 
   const report = await platformDb.select().from(reports).where(eq(reports.id, body.reportId)).get();
   if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });

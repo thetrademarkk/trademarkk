@@ -8,14 +8,17 @@ import { isAdmin } from "@/server/blog";
 /** Admin: list submissions by status (default pending). */
 export async function GET(req: Request) {
   const session = await getSession();
-  if (!isAdmin(session?.user.email)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isAdmin(session?.user.email))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const status = new URL(req.url).searchParams.get("status") ?? "pending";
+  const raw = new URL(req.url).searchParams.get("status") ?? "pending";
+  const status = ["pending", "approved", "rejected"].includes(raw) ? raw : "pending";
   const rows = await platformDb
     .select()
     .from(blogSubmissions)
     .where(eq(blogSubmissions.status, status))
-    .orderBy(desc(blogSubmissions.createdAt));
+    .orderBy(desc(blogSubmissions.createdAt))
+    .limit(200);
 
   const authorIds = [...new Set(rows.map((r) => r.authorId))];
   const [people, handles] = authorIds.length

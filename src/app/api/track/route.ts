@@ -4,6 +4,7 @@ import { platformDb } from "@/server/db/platform";
 import { pageEvents } from "@/server/db/platform-schema";
 import { getSession } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
+import { rateLimit } from "@/server/rate-limit";
 
 /**
  * First-party page-view tracking — accepts a BATCH of queued events (the
@@ -17,6 +18,13 @@ const normalize = (p: string) =>
 
 export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Anonymous write endpoint — cap batches per client so it can't flood the
+  // platform DB (the client flushes at most once per page-hide).
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
+  const { allowed } = await rateLimit(`track:${ip}`, 60, 3600);
+  if (!allowed) return NextResponse.json({ ok: false }, { status: 429 });
+
   const body = (await req.json().catch(() => null)) as {
     path?: string;
     events?: { path?: string; ts?: number }[];

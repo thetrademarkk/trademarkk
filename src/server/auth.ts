@@ -19,6 +19,9 @@ const socialProviders =
 export const auth = betterAuth({
   secret: serverEnv.authSecret,
   baseURL: serverEnv.authUrl,
+  // Only the deployment's own origin may drive auth flows (CSRF hardening —
+  // Better Auth rejects state-changing requests from other origins).
+  trustedOrigins: [serverEnv.authUrl],
   database: drizzleAdapter(platformDb, {
     provider: "sqlite",
     schema: {
@@ -28,8 +31,14 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // refresh the expiry once per day of activity
+  },
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 8, // matches the signup UI ("8+ characters")
+    maxPasswordLength: 128,
     // Email verification gates DB provisioning (abuse control). Skipped in dev without Resend.
     requireEmailVerification: hasResend(),
     sendResetPassword: async ({ user, url }) => {

@@ -38,10 +38,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   let parentAuthor: string | null = null;
   if (parsed.data.parentId) {
     const parent = await platformDb
-      .select({ id: comments.id, parentId: comments.parentId, userId: comments.userId })
+      .select({
+        id: comments.id,
+        parentId: comments.parentId,
+        userId: comments.userId,
+        postId: comments.postId,
+      })
       .from(comments)
       .where(eq(comments.id, parsed.data.parentId))
       .get();
+    // The parent must live on this post — otherwise a crafted request could
+    // thread a reply across posts (and notify the wrong author).
+    if (parent && parent.postId !== id)
+      return NextResponse.json({ error: "Parent comment not on this post" }, { status: 400 });
     if (!parent || parent.parentId) {
       parentId = parent?.parentId ?? null;
     } else {

@@ -1,7 +1,7 @@
 // Horizontal-overflow audit at phone widths: flags any route where the page
 // scrolls sideways and names the widest offending element.
 import { chromium } from "playwright";
-const BASE = "http://localhost:3100";
+const BASE = process.env.BASE_URL ?? "http://localhost:3100";
 const WIDTHS = [360, 390];
 const PUBLIC = [
   "/",
