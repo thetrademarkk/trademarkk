@@ -20,7 +20,7 @@
 ## Backlog (ordered; each = one loop iteration)
 
 - [x] **Broker CSV mappers v2** — auto-detect & import Upstox, Angel One, Dhan, Fyers, Groww tradebooks (currently Zerodha-shaped). Pure client-side parsing; dedupe stays idempotent.
-- [ ] **Insights engine v1 (no-LLM)** — proactive weekly insights computed client-side from the journal: biggest leak (rule × ₹), best/worst entry hour, overtrading detector (trades/day vs win rate), revenge-trade pattern (loss followed within N min), fee drag (charges as % of gross). Dashboard "Insights" card + weekly report section.
+- [x] **Insights engine v1 (no-LLM)** — proactive weekly insights computed client-side from the journal: biggest leak (rule × ₹), best/worst entry hour, overtrading detector (trades/day vs win rate), revenge-trade pattern (loss followed within N min), fee drag (charges as % of gross). Dashboard "Insights" card + weekly report section. _Shipped as /app/insights page (sidebar nav): day/hour/payoff/long-short/instruments/streaks/revenge/fee-drag/rule-break findings, n≥5 honesty gate; overtrading detector deferred to the stats pack._
 - [ ] **Tilt analytics (Edgewonk-style Tiltmeter)** — tilt score per day from emotion tags + rule breaks + position-size spikes; trend chart in Analytics → psychology tab.
 - [ ] **Advanced trade filters + saved views** — multi-criteria filter bar (R range, hour, tags, playbook, weekday) with shareable saved views (localStorage), instant client-side.
 - [ ] **Share-as-image trade cards** — export any trade/weekly report as a branded PNG (canvas render) for X/WhatsApp; opt-in P&L visibility like community cards.
@@ -35,3 +35,4 @@
 <!-- - [x] YYYY-MM-DD — item — PR #N -->
 
 - [x] 2026-06-12 — Broker CSV mappers v2 — PR #14
+- [x] 2026-06-12 — Insights engine v1 (no-LLM) — PR #21
