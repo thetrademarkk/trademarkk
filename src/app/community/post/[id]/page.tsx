@@ -4,6 +4,18 @@ import { platformDb } from "@/server/db/platform";
 import { posts, profiles } from "@/server/db/platform-schema";
 import { PostDetail } from "./post-detail";
 
+// The shell is a pure client component (data loads via the API), so the
+// document never varies by viewer. generateStaticParams switches the route
+// from per-request SSR (a function invocation per share-link click — the
+// dominant prod TTFB cost) to on-demand ISR: rendered once per id, then
+// served from the CDN cache. revalidate keeps the OG metadata below from
+// freezing until the next deploy (edits/deletes surface within 5 min).
+export const revalidate = 300;
+
+export function generateStaticParams() {
+  return [];
+}
+
 /** Real titles/descriptions so shared links unfurl properly in chats and socials. */
 export async function generateMetadata({
   params,

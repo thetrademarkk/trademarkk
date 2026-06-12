@@ -5,6 +5,7 @@ import { CheckCheck, MessagesSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useFeed, type FeedScope, type FeedSort } from "../api";
+import type { FeedResponse } from "../types";
 import { PostCard } from "./post-card";
 
 export function Feed({
@@ -12,17 +13,21 @@ export function Feed({
   tag,
   search = null,
   scope = "all",
+  initialFeed = null,
 }: {
   sort: FeedSort;
   tag: string | null;
   search?: string | null;
   scope?: FeedScope;
+  /** Server-rendered (anonymous) first page — paints with the document. */
+  initialFeed?: FeedResponse | null;
 }) {
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed(
     sort,
     tag,
     search,
-    scope
+    scope,
+    initialFeed
   );
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 

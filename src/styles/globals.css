@@ -223,7 +223,9 @@ label:has(> input[type="file"].hidden) {
 }
 
 /* Hero entrance — pure CSS so above-the-fold content never waits for JS.
-   The global reduced-motion rule below zeroes it to an instant reveal. */
+   Never put this on the page's LCP element (the landing h1 stays unanimated):
+   Chrome drops elements that fade in from opacity:0 as LCP candidates. The
+   global reduced-motion rule below zeroes both the duration and the delay. */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -260,6 +262,7 @@ label:has(> input[type="file"].hidden) {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }

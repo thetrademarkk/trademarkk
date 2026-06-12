@@ -164,7 +164,13 @@ export function PostCard({
               @{post.author.username}
             </Link>
             {" · "}
-            <time dateTime={post.createdAt} title={formatPostDate(post.createdAt)}>
+            {/* suppressHydrationWarning: ISR documents render the relative
+                label at revalidate time; it can lag by minutes at hydration. */}
+            <time
+              dateTime={post.createdAt}
+              title={formatPostDate(post.createdAt)}
+              suppressHydrationWarning
+            >
               {detail ? formatPostDate(post.createdAt) : timeAgo(post.createdAt)}
             </time>
           </p>
