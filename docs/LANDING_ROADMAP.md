@@ -176,3 +176,4 @@ prod deploy verified after merge.
 <!-- The loop appends: - [x] YYYY-MM-DD — item — PR #N -->
 
 - [x] 2026-06-12 — Landing v2: hero screenshot frame, 60s auto-recorded demo video, live public metrics strip (/api/public/stats), bento v2, scrolled header + footer, perf pass (mobile 91 / desktop 98, a11y 100) — PR #27
+- [x] 2026-06-12 — Landing v3 (user feedback): autoplay walkthrough (lazy IO mount, pause-offscreen, reduced-motion click-to-play), v1 hero dashboard mock restored + refined as a pure server component, cursor spotlight + card glow/border-shine, barrel-import fix (`/` first-load JS 134 kB), permanent e2e-landing.mjs (13 steps) — mobile 91/90/92 perf · 100/100/100 — PR #39
