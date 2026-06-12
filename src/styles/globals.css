@@ -238,7 +238,7 @@ label:has(> input[type="file"].hidden) {
   animation: rise-in 0.7s cubic-bezier(0.21, 0.65, 0.36, 1) both;
 }
 
-/* Product screenshot frame: gentle perspective that flattens on hover. */
+/* Product mock frame: gentle perspective that flattens on hover. */
 .hero-tilt {
   transform: perspective(1400px) rotateX(4deg);
   transform-origin: center top;
@@ -255,11 +255,130 @@ label:has(> input[type="file"].hidden) {
   }
 }
 
+/* Hero dashboard mock — CSS-only choreography (equity curve draws itself,
+   day pills fade in, rule ticks pop). All `forwards`-filled so the global
+   reduced-motion rule (zero duration + delay) lands on the finished state. */
+@keyframes hero-draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.hero-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hero-draw-line 1.5s cubic-bezier(0.4, 0, 0.2, 1) 0.45s forwards;
+}
+@keyframes hero-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+.hero-fade {
+  opacity: 0;
+  animation: hero-fade-in 0.8s ease 0.8s forwards;
+}
+@keyframes hero-tick-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.hero-tick {
+  opacity: 0;
+  animation: hero-tick-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Cursor effects (landing only; pointer-fine, motion-tolerant) ──
+   Driven by CursorEffects: one rAF-throttled pointermove listener writes
+   --sx/--sy (hero spotlight) and --gx/--gy (per-card glow) custom props.
+   Paint-only gradients — never layout. Touch devices and reduced-motion
+   users never get the listener, so everything below stays inert. */
+.cursor-spotlight {
+  pointer-events: none;
+  opacity: var(--so, 0);
+  transition: opacity 0.6s ease;
+  background: radial-gradient(
+    360px circle at var(--sx, 50%) var(--sy, 50%),
+    color-mix(in srgb, var(--accent) 9%, transparent),
+    transparent 70%
+  );
+}
+
+.glow-card {
+  position: relative;
+  transition:
+    transform 0.35s cubic-bezier(0.21, 0.65, 0.36, 1),
+    border-color 0.35s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .glow-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+  /* Inner wash that follows the pointer. */
+  .glow-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+      320px circle at var(--gx, 50%) var(--gy, 50%),
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 70%
+    );
+  }
+  /* Border shine: gradient clipped to a 1px ring via mask compositing. */
+  .glow-card::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    border: 1px solid transparent;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+        260px circle at var(--gx, 50%) var(--gy, 50%),
+        color-mix(in srgb, var(--accent) 55%, transparent),
+        transparent 70%
+      )
+      border-box;
+    -webkit-mask:
+      linear-gradient(#000 0 0) padding-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) padding-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+  .glow-card:hover::before,
+  .glow-card:hover::after {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-card:hover {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 }

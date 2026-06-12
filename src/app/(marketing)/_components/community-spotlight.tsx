@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, Heart, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TradeCardView } from "@/features/community";
+// Deep import on purpose: the `@/features/community` barrel drags the whole
+// feed/composer/messaging bundle (~65 kB of JS + its hydration cost) onto the
+// landing route. The card view alone is all this section needs.
+import { TradeCardView } from "@/features/community/components/trade-card-view";
 import { Reveal } from "./reveal";
 
 /** Split section introducing the community — copy left, real product UI right. */
@@ -27,7 +30,10 @@ export function CommunitySpotlight() {
           <Button className="group mt-6" asChild>
             <Link href="/community">
               Visit the community
-              <ArrowRight className="transition-transform group-hover:translate-x-0.5" aria-hidden />
+              <ArrowRight
+                className="transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
             </Link>
           </Button>
         </div>
@@ -41,7 +47,9 @@ export function CommunitySpotlight() {
             <div className="flex items-center gap-2.5">
               <span
                 className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold text-white"
-                style={{ background: "linear-gradient(135deg, hsl(260 60% 45%), hsl(310 65% 35%))" }}
+                style={{
+                  background: "linear-gradient(135deg, hsl(260 60% 45%), hsl(310 65% 35%))",
+                }}
               >
                 YO
               </span>
@@ -51,8 +59,8 @@ export function CommunitySpotlight() {
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-foreground/90">
-              ORB breakout on the 15-min range — entered the retest, trailed to 2R. Patience on
-              the entry made this one.
+              ORB breakout on the 15-min range — entered the retest, trailed to 2R. Patience on the
+              entry made this one.
             </p>
             <TradeCardView
               card={{
@@ -79,7 +87,9 @@ export function CommunitySpotlight() {
               <span className="flex items-center gap-1.5">
                 <MessageCircle className="h-4 w-4" /> 4
               </span>
-              <span className="ml-auto rounded-md bg-accent/10 px-2 py-0.5 font-medium text-accent">#setups</span>
+              <span className="ml-auto rounded-md bg-accent/10 px-2 py-0.5 font-medium text-accent">
+                #setups
+              </span>
             </div>
           </div>
         </div>

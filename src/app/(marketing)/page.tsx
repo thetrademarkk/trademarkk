@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { ArrowRight, Github, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig, jsonLdScript } from "@/config/site";
-import { HeroFrame } from "./_components/hero-frame";
+import { HeroShowcase } from "./_components/hero-showcase";
+import { CursorEffects } from "./_components/cursor-effects";
 import { MetricsStrip } from "./_components/metrics-strip";
 import { DemoVideo } from "./_components/demo-video";
 import { FeatureBento } from "./_components/feature-bento";
@@ -68,11 +69,13 @@ export default function LandingPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <ReturningUserRedirect />
+      <CursorEffects />
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
         <div className="hero-glow absolute inset-0" aria-hidden />
         <div className="grid-fade absolute inset-0" aria-hidden />
+        <div className="cursor-spotlight absolute inset-0" data-spotlight aria-hidden />
         <div className="relative mx-auto w-full max-w-5xl px-4 pb-20 pt-16 text-center md:pt-24">
           <p className="animate-rise mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border bg-surface/60 px-3.5 py-1.5 text-xs text-muted backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
@@ -115,7 +118,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <HeroFrame />
+          <HeroShowcase />
 
           <div className="animate-rise mt-12" style={{ animationDelay: "0.3s" }}>
             <p className="micro-label">Import tradebooks from</p>

@@ -149,7 +149,7 @@ export function FeatureBento() {
     <div className="grid gap-4 md:grid-cols-2 md:[grid-auto-rows:minmax(0,auto)] lg:grid-cols-3">
       {CELLS.map((c, i) => (
         <Reveal key={c.title} delay={i * 0.06} className={c.className}>
-          <div className="group h-full rounded-xl border bg-surface p-5 transition-colors hover:border-accent/50">
+          <div data-glow className="glow-card group h-full rounded-xl border bg-surface p-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/15 text-accent transition-transform group-hover:scale-110">
               <c.icon className="h-4.5 w-4.5" />
             </div>
