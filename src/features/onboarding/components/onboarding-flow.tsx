@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import {
   ArrowLeft,
@@ -116,7 +116,7 @@ export function OnboardingFlow() {
     }
   };
 
-  const handleDemo = async () => {
+  const handleDemo = React.useCallback(async () => {
     setBusy("demo");
     try {
       // Starts empty — the ready-state effect routes new journals through setup.
@@ -125,7 +125,18 @@ export function OnboardingFlow() {
       toast.error(e instanceof Error ? e.message : "Demo failed to start");
       setBusy(null);
     }
-  };
+  }, [startLocal]);
+
+  // Landing-page "Try the live demo" deep link: /app/onboarding?mode=demo
+  // starts the in-browser journal immediately (new visitors only — anyone
+  // with a session or an existing journal keeps the normal flow).
+  const wantDemo = useSearchParams().get("mode") === "demo";
+  const demoStarted = React.useRef(false);
+  React.useEffect(() => {
+    if (!wantDemo || demoStarted.current || session || state.status !== "none") return;
+    demoStarted.current = true;
+    void handleDemo();
+  }, [wantDemo, session, state.status, handleDemo]);
 
   const pick = (key: (typeof MODE_CARDS)[number]["key"]) => {
     if (key === "demo") void handleDemo();

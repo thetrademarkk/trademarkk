@@ -22,7 +22,7 @@ const FAQS = [
   },
   {
     q: "Which brokers' tradebooks can I import?",
-    a: "Any CSV with symbol, side, quantity, price and time columns — with one-click presets for Zerodha Console. Buys and sells are automatically paired into round-trip trades, and re-imports are deduplicated.",
+    a: "Zerodha Console, Upstox, Angel One, Dhan, Fyers and Groww tradebooks are auto-detected from the CSV header — plus a manual column mapper for anything else. Buys and sells are automatically paired into round-trip trades, and re-imports are deduplicated.",
   },
   {
     q: "Does it calculate Indian charges (STT, GST, stamp duty)?",
@@ -51,7 +51,10 @@ export default function FaqPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
+      />
       <h1 className="text-3xl font-bold">Frequently asked questions</h1>
       <div className="mt-8 max-w-3xl space-y-6">
         {FAQS.map((f) => (

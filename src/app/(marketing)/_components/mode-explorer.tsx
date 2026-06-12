@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { ArrowRight, Cloud, Database, HardDrive, MonitorSmartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +37,6 @@ const MODES = [
 /** Interactive storage-mode explorer: segmented control + animated flow diagram. */
 export function ModeExplorer() {
   const [active, setActive] = React.useState<(typeof MODES)[number]["id"]>("hosted");
-  const reduced = useReducedMotion();
   const mode = MODES.find((m) => m.id === active)!;
 
   return (
@@ -66,49 +64,41 @@ export function ModeExplorer() {
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={mode.id}
-          initial={reduced ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={reduced ? undefined : { opacity: 0, y: -10 }}
-          transition={{ duration: 0.25 }}
-          className="mt-8"
-        >
-          {/* Flow diagram — text + arrows, deliberately not a card grid. */}
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-6">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border bg-surface">
-                <MonitorSmartphone className="h-5 w-5 text-muted" aria-hidden />
-              </span>
-              <div className="text-left">
-                <p className="text-sm font-semibold">Your browser</p>
-                <p className="text-xs text-muted">where the app runs</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 text-accent" aria-hidden>
-              <span className="hidden h-px w-10 bg-gradient-to-r from-transparent to-accent sm:block" />
-              <ArrowRight className="h-5 w-5 rotate-90 sm:rotate-0" />
-              <span className="hidden h-px w-10 bg-gradient-to-l from-transparent to-accent sm:block" />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-accent/50 bg-accent/10">
-                <mode.icon className="h-5 w-5 text-accent" aria-hidden />
-              </span>
-              <div className="text-left">
-                <p className="text-sm font-semibold">{mode.target}</p>
-                <p className="text-xs text-muted">{mode.targetSub}</p>
-              </div>
+      {/* Keyed remount + CSS slide-up token — no animation library needed. */}
+      <div key={mode.id} className="mt-8 animate-slide-up">
+        {/* Flow diagram — text + arrows, deliberately not a card grid. */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl border bg-surface">
+              <MonitorSmartphone className="h-5 w-5 text-muted" aria-hidden />
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-semibold">Your browser</p>
+              <p className="text-xs text-muted">where the app runs</p>
             </div>
           </div>
 
-          <p className="mx-auto mt-6 max-w-xl text-center text-sm leading-7 text-muted">
-            {mode.text}
-          </p>
-        </motion.div>
-      </AnimatePresence>
+          <div className="flex items-center gap-1 text-accent" aria-hidden>
+            <span className="hidden h-px w-10 bg-gradient-to-r from-transparent to-accent sm:block" />
+            <ArrowRight className="h-5 w-5 rotate-90 sm:rotate-0" />
+            <span className="hidden h-px w-10 bg-gradient-to-l from-transparent to-accent sm:block" />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-accent/50 bg-accent/10">
+              <mode.icon className="h-5 w-5 text-accent" aria-hidden />
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-semibold">{mode.target}</p>
+              <p className="text-xs text-muted">{mode.targetSub}</p>
+            </div>
+          </div>
+        </div>
+
+        <p className="mx-auto mt-6 max-w-xl text-center text-sm leading-7 text-muted">
+          {mode.text}
+        </p>
+      </div>
 
       <p className="mt-6 text-center text-xs text-muted">
         Switch between all three anytime — copied in your browser, verified table-by-table.

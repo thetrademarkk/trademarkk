@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import NumberFlow from "@number-flow/react";
-import { BarChart3, CalendarDays, Database, NotebookPen, Upload, Zap } from "lucide-react";
+import { BarChart3, Database, FileCheck, Flame, Github, Layers, Upload } from "lucide-react";
 import { Reveal } from "./reveal";
 import { cn } from "@/lib/utils";
 
-/** Mistake-cost ticker — counts what bad habits cost, live. */
+/** Mistake-cost ticker — counts what bad habits cost, live (only while visible). */
 function CostTicker() {
+  const ref = React.useRef<HTMLDivElement>(null);
   const [i, setI] = React.useState(0);
+  const [visible, setVisible] = React.useState(false);
   const rows = React.useMemo(
     () => [
       { tag: "Revenge trade", cost: -18400 },
@@ -18,19 +20,22 @@ function CostTicker() {
     []
   );
   React.useEffect(() => {
-    // Same warm-up as the hero: NumberFlow updates force layout, so the
-    // ticker stays still during the load window (it's below the fold anyway).
-    let t: ReturnType<typeof setInterval> | undefined;
-    const warmup = setTimeout(() => {
-      t = setInterval(() => setI((n) => (n + 1) % rows.length), 2200);
-    }, 4000);
-    return () => {
-      clearTimeout(warmup);
-      if (t) clearInterval(t);
-    };
-  }, [rows.length]);
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver((es) => setVisible(es.some((e) => e.isIntersecting)));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  React.useEffect(() => {
+    if (!visible) return;
+    const t = setInterval(() => setI((n) => (n + 1) % rows.length), 2200);
+    return () => clearInterval(t);
+  }, [visible, rows.length]);
   return (
-    <div className="mt-4 space-y-2">
+    <div ref={ref} className="mt-4 space-y-2">
       {rows.map((r, idx) => (
         <div
           key={r.tag}
@@ -53,13 +58,12 @@ function CostTicker() {
   );
 }
 
-/** Charges breakdown mini-demo. */
-function ChargesDemo() {
+/** Multi-leg straddle P&L breakdown mini-demo — real product output. */
+function StraddleDemo() {
   const rows: [string, string][] = [
-    ["Brokerage", "₹40.00"],
-    ["STT (sell premium)", "₹9.00"],
-    ["Exchange + SEBI", "₹5.79"],
-    ["GST + stamp duty", "₹8.47"],
+    ["Leg 1 · 52000 CE sell", "+₹3,450.00"],
+    ["Leg 2 · 52000 PE sell", "+₹2,280.00"],
+    ["Charges (both legs)", "−₹187.42"],
   ];
   return (
     <div className="mt-4 rounded-lg border bg-surface-2/40 p-3 font-money text-xs">
@@ -71,7 +75,31 @@ function ChargesDemo() {
       ))}
       <div className="mt-1 flex justify-between border-t pt-1.5 text-sm font-semibold">
         <span className="font-sans">Net P&L</span>
-        <span className="text-profit">+₹1,436.74</span>
+        <span className="text-profit">+₹5,542.58</span>
+      </div>
+    </div>
+  );
+}
+
+/** The broker auto-detect banner exactly as it appears in the import dialog. */
+function BrokerDetectDemo() {
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs">
+        <FileCheck className="h-4 w-4 shrink-0 text-accent" aria-hidden />
+        <span>
+          Detected: <span className="font-medium">Zerodha Console tradebook</span> · 142 rows
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {["Zerodha", "Upstox", "Angel One", "Dhan", "Fyers", "Groww"].map((b) => (
+          <span
+            key={b}
+            className="rounded-full border bg-surface-2/60 px-2 py-0.5 text-[10px] text-muted"
+          >
+            {b}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -79,44 +107,46 @@ function ChargesDemo() {
 
 const CELLS = [
   {
-    icon: Zap,
-    title: "Log a trade in 15 seconds",
-    text: "Strike, CE/PE, expiry, lots — quick-add speaks Indian FnO. Every statutory charge is computed instantly.",
-    demo: <ChargesDemo />,
+    icon: Layers,
+    title: "Speaks fluent FnO — multi-leg included",
+    text: "Straddles, spreads, iron condors: per-leg strikes, CE/PE, entries and exits in one trade. Every statutory charge computed to the paisa.",
+    demo: <StraddleDemo />,
     className: "md:row-span-2",
   },
   {
     icon: BarChart3,
     title: "Your most expensive habit, priced",
-    text: "Tag mistakes on trades. TradeMark totals what each habit costs you — in rupees, not feelings.",
+    text: "Tag mistakes on trades. TradeMark totals what each habit costs you — in rupees, not feelings — alongside expectancy, R-multiples and win rate.",
     demo: <CostTicker />,
     className: "md:row-span-2",
   },
   {
-    icon: NotebookPen,
-    title: "A journal you'll keep",
-    text: "Pre-market plan → live notes → review. Mood, streaks, and your day's trades attached automatically.",
-  },
-  {
     icon: Upload,
-    title: "Import your tradebook",
-    text: "Zerodha, Upstox, Angel One, Dhan, Fyers, Groww CSVs — auto-paired into round trips, deduped.",
-  },
-  {
-    icon: CalendarDays,
-    title: "P&L calendar",
-    text: "Green and red days at a glance. Click any day to replay it — trades, journal, rules.",
+    title: "Import from 6 Indian brokers",
+    text: "Drop your tradebook CSV — the broker is auto-detected, buys and sells pair into round trips, and re-imports never duplicate.",
+    demo: <BrokerDetectDemo />,
+    className: "md:row-span-2",
   },
   {
     icon: Database,
-    title: "Switch storage anytime",
-    text: "Hosted ⇄ your own database, copied in your browser and verified table-by-table before flipping.",
+    title: "Dual-mode storage — bring your own DB",
+    text: "Hosted in your own isolated database by default, or connect a Turso DB you own and we never see a single trade. Switch directions anytime.",
+  },
+  {
+    icon: Flame,
+    title: "Streaks, leaderboards, community",
+    text: "Journal daily to build a streak, share trade cards with structured R-multiples, and learn from traders who post losses as openly as wins.",
+  },
+  {
+    icon: Github,
+    title: "Open source, MIT",
+    text: "Read every line, self-host the whole thing, or send a PR. No paywall, no premium tier, no lock-in — today and always.",
   },
 ];
 
 export function FeatureBento() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 md:[grid-auto-rows:minmax(0,auto)]">
+    <div className="grid gap-4 md:grid-cols-2 md:[grid-auto-rows:minmax(0,auto)] lg:grid-cols-3">
       {CELLS.map((c, i) => (
         <Reveal key={c.title} delay={i * 0.06} className={c.className}>
           <div className="group h-full rounded-xl border bg-surface p-5 transition-colors hover:border-accent/50">
@@ -125,7 +155,7 @@ export function FeatureBento() {
             </div>
             <h3 className="mt-4 text-base font-semibold">{c.title}</h3>
             <p className="mt-1.5 text-sm leading-6 text-muted">{c.text}</p>
-            {c.demo}
+            {"demo" in c ? c.demo : null}
           </div>
         </Reveal>
       ))}

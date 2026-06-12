@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Github, Lock } from "lucide-react";
+import { ArrowRight, Github, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig, jsonLdScript } from "@/config/site";
-import { HeroShowcase } from "./_components/hero-showcase";
+import { HeroFrame } from "./_components/hero-frame";
+import { MetricsStrip } from "./_components/metrics-strip";
+import { DemoVideo } from "./_components/demo-video";
 import { FeatureBento } from "./_components/feature-bento";
 import { ModeExplorer } from "./_components/mode-explorer";
 import { CommunitySpotlight } from "./_components/community-spotlight";
@@ -24,6 +26,17 @@ const jsonLd = {
   operatingSystem: "Web",
   description: siteConfig.description,
   offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
+  isAccessibleForFree: true,
+  license: `${siteConfig.github}/blob/main/LICENSE`,
+  screenshot: `${siteConfig.url}/landing/dashboard.webp`,
+  featureList: [
+    "Multi-leg FnO trade logging with Indian statutory charges",
+    "Broker tradebook CSV import (Zerodha, Upstox, Angel One, Dhan, Fyers, Groww)",
+    "Mistake tagging with rupee cost analytics",
+    "Daily rules checklist and journaling streaks",
+    "Dual-mode storage: hosted or bring-your-own-database",
+    "Trader community with structured trade cards",
+  ],
   url: siteConfig.url,
 };
 
@@ -47,13 +60,6 @@ const STEPS = [
   },
 ];
 
-const STATS = [
-  { value: "₹0", label: "cost, forever" },
-  { value: "<15s", label: "to log a trade" },
-  { value: "3", label: "storage modes" },
-  { value: "100%", label: "open source · MIT" },
-];
-
 export default function LandingPage() {
   return (
     <>
@@ -68,74 +74,92 @@ export default function LandingPage() {
         <div className="hero-glow absolute inset-0" aria-hidden />
         <div className="grid-fade absolute inset-0" aria-hidden />
         <div className="relative mx-auto w-full max-w-5xl px-4 pb-20 pt-16 text-center md:pt-24">
-          <Reveal>
-            <p className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border bg-surface/60 px-3.5 py-1.5 text-xs text-muted backdrop-blur">
-              <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
-              Open source · Free forever · Built for India
-            </p>
-          </Reveal>
-          <Reveal delay={0.08}>
-            <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-7xl">
-              Mark your trade,
-              <br />
-              <span className="text-gradient">every day.</span>
-            </h1>
-          </Reveal>
-          <Reveal delay={0.16}>
-            <p className="mx-auto mt-5 max-w-xl text-base text-muted md:text-lg">
-              The open-source trading journal for intraday &amp; FnO traders. Trades, mistakes,
-              rules and reviews — with your data in <em>your own</em> database.
-            </p>
-          </Reveal>
-          <Reveal delay={0.24}>
+          <p className="animate-rise mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border bg-surface/60 px-3.5 py-1.5 text-xs text-muted backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
+            Open source · Free forever · Built for India
+          </p>
+          {/* No opacity gating on the headline — it is an LCP candidate. */}
+          <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-7xl">
+            Mark your trade,
+            <br />
+            <span className="text-gradient">every day.</span>
+          </h1>
+          <p
+            className="animate-rise mx-auto mt-5 max-w-xl text-base text-muted md:text-lg"
+            style={{ animationDelay: "0.12s" }}
+          >
+            The open-source journal for Indian intraday &amp; FnO traders. Log a trade in 15
+            seconds, tag the mistake, and see what every habit costs — in rupees.
+          </p>
+          <div className="animate-rise" style={{ animationDelay: "0.18s" }}>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
+              {/* prefetch=false: the app shell is heavy and these are visible at
+                  load — prefetching it would compete with the hero LCP image. */}
               <Button size="lg" asChild className="group">
-                <Link href="/app/onboarding">
-                  Start journaling — free
+                <Link href="/app/onboarding" prefetch={false}>
+                  Start free
                   <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/app/onboarding">Try it — no sign-up</Link>
+                <Link href="/app/onboarding?mode=demo" prefetch={false}>
+                  Try the live demo
+                </Link>
               </Button>
             </div>
-            <p className="mt-3 text-xs text-muted">Free forever · Open source · No card required</p>
-          </Reveal>
+            <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 text-xs text-muted">
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-profit" aria-hidden /> Open source · MIT
+              </span>
+              · Your data stays yours · Free forever
+            </p>
+          </div>
 
-          <HeroShowcase />
+          <HeroFrame />
 
-          <Reveal delay={0.1}>
-            <div className="mt-12">
-              <p className="micro-label">Import tradebooks from</p>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                {BROKERS.map((b) => (
-                  <span
-                    key={b}
-                    className="rounded-full border bg-surface/60 px-3 py-1 text-xs text-muted"
-                  >
-                    {b}
-                  </span>
-                ))}
-              </div>
+          <div className="animate-rise mt-12" style={{ animationDelay: "0.3s" }}>
+            <p className="micro-label">Import tradebooks from</p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {BROKERS.map((b) => (
+                <span
+                  key={b}
+                  className="rounded-full border bg-surface/60 px-3 py-1 text-xs text-muted"
+                >
+                  {b}
+                </span>
+              ))}
             </div>
-          </Reveal>
+          </div>
         </div>
       </section>
 
-      {/* ── Stats band ── */}
-      <section className="border-t bg-surface/30" aria-label="At a glance">
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-2 px-4 py-8 md:grid-cols-4 md:divide-x md:divide-border">
-          {STATS.map((s) => (
-            <div key={s.label} className="px-4 py-2 text-center">
-              <p className="font-money text-2xl font-bold text-foreground md:text-3xl">{s.value}</p>
-              <p className="micro-label mt-1">{s.label}</p>
-            </div>
-          ))}
+      {/* ── Live platform metrics ── */}
+      <section className="border-t bg-surface/30" aria-label="Live platform metrics">
+        <div className="mx-auto w-full max-w-5xl px-4 py-10">
+          <MetricsStrip />
+        </div>
+      </section>
+
+      {/* ── See it in action ── */}
+      <section className="border-t" aria-label="Product walkthrough">
+        <div className="mx-auto w-full max-w-5xl px-4 py-20">
+          <Reveal>
+            <h2 className="text-center text-2xl font-bold md:text-4xl">
+              See it <span className="text-gradient">in action</span>
+            </h2>
+            <p className="mx-auto mt-3 max-w-lg text-center text-sm text-muted">
+              One minute, no signup pitch: import a tradebook, log a straddle, price the mistakes,
+              tick the rules.
+            </p>
+          </Reveal>
+          <Reveal delay={0.1} className="mt-10">
+            <DemoVideo duration="1:00" />
+          </Reveal>
         </div>
       </section>
 
       {/* ── How it works — connected timeline ── */}
-      <section className="border-t">
+      <section className="border-t bg-surface/30">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
             <h2 className="text-center text-2xl font-bold md:text-4xl">
@@ -149,9 +173,7 @@ export default function LandingPage() {
             />
             <ol className="grid gap-10 md:grid-cols-3">
               {STEPS.map((s, i) => (
-                // The <li> stays a direct child of the <ol> (valid list semantics);
-                // the Reveal animation wraps the content inside it.
-                <li key={s.n} className="relative">
+                <li key={s.n}>
                   <Reveal
                     delay={i * 0.12}
                     className="relative flex gap-4 md:flex-col md:items-center md:gap-0 md:text-center"
@@ -172,7 +194,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Feature bento ── */}
-      <section className="border-t bg-surface/30">
+      <section className="border-t">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
             <h2 className="text-center text-2xl font-bold md:text-4xl">
@@ -189,14 +211,14 @@ export default function LandingPage() {
       </section>
 
       {/* ── Community spotlight ── */}
-      <section className="border-t">
+      <section className="border-t bg-surface/30">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <CommunitySpotlight />
         </div>
       </section>
 
       {/* ── Data ownership — interactive explorer ── */}
-      <section className="border-t bg-surface/30">
+      <section className="border-t">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
             <div className="mx-auto mb-4 flex w-fit items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs text-muted">
@@ -214,7 +236,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Keyboard-first ── */}
-      <section className="border-t">
+      <section className="border-t bg-surface/30">
         <div className="mx-auto w-full max-w-5xl px-4 py-20 text-center">
           <Reveal>
             <h2 className="text-2xl font-bold md:text-4xl">Built for speed</h2>
@@ -260,8 +282,8 @@ export default function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button size="lg" asChild className="group">
-                <Link href="/app/onboarding">
-                  Open TradeMark
+                <Link href="/app/onboarding" prefetch={false}>
+                  Start free
                   <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </Button>
