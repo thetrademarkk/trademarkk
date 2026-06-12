@@ -1,7 +1,10 @@
 import * as React from "react";
 import { ExternalLink, LogOut, X } from "lucide-react";
+import { captureAdapters } from "../brokers";
+import type { BrokerCaptureAdapter } from "../brokers/types";
 import { openAppTab, signOut } from "../lib/app-api";
-import { DEFAULT_APP_URL, normalizeAppUrl, setAppUrl } from "../lib/config";
+import { disableCapture, enableCapture, isCaptureEnabled } from "../lib/capture";
+import { DEFAULT_APP_URL, getAppUrl, normalizeAppUrl, setAppUrl } from "../lib/config";
 
 /**
  * Settings: app URL (default prod; self-hosters point at their own deploy —
@@ -41,6 +44,13 @@ export function SettingsDrawer({
         return;
       }
       await setAppUrl(origin);
+      // Read-back verify: a just-installed extension page can drop its first
+      // storage.local write without an error — surface it instead of closing
+      // the drawer while the panel still points at the old URL.
+      if ((await getAppUrl()) !== origin) {
+        setError("Chrome didn't persist the URL — try Save again.");
+        return;
+      }
       onChanged();
       onClose();
     } catch (e) {
@@ -99,6 +109,18 @@ export function SettingsDrawer({
           </button>
         </div>
 
+        <div className="section">
+          <span className="hint">Broker capture</span>
+          {captureAdapters.map((a) => (
+            <CaptureToggle key={a.id} adapter={a} />
+          ))}
+          <p className="hint">
+            Adds a &ldquo;Log in TradeMark&rdquo; button to the broker&rsquo;s order window that
+            prefills the quick log. Reads only the order fields you can see — never holdings,
+            positions or balances. Chrome asks for your permission once.
+          </p>
+        </div>
+
         <div className="footer">
           <button type="button" className="btn-ghost" onClick={() => openAppTab(appUrl)}>
             <ExternalLink size={13} />
@@ -113,6 +135,63 @@ export function SettingsDrawer({
           <div className="version">TradeMark extension v{version}</div>
         </div>
       </div>
+    </>
+  );
+}
+
+/**
+ * One broker's capture switch. "Enabled" is read straight from Chrome's
+ * content-script registration (no shadow state); enabling runs inside the
+ * click gesture because chrome.permissions.request requires one.
+ */
+function CaptureToggle({ adapter }: { adapter: BrokerCaptureAdapter }) {
+  const [enabled, setEnabled] = React.useState<boolean | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    void isCaptureEnabled(adapter).then(setEnabled);
+  }, [adapter]);
+
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (enabled) {
+        await disableCapture(adapter);
+        setEnabled(false);
+      } else {
+        await enableCapture(adapter);
+        setEnabled(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update broker capture");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="capture-row">
+        <span>{adapter.label}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled === true}
+          aria-label={`Capture on ${adapter.label}`}
+          className={`capture-switch${enabled ? " on" : ""}`}
+          onClick={toggle}
+          disabled={busy || enabled === null}
+        >
+          {enabled ? "On" : "Off"}
+        </button>
+      </div>
+      {error && (
+        <p className="hint" style={{ color: "var(--loss)" }} role="alert">
+          {error}
+        </p>
+      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TradeMark — Trading Journal Companion",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Log trades and tick your daily rules without leaving your broker's page. Companion to the open-source TradeMark journal.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmPeiWjZG6LwoeU7E+CBPUDypLLrAXISL2uEp6R4zPxqOhMMueCutSGw8zhUrEj55wdtnWlX8EIm1yu/CGi8r5n1QDO9RY88sk4ZKTFgCB/wYv7UOqz6J/FeAjXQ7oZW3CaYxr9PC/2ano3kntlqC8Bqb8Epc8qJACfOgoCOClp2Cb4JGccNaefZDagmA7G9XN7Vrw1N/tDdIRukkhcWsATgtf10Yozw0VUaynxXzonwiD2pqL/GHgCqmEDw1891TCWn7xAS3RMaoqPfoWfCfUkZN3H38NZyJK0i5oWqrNo3Q5gzq1t6EUJL9WHy7POPfJ4TvnTQqR/dIE10hXa9RawIDAQAB",
   "minimum_chrome_version": "114",
@@ -21,7 +21,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["sidePanel", "storage"],
+  "permissions": ["sidePanel", "storage", "scripting"],
   "host_permissions": ["https://trademark-smoky.vercel.app/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"]
 }

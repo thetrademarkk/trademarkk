@@ -9,6 +9,34 @@ identically.
 Architecture decisions and the iteration backlog live in
 [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md).
 
+## Broker capture (v2)
+
+Turn on **Settings → Broker capture → Zerodha Kite** and the extension adds a
+small **"Log in TradeMark"** button to Kite's order window. Clicking it sends
+the order's instrument, side, quantity and price (market orders use the last
+traded price) straight into the side panel's quick log — review, tweak, Enter.
+Manual logging is unchanged; capture is purely a shortcut.
+
+- **Opt-in only**: nothing runs on broker pages until you enable it, and
+  Chrome asks for its own permission on `kite.zerodha.com` once. Turning the
+  toggle off removes both the script and the permission.
+- **Honest about breakage**: broker pages change without notice. When Kite's
+  DOM stops matching, the button simply disappears (and captures carry an
+  adapter version so reports can pinpoint the breakage) — the extension never
+  guesses values or breaks the broker page.
+
+### Privacy
+
+- The capture script reads **only the order-entry fields you can see** in the
+  order window: instrument name, exchange, buy/sell, quantity, price.
+- It **never** reads balances, holdings, positions, order history or anything
+  else on the page — and it reads nothing at all until you click the button.
+- Captured fields go directly from the broker tab to your side panel via the
+  extension's own service worker (held in `chrome.storage.session`, expiring
+  after 5 minutes or when the browser closes). They are **never** sent to the
+  TradeMark platform server — like every journal write, the saved trade goes
+  straight to **your** database.
+
 ## What it does (v1)
 
 - **Quick trade log** — type a contract name (`BANKNIFTY24JUN52000CE`,
@@ -63,9 +91,10 @@ hosted app already allowlists it.
   `chrome.storage.session` (cleared when the browser closes).
 - **Journal data never touches the platform server** — the panel talks to
   your Turso database directly, exactly like the web client.
-- Minimal permissions: `sidePanel`, `storage`, host permissions for the app
-  origin only. No content scripts, no tabs snooping, no broker-page access
-  in v1.
+- Minimal permissions: `sidePanel`, `storage`, `scripting`, host permissions
+  for the app origin only. Broker-page access is an **optional** permission,
+  requested only when you enable Broker capture and returned when you disable
+  it (see "Broker capture" above). No tabs snooping.
 
 ## Self-hosters
 

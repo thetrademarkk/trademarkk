@@ -96,6 +96,33 @@ export function useSetRuleCheck() {
     onSuccess: (_d, vars) => {
       void qc.invalidateQueries({ queryKey: ["rule-checks", vars.date] });
       void qc.invalidateQueries({ queryKey: ["adherence"] });
+      void qc.invalidateQueries({ queryKey: ["rule-days"] });
+    },
+  });
+}
+
+export interface RuleDays {
+  /** Dates (YYYY-MM-DD) with at least one broken rule check. */
+  brokenDates: Set<string>;
+  /** Dates with at least one rule check of any status. */
+  checkedDates: Set<string>;
+}
+
+/** Day classification from rule_checks — powers the trades rule-adherence filter. */
+export function useRuleDays() {
+  const { db } = useDb();
+  return useQuery({
+    queryKey: ["rule-days"],
+    queryFn: async (): Promise<RuleDays> => {
+      const res = await db.execute(`SELECT date, status FROM rule_checks`);
+      const brokenDates = new Set<string>();
+      const checkedDates = new Set<string>();
+      for (const r of res.rows) {
+        const d = String(r.date);
+        checkedDates.add(d);
+        if (r.status === "broken") brokenDates.add(d);
+      }
+      return { brokenDates, checkedDates };
     },
   });
 }
@@ -158,7 +185,8 @@ export function useAdherence(from: string | null, to: string | null) {
       });
       return {
         rules: result.sort((a, b) => a.brokenDayCost - b.brokenDayCost),
-        overallPct: totalFollowed + totalBroken > 0 ? totalFollowed / (totalFollowed + totalBroken) : 1,
+        overallPct:
+          totalFollowed + totalBroken > 0 ? totalFollowed / (totalFollowed + totalBroken) : 1,
       };
     },
   });

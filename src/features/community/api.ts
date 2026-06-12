@@ -48,7 +48,8 @@ export function useFeed(
   sort: FeedSort,
   tag: string | null,
   search: string | null = null,
-  scope: FeedScope = "all"
+  scope: FeedScope = "all",
+  initialFeed: FeedResponse | null = null
 ) {
   return useInfiniteQuery({
     queryKey: ["community-feed", sort, tag, search, scope],
@@ -63,6 +64,15 @@ export function useFeed(
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 15_000,
+    // ISR-rendered anonymous first page (community home only). Marked stale
+    // from the epoch so a fresh, viewer-personalized fetch fires immediately —
+    // the seed only bridges the paint gap, it never sticks for signed-in users.
+    ...(initialFeed
+      ? {
+          initialData: { pages: [initialFeed], pageParams: [""] },
+          initialDataUpdatedAt: 0,
+        }
+      : {}),
   });
 }
 
