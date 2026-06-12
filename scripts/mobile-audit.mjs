@@ -15,6 +15,7 @@ const PUBLIC = [
   "/community",
   "/community/leaderboard",
   "/community/messages",
+  "/community/notifications",
 ];
 const APP = [
   "/app/dashboard",

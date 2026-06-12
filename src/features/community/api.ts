@@ -337,24 +337,46 @@ export function useShareStreak() {
   });
 }
 
-export function useNotifications(enabled: boolean) {
+interface NotificationsResponse {
+  notifications: NotificationView[];
+  unread: number;
+}
+
+/** Bell polls the default 30; the full page asks for more via `limit`. */
+export function useNotifications(enabled: boolean, limit = 30) {
   return useQuery({
-    queryKey: ["community-notifications"],
-    queryFn: () =>
-      request<{ notifications: NotificationView[]; unread: number }>(
-        "/api/community/notifications"
-      ),
+    queryKey: ["community-notifications", limit],
+    queryFn: () => request<NotificationsResponse>(`/api/community/notifications?limit=${limit}`),
     enabled,
     refetchInterval: 60_000,
     retry: false,
   });
 }
 
+/**
+ * Marks notifications read — pass ids to read one group, nothing to read all.
+ * Optimistic: every cached notification list (bell + page) flips instantly.
+ */
 export function useMarkNotificationsRead() {
   const qc = useQueryClient();
+  const patch = (ids: string[] | null) =>
+    qc.setQueriesData<NotificationsResponse>({ queryKey: ["community-notifications"] }, (data) => {
+      if (!data) return data;
+      const hit = (n: NotificationView) => !n.read && (!ids || ids.includes(n.id));
+      const flipped = data.notifications.filter(hit).length;
+      return {
+        notifications: data.notifications.map((n) => (hit(n) ? { ...n, read: true } : n)),
+        unread: ids ? Math.max(0, data.unread - flipped) : 0,
+      };
+    });
   return useMutation({
-    mutationFn: () => request("/api/community/notifications", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-notifications"] }),
+    mutationFn: (ids?: string[]) =>
+      request("/api/community/notifications", {
+        method: "POST",
+        body: JSON.stringify(ids?.length ? { ids } : {}),
+      }),
+    onMutate: (ids) => patch(ids?.length ? ids : null),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community-notifications"] }),
   });
 }
 
