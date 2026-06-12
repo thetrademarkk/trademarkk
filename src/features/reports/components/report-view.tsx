@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BarChart3, Download, Printer } from "lucide-react";
+import { BarChart3, Download, ImageDown, Printer } from "lucide-react";
 import { useTrades } from "@/features/trades";
 import { useAdherence, useMistakeStats } from "@/features/rules";
 import {
@@ -16,6 +16,7 @@ import {
 import { formatINR, formatPct, toDateKey } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -24,9 +25,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PnlText } from "@/components/shared/pnl-text";
+import { ShareImagePanel } from "@/components/shared/share-image-panel";
 import { TagChip } from "@/components/shared/tag-chip";
 import { describeInstrument } from "@/features/trades";
 import { downloadFile } from "@/features/settings";
+import { buildReportShareCard } from "../share-card";
 
 type PeriodKind = "week" | "month";
 
@@ -58,6 +61,7 @@ function periodRange(
 export function ReportView() {
   const [kind, setKind] = React.useState<PeriodKind>("week");
   const [offset, setOffset] = React.useState(0);
+  const [shareOpen, setShareOpen] = React.useState(false);
   const range = periodRange(kind, offset);
   const { data: trades = [] } = useTrades({ from: range.from, to: range.to });
   const { data: adherence } = useAdherence(range.from, range.to);
@@ -119,6 +123,14 @@ export function ReportView() {
           Next →
         </Button>
         <div className="ml-auto flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={closed.length === 0}
+            onClick={() => setShareOpen(true)}
+          >
+            <ImageDown className="h-3.5 w-3.5" /> Share image
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="h-3.5 w-3.5" /> CSV
           </Button>
@@ -127,6 +139,23 @@ export function ReportView() {
           </Button>
         </div>
       </div>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Share {kind === "week" ? "weekly" : "monthly"} report</DialogTitle>
+          </DialogHeader>
+          <ShareImagePanel
+            allowPnl
+            build={(includePnl) =>
+              buildReportShareCard(
+                { kind, label: range.label, from: range.from, to: range.to, trades: closed },
+                { includePnl }
+              )
+            }
+          />
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>

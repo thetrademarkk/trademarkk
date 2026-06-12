@@ -10,13 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PnlText } from "@/components/shared/pnl-text";
+import { ShareImagePanel } from "@/components/shared/share-image-panel";
 import { TagChip } from "@/components/shared/tag-chip";
 import { compressImage, imageFromClipboard } from "@/lib/images";
 import { formatHoldTime, formatINR, todayKey } from "@/lib/utils";
 import { describeInstrument } from "../types";
 import { useAddAttachment, useDeleteAttachment, useDeleteTrade, useTrade } from "../queries";
+import { buildTradeShareCard } from "../share-card";
 import { isoToLocalInput } from "../utils";
 import { TradeForm } from "./trade-form";
 import type { TradeFormValues } from "../schemas";
@@ -299,36 +302,53 @@ export function TradeDetail({ id }: { id: string }) {
       </Dialog>
 
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Share to community</DialogTitle>
+            <DialogTitle>Share trade</DialogTitle>
           </DialogHeader>
-          <Composer
-            tradeCard={
-              {
-                symbol: trade.symbol,
-                segment: trade.segment,
-                strike: trade.strike,
-                optionType: trade.option_type,
-                expiry: trade.expiry,
-                direction: trade.direction,
-                entry: trade.avg_entry,
-                exit: trade.avg_exit,
-                sl: trade.planned_sl,
-                target: trade.planned_target,
-                rMultiple: trade.r_multiple,
-                netPnl: trade.status === "closed" ? trade.net_pnl : null,
-                holdMins: trade.closed_at
-                  ? Math.round(
-                      (new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime()) /
-                        60000
-                    )
-                  : null,
-                openedAt: trade.opened_at,
-              } satisfies TradeCard
-            }
-            onPosted={() => setShareOpen(false)}
-          />
+          <Tabs defaultValue="image">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="image">Image</TabsTrigger>
+              <TabsTrigger value="post">Community post</TabsTrigger>
+            </TabsList>
+            <TabsContent value="image">
+              <ShareImagePanel
+                allowPnl={trade.status === "closed"}
+                build={(includePnl) =>
+                  buildTradeShareCard({ ...trade, legCount: trade.legs.length }, { includePnl })
+                }
+              />
+            </TabsContent>
+            <TabsContent value="post">
+              <Composer
+                tradeCard={
+                  {
+                    symbol: trade.symbol,
+                    segment: trade.segment,
+                    strike: trade.strike,
+                    optionType: trade.option_type,
+                    expiry: trade.expiry,
+                    direction: trade.direction,
+                    entry: trade.avg_entry,
+                    exit: trade.avg_exit,
+                    sl: trade.planned_sl,
+                    target: trade.planned_target,
+                    rMultiple: trade.r_multiple,
+                    netPnl: trade.status === "closed" ? trade.net_pnl : null,
+                    holdMins: trade.closed_at
+                      ? Math.round(
+                          (new Date(trade.closed_at).getTime() -
+                            new Date(trade.opened_at).getTime()) /
+                            60000
+                        )
+                      : null,
+                    openedAt: trade.opened_at,
+                  } satisfies TradeCard
+                }
+                onPosted={() => setShareOpen(false)}
+              />
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

@@ -119,6 +119,32 @@ await step("trade quick-view modal → full detail page", async () => {
   await page.getByText("Execution").waitFor();
 });
 
+await step("share-as-image: card paints with ₹ hidden by default", async () => {
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+  const canvas = page.getByTestId("share-card-canvas");
+  await canvas.waitFor({ timeout: 15000 });
+  const hero = await canvas.getAttribute("data-hero");
+  if (!hero || hero.includes("₹")) throw new Error(`₹ leaked into default hero: ${hero}`);
+  // The canvas must actually be painted (it renders async after fonts load).
+  const lit = await canvas.evaluate(async (c) => {
+    const count = () => {
+      const { data } = c.getContext("2d").getImageData(0, 0, c.width, 200);
+      let n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] > 40 || data[i + 1] > 40 || data[i + 2] > 40) n++;
+      }
+      return n;
+    };
+    for (let tries = 0; tries < 50; tries++) {
+      if (count() >= 500) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return count();
+  });
+  if (lit < 500) throw new Error(`canvas looks blank (${lit} lit pixels)`);
+  await page.keyboard.press("Escape");
+});
+
 console.log("— Journal —");
 await step("journal saves an entry", async () => {
   await page.goto(`${BASE}/app/journal`, { waitUntil: "networkidle" });
