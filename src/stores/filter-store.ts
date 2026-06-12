@@ -14,7 +14,7 @@ interface FilterState {
 export const useFilterStore = create<FilterState>()(
   persist(
     (set) => ({
-      period: "30d",
+      period: "all",
       setPeriod: (period) => set({ period }),
     }),
     { name: "tm.filters" }

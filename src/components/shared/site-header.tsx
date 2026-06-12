@@ -38,7 +38,8 @@ export function SiteHeader({ cta }: { cta: React.ReactNode }) {
         <NavLinks />
         <div className="ml-auto flex items-center gap-1.5">
           <ThemeToggle />
-          <Button variant="ghost" size="icon" asChild>
+          {/* Secondary chrome — gives the bell + CTA room on 360px phones. */}
+          <Button variant="ghost" size="icon" className="hidden sm:inline-flex" asChild>
             <a href={siteConfig.github} target="_blank" rel="noreferrer" aria-label="GitHub">
               <Github className="h-4 w-4" />
             </a>

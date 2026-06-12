@@ -174,3 +174,5 @@ prod deploy verified after merge.
 ## Shipped by the loop
 
 <!-- The loop appends: - [x] YYYY-MM-DD — item — PR #N -->
+
+- [x] 2026-06-12 — Landing v2: hero screenshot frame, 60s auto-recorded demo video, live public metrics strip (/api/public/stats), bento v2, scrolled header + footer, perf pass (mobile 91 / desktop 98, a11y 100) — PR #27
