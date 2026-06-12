@@ -9,7 +9,7 @@ import {
   Database,
   HardDrive,
   LogOut,
-  Megaphone,
+  MessageSquareText,
   Moon,
   Search,
   ShieldCheck,
@@ -95,8 +95,15 @@ export function Topbar() {
         <StreakIndicator />
         <FeedbackDialog
           trigger={
-            <Button variant="ghost" size="icon" aria-label="Send feedback" title="Send feedback">
-              <Megaphone className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Send feedback"
+              title="Send feedback"
+              className="gap-1.5 text-muted"
+            >
+              <MessageSquareText className="h-4 w-4" />
+              <span className="hidden text-xs md:inline">Feedback</span>
             </Button>
           }
         />

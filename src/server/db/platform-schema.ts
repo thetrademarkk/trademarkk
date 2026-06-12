@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, unique } from "drizzle-orm/sqlite-core";
 
 /**
  * Platform DB schema — auth + db-mapping metadata ONLY. Journal data never lives here.
@@ -192,6 +192,28 @@ export const blogSubmissions = sqliteTable("blog_submissions", {
   reviewerNote: text("reviewer_note"),
   createdAt: text("created_at").notNull(),
   reviewedAt: text("reviewed_at"),
+});
+
+/** 1:1 direct-message threads. Participants stored in canonical order (userA < userB). */
+export const conversations = sqliteTable(
+  "conversations",
+  {
+    id: text("id").primaryKey(),
+    userA: text("user_a").notNull(),
+    userB: text("user_b").notNull(),
+    createdAt: text("created_at").notNull(),
+    lastMessageAt: text("last_message_at").notNull(),
+  },
+  (t) => [unique().on(t.userA, t.userB)]
+);
+
+export const dmMessages = sqliteTable("dm_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull(),
+  senderId: text("sender_id").notNull(),
+  body: text("body").notNull(), // plain text, ≤ 2000 chars
+  createdAt: text("created_at").notNull(),
+  read: integer("read").notNull().default(0), // recipient has seen it
 });
 
 /** User-submitted product feedback (bug reports, ideas). */

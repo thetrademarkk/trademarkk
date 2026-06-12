@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Camera,
   Flame,
   LinkIcon,
   Loader2,
+  MessageCircle,
   Pencil,
   UserCheck,
   UserPlus,
@@ -31,16 +33,25 @@ import {
   useUpdateProfile,
   useUserProfile,
 } from "@/features/community";
-import { ApiError, useToggleBlock, useToggleFollow } from "@/features/community/api";
+import {
+  ApiError,
+  useStartConversation,
+  useToggleBlock,
+  useToggleFollow,
+} from "@/features/community/api";
 
 export function ProfileView({ username }: { username: string }) {
+  const router = useRouter();
   const { data, isLoading, isError } = useUserProfile(username);
   const updateProfile = useUpdateProfile();
   const toggleFollow = useToggleFollow(username);
   const toggleBlock = useToggleBlock(username);
+  const startConversation = useStartConversation();
   const confirmDialog = useConfirm();
   const [editOpen, setEditOpen] = React.useState(false);
   const [gateOpen, setGateOpen] = React.useState(false);
+  // Which action the sign-in gate resumes after auth (Follow vs Message).
+  const [gateAction, setGateAction] = React.useState<"follow" | "message">("follow");
   // undefined = unchanged, "" = remove photo, data-url = new photo
   const [avatarDraft, setAvatarDraft] = React.useState<string | undefined>(undefined);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -58,10 +69,27 @@ export function ProfileView({ username }: { username: string }) {
 
   const follow = () =>
     toggleFollow.mutate(undefined, {
-      onError: (e) =>
-        e instanceof ApiError && e.status === 401
-          ? setGateOpen(true)
-          : toast.error("Could not follow"),
+      onError: (e) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setGateAction("follow");
+          setGateOpen(true);
+        } else {
+          toast.error("Could not follow");
+        }
+      },
+    });
+
+  const message = () =>
+    startConversation.mutate(username, {
+      onSuccess: (r) => router.push(`/community/messages?c=${r.id}`),
+      onError: (e) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setGateAction("message");
+          setGateOpen(true);
+        } else {
+          toast.error(e instanceof Error ? e.message : "Could not start the conversation");
+        }
+      },
     });
 
   const block = async (currentlyBlocked: boolean) => {
@@ -184,23 +212,39 @@ export function ProfileView({ username }: { username: string }) {
         ) : (
           <div className="flex flex-col items-end gap-1.5">
             {!profile.blockedByMe && (
-              <Button
-                variant={profile.followedByMe ? "outline" : "default"}
-                size="sm"
-                onClick={follow}
-                disabled={toggleFollow.isPending}
-                aria-pressed={profile.followedByMe}
-              >
-                {profile.followedByMe ? (
-                  <>
-                    <UserCheck className="h-3.5 w-3.5" aria-hidden /> Following
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-3.5 w-3.5" aria-hidden /> Follow
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={message}
+                  disabled={startConversation.isPending}
+                  aria-label={`Message @${profile.username}`}
+                >
+                  {startConversation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  Message
+                </Button>
+                <Button
+                  variant={profile.followedByMe ? "outline" : "default"}
+                  size="sm"
+                  onClick={follow}
+                  disabled={toggleFollow.isPending}
+                  aria-pressed={profile.followedByMe}
+                >
+                  {profile.followedByMe ? (
+                    <>
+                      <UserCheck className="h-3.5 w-3.5" aria-hidden /> Following
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-3.5 w-3.5" aria-hidden /> Follow
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
             <Button
               variant={profile.blockedByMe ? "destructive" : "ghost"}
@@ -232,7 +276,11 @@ export function ProfileView({ username }: { username: string }) {
         )}
       </section>
 
-      <SignInGate open={gateOpen} onOpenChange={setGateOpen} onAuthed={follow} />
+      <SignInGate
+        open={gateOpen}
+        onOpenChange={setGateOpen}
+        onAuthed={gateAction === "message" ? message : follow}
+      />
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

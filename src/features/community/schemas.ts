@@ -60,6 +60,14 @@ export const shareStreakSchema = z.object({
   best: z.number().int().min(0).max(3650),
 });
 
+export const startConversationSchema = z.object({
+  username: z.string().regex(/^[a-z0-9_]{3,20}$/, "Invalid username"),
+});
+
+export const sendDmSchema = z.object({
+  body: z.string().trim().min(1, "Empty message").max(2000, "Keep it under 2000 characters"),
+});
+
 export const REPORT_REASONS = [
   { id: "spam", label: "Spam or promotion" },
   { id: "harassment", label: "Harassment or abuse" },

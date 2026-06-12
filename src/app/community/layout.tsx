@@ -3,7 +3,7 @@ import Link from "next/link";
 import { NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { NotificationsBell } from "@/features/community";
+import { MessagesFab, NotificationsBell } from "@/features/community";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -30,6 +30,7 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
           }
         />
         <main className="flex-1">{children}</main>
+        <MessagesFab />
         <footer className="border-t py-6 text-center text-[11px] text-muted">
           Educational discussion only — nothing on TradeMark is investment advice.
         </footer>

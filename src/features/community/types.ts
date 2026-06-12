@@ -91,6 +91,22 @@ export interface NotificationView {
   createdAt: string;
 }
 
+/** One row in the DM inbox — the other participant + thread snapshot. */
+export interface ConversationView {
+  id: string;
+  peer: AuthorView;
+  lastMessage: { body: string; mine: boolean; createdAt: string } | null;
+  unread: number;
+  lastMessageAt: string;
+}
+
+export interface DmMessageView {
+  id: string;
+  body: string;
+  mine: boolean;
+  createdAt: string;
+}
+
 export interface FeedResponse {
   posts: PostView[];
   nextCursor: string | null;

@@ -8,7 +8,10 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import type {
+  AuthorView,
   CommentView,
+  ConversationView,
+  DmMessageView,
   FeedResponse,
   LeaderboardRow,
   NotificationView,
@@ -295,6 +298,103 @@ export function useMarkNotificationsRead() {
   return useMutation({
     mutationFn: () => request("/api/community/notifications", { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["community-notifications"] }),
+  });
+}
+
+/* ── Direct messages ─────────────────────────────────────────────────────── */
+
+export interface ConversationsResponse {
+  conversations: ConversationView[];
+  unread: number;
+}
+
+interface ThreadResponse {
+  messages: DmMessageView[];
+  nextCursor: string | null;
+  peer: AuthorView;
+}
+
+/** Inbox list + total unread. Pollers pick their own cadence (header 30s, inbox 5s). */
+export function useConversations(enabled: boolean, refetchInterval = 30_000) {
+  return useQuery({
+    queryKey: ["community-dms"],
+    queryFn: () => request<ConversationsResponse>("/api/community/dm/conversations"),
+    enabled,
+    refetchInterval,
+    retry: false,
+  });
+}
+
+/** Starts (or reopens) a 1:1 conversation with a trader. */
+export function useStartConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (username: string) =>
+      request<{ id: string; created: boolean }>("/api/community/dm/conversations", {
+        method: "POST",
+        body: JSON.stringify({ username }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Thread messages — 5s polling keeps both sides in sync (SSE later). */
+export function useThread(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["community-dm", conversationId],
+    queryFn: async () => {
+      const data = await request<ThreadResponse>(
+        `/api/community/dm/conversations/${conversationId}/messages`
+      );
+      // Opening the thread marks incoming messages read — sync inbox badges.
+      void qc.invalidateQueries({ queryKey: ["community-dms"] });
+      return data;
+    },
+    enabled: Boolean(conversationId),
+    refetchInterval: 5_000,
+    retry: false,
+  });
+}
+
+/** Optimistic send — the bubble appears instantly; server failure removes it. */
+export function useSendMessage(conversationId: string) {
+  const qc = useQueryClient();
+  const key = ["community-dm", conversationId];
+  return useMutation({
+    mutationFn: (body: string) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages`,
+        { method: "POST", body: JSON.stringify({ body }) }
+      ),
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<ThreadResponse>(key);
+      const optimistic: DmMessageView = {
+        id: `optimistic-${Date.now()}`,
+        body,
+        mine: true,
+        createdAt: new Date().toISOString(),
+      };
+      qc.setQueryData<ThreadResponse>(key, (data) =>
+        data ? { ...data, messages: [...data.messages, optimistic] } : data
+      );
+      return { prev, optimisticId: optimistic.id };
+    },
+    onSuccess: (res, _body, ctx) => {
+      qc.setQueryData<ThreadResponse>(key, (data) =>
+        data
+          ? {
+              ...data,
+              messages: data.messages.map((m) => (m.id === ctx.optimisticId ? res.message : m)),
+            }
+          : data
+      );
+      void qc.invalidateQueries({ queryKey: ["community-dms"] });
+    },
+    onError: (_e, _body, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
   });
 }
 

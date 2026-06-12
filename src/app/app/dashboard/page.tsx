@@ -4,8 +4,8 @@ import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
-import { KpiRow, EquityChart, RecentTrades } from "@/features/dashboard";
-import { DailyChecklist, MistakesPanel } from "@/features/rules";
+import { KpiRow, EquityChart, RecentTrades, Greeting } from "@/features/dashboard";
+import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
 import { dailyPnl, closedOnly } from "@/lib/stats/stats";
@@ -51,6 +51,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
+      <Greeting />
+      <ExpensiveHabitNudge from={from} to={to} />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
 
       <div className="grid gap-4 lg:grid-cols-3">

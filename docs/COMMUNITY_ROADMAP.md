@@ -21,7 +21,7 @@
 
 ## Backlog (ordered)
 
-- [ ] **Direct messages (chat) v1** — 1:1 conversations: `conversations` + `messages` tables, /community/messages inbox + thread view, "Message" button on profiles, unread badge in header bell area, 5s polling (SSE/websockets later). Block-aware (blocked users can't DM). Rate-limited.
+- [x] **Direct messages (chat) v1** — 1:1 conversations: `conversations` + `messages` tables, /community/messages inbox + thread view, "Message" button on profiles, unread badge in header bell area, 5s polling (SSE/websockets later). Block-aware (blocked users can't DM). Rate-limited.
 - [ ] **Feed composer upgrade** — inline (LinkedIn-style) top-of-feed composer instead of dialog-only; image preview grid; draft persistence.
 - [ ] **Post detail polish** — back navigation context, share-count, related posts by tag, sticky comment box on mobile.
 - [ ] **Notification grouping** — "X and 3 others liked your post" rollups, mark-one-read, notification page (not just dropdown).
@@ -35,3 +35,5 @@
 ## Shipped by the loop
 
 <!-- The loop appends: - [x] YYYY-MM-DD — item — PR #N -->
+
+- [x] 2026-06-12 — Direct messages (chat) v1 — PR #12

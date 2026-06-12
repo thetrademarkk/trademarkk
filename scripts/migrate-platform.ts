@@ -181,6 +181,26 @@ const STATEMENTS = [
     created_at TEXT NOT NULL,
     PRIMARY KEY (blocker_id, blocked_id)
   )`,
+  // ── Direct messages v1: 1:1 conversations (user_a < user_b, canonical order) ──
+  `CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    user_a TEXT NOT NULL,
+    user_b TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_message_at TEXT NOT NULL,
+    UNIQUE (user_a, user_b)
+  )`,
+  `CREATE TABLE IF NOT EXISTS dm_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    read INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_dm_messages_convo ON dm_messages (conversation_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_conversations_user_a ON conversations (user_a, last_message_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_conversations_user_b ON conversations (user_b, last_message_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, read, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_follows_following ON follows (following_id)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created_at DESC)`,

@@ -14,6 +14,7 @@ const PUBLIC = [
   "/compare/tradezella-alternative",
   "/community",
   "/community/leaderboard",
+  "/community/messages",
 ];
 const APP = [
   "/app/dashboard",
