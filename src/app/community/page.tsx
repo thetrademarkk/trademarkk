@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Composer, Feed, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
+import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
 import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
 
 function CommunityHome() {
@@ -104,6 +104,7 @@ function CommunityHome() {
 
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
+        <InlineComposer />
         <form
           className="relative mb-4"
           onSubmit={(e) => {

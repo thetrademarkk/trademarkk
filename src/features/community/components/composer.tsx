@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, useCreatePost } from "../api";
+import { clearDraft, readDraft, writeDraft } from "../draft";
 import { SUGGESTED_TAGS, type TradeCard } from "../types";
 import { TradeCardView } from "./trade-card-view";
 import { SignInGate } from "./sign-in-gate";
@@ -18,10 +19,19 @@ import { SignInGate } from "./sign-in-gate";
 interface ComposerProps {
   tradeCard?: TradeCard | null;
   onPosted?: (id: string) => void;
+  /** localStorage key — when set, title/body/tags survive reloads until posted. */
+  draftKey?: string;
+  /** Focus the body textarea on mount (used by the inline feed composer). */
+  autoFocusBody?: boolean;
 }
 
 /** Post composer — text, topic tags, images (auto-compressed), optional trade card. */
-export function Composer({ tradeCard: initialCard, onPosted }: ComposerProps) {
+export function Composer({
+  tradeCard: initialCard,
+  onPosted,
+  draftKey,
+  autoFocusBody,
+}: ComposerProps) {
   const createPost = useCreatePost();
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
@@ -29,13 +39,45 @@ export function Composer({ tradeCard: initialCard, onPosted }: ComposerProps) {
   const [images, setImages] = React.useState<string[]>([]);
   const [includePnl, setIncludePnl] = React.useState(false);
   const [gateOpen, setGateOpen] = React.useState(false);
+  const bodyRef = React.useRef<HTMLTextAreaElement>(null);
+  // Drafts restore after hydration (localStorage doesn't exist server-side, and
+  // reading it during render would mismatch the server HTML).
+  const [draftReady, setDraftReady] = React.useState(false);
+
+  React.useEffect(() => {
+    if (draftKey) {
+      const draft = readDraft(draftKey);
+      if (draft) {
+        setTitle(draft.title);
+        setBody(draft.body);
+        setTags(draft.tags);
+      }
+    }
+    setDraftReady(true);
+  }, [draftKey]);
+
+  React.useEffect(() => {
+    if (!draftKey || !draftReady) return;
+    writeDraft({ title, body, tags }, draftKey); // empty drafts remove the key
+  }, [draftKey, draftReady, title, body, tags]);
+
+  React.useEffect(() => {
+    if (!autoFocusBody || !draftReady) return;
+    const el = bodyRef.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length); // cursor after restored draft
+    }
+  }, [autoFocusBody, draftReady]);
 
   const card: TradeCard | null = initialCard
     ? { ...initialCard, netPnl: includePnl ? initialCard.netPnl : null }
     : null;
 
   const toggleTag = (t: string) =>
-    setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 4 ? [...prev, t] : prev));
+    setTags((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 4 ? [...prev, t] : prev
+    );
 
   const addImage = async (file: File) => {
     if (images.length >= 2) return toast.info("Maximum 2 images per post");
@@ -66,6 +108,7 @@ export function Composer({ tradeCard: initialCard, onPosted }: ComposerProps) {
       setBody("");
       setTags([]);
       setImages([]);
+      if (draftKey) clearDraft(draftKey);
       onPosted?.(id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -92,6 +135,7 @@ export function Composer({ tradeCard: initialCard, onPosted }: ComposerProps) {
         <Label htmlFor="composer-body">Your post</Label>
         <Textarea
           id="composer-body"
+          ref={bodyRef}
           rows={5}
           maxLength={5000}
           placeholder="Share the idea, the lesson, the question…"
