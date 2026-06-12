@@ -19,7 +19,7 @@
 
 ## Backlog (ordered; each = one loop iteration)
 
-- [ ] **Broker CSV mappers v2** — auto-detect & import Upstox, Angel One, Dhan, Fyers, Groww tradebooks (currently Zerodha-shaped). Pure client-side parsing; dedupe stays idempotent.
+- [x] **Broker CSV mappers v2** — auto-detect & import Upstox, Angel One, Dhan, Fyers, Groww tradebooks (currently Zerodha-shaped). Pure client-side parsing; dedupe stays idempotent.
 - [ ] **Insights engine v1 (no-LLM)** — proactive weekly insights computed client-side from the journal: biggest leak (rule × ₹), best/worst entry hour, overtrading detector (trades/day vs win rate), revenge-trade pattern (loss followed within N min), fee drag (charges as % of gross). Dashboard "Insights" card + weekly report section.
 - [ ] **Tilt analytics (Edgewonk-style Tiltmeter)** — tilt score per day from emotion tags + rule breaks + position-size spikes; trend chart in Analytics → psychology tab.
 - [ ] **Advanced trade filters + saved views** — multi-criteria filter bar (R range, hour, tags, playbook, weekday) with shareable saved views (localStorage), instant client-side.
@@ -33,3 +33,5 @@
 ## Shipped by the loop
 
 <!-- - [x] YYYY-MM-DD — item — PR #N -->
+
+- [x] 2026-06-12 — Broker CSV mappers v2 — PR #14
