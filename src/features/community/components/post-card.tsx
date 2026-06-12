@@ -3,7 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Flag, Heart, Link2, MessageCircle, Share2, Trash2, UserX } from "lucide-react";
+import {
+  Bookmark,
+  Flag,
+  Heart,
+  Link2,
+  Loader2,
+  MessageCircle,
+  Share2,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  UserX,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -13,7 +25,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ApiError, useDeletePost, useToggleBlock, useToggleBookmark, useToggleLike } from "../api";
+import {
+  ApiError,
+  useDeletePost,
+  useFollowAuthor,
+  useRecordShare,
+  useToggleBlock,
+  useToggleBookmark,
+  useToggleLike,
+} from "../api";
+import { formatCount, formatPostDate } from "../format";
 import type { PostView } from "../types";
 import { CommunityAvatar } from "./avatar";
 import { TradeCardView } from "./trade-card-view";
@@ -21,11 +42,22 @@ import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 
-export function PostCard({ post, detail = false }: { post: PostView; detail?: boolean }) {
+export function PostCard({
+  post,
+  detail = false,
+  authorFollowedByMe,
+}: {
+  post: PostView;
+  detail?: boolean;
+  /** Detail page only — renders the Follow chip in the author header when provided. */
+  authorFollowedByMe?: boolean;
+}) {
   const router = useRouter();
   const toggleLike = useToggleLike();
   const toggleBookmark = useToggleBookmark();
   const toggleBlock = useToggleBlock(post.author.username);
+  const recordShare = useRecordShare();
+  const followAuthor = useFollowAuthor(post.id, post.author.username);
   const deletePost = useDeletePost();
   const confirmDialog = useConfirm();
   const [gateOpen, setGateOpen] = React.useState(false);
@@ -53,14 +85,25 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
   const share = async () => {
     const url = postUrl();
     if (navigator.share) {
-      await navigator
-        .share({ title: post.title ?? "Trade idea on TradeMark", url })
-        .catch(() => undefined);
+      try {
+        await navigator.share({ title: post.title ?? "Trade idea on TradeMark", url });
+      } catch {
+        return; // reader closed the share sheet — nothing was shared
+      }
     } else {
       await navigator.clipboard.writeText(url);
       toast.success("Link copied");
     }
+    recordShare.mutate(post.id);
   };
+
+  const follow = () =>
+    followAuthor.mutate(undefined, {
+      onError: (e) =>
+        e instanceof ApiError && e.status === 401
+          ? onUnauthorized(follow)
+          : toast.error("Could not follow"),
+    });
 
   const handleDelete = async () => {
     const ok = await confirmDialog({
@@ -121,13 +164,44 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
               @{post.author.username}
             </Link>
             {" · "}
-            <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+            <time dateTime={post.createdAt} title={formatPostDate(post.createdAt)}>
+              {detail ? formatPostDate(post.createdAt) : timeAgo(post.createdAt)}
+            </time>
           </p>
         </div>
+        {detail && !post.mine && authorFollowedByMe !== undefined && (
+          <button
+            onClick={follow}
+            aria-pressed={authorFollowedByMe}
+            aria-label={
+              authorFollowedByMe
+                ? `Unfollow ${post.author.displayName}`
+                : `Follow ${post.author.displayName}`
+            }
+            className={cn(
+              "ml-auto flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              authorFollowedByMe
+                ? "border-border text-muted hover:border-loss/40 hover:text-loss"
+                : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+            )}
+          >
+            {followAuthor.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : authorFollowedByMe ? (
+              <UserCheck className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <UserPlus className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {authorFollowedByMe ? "Following" : "Follow"}
+          </button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Post options"
-            className="ml-auto rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground"
+            className={cn(
+              "rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-foreground",
+              (!detail || post.mine || authorFollowedByMe === undefined) && "ml-auto"
+            )}
           >
             <span aria-hidden>⋯</span>
           </DropdownMenuTrigger>
@@ -136,6 +210,7 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
               onClick={() => {
                 void navigator.clipboard.writeText(postUrl());
                 toast.success("Link copied");
+                recordShare.mutate(post.id);
               }}
             >
               <Link2 /> Copy link
@@ -160,7 +235,12 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
 
       <div className="mt-3">
         {post.title && (
-          <h2 className="text-base font-semibold leading-snug">
+          <h2
+            className={cn(
+              "font-semibold",
+              detail ? "text-xl leading-tight tracking-tight" : "text-base leading-snug"
+            )}
+          >
             {detail ? (
               post.title
             ) : (
@@ -170,7 +250,12 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
             )}
           </h2>
         )}
-        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground/90">
+        <p
+          className={cn(
+            "mt-1 whitespace-pre-wrap text-foreground/90",
+            detail ? "mt-2 text-[15px] leading-7" : "text-sm leading-6"
+          )}
+        >
           <RichText text={body} />
         </p>
         {longBody && !expanded && (
@@ -225,7 +310,7 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
           )}
         >
           <Heart className={cn("h-4 w-4", post.likedByMe && "fill-current")} aria-hidden />
-          {post.likeCount > 0 && <span className="font-money">{post.likeCount}</span>}
+          {post.likeCount > 0 && <span className="font-money">{formatCount(post.likeCount)}</span>}
         </button>
         <Link
           href={`/community/post/${post.id}`}
@@ -233,7 +318,9 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
           aria-label={`${post.commentCount} comments`}
         >
           <MessageCircle className="h-4 w-4" aria-hidden />
-          {post.commentCount > 0 && <span className="font-money">{post.commentCount}</span>}
+          {post.commentCount > 0 && (
+            <span className="font-money">{formatCount(post.commentCount)}</span>
+          )}
         </Link>
         <button
           aria-label={post.bookmarkedByMe ? "Remove from saved" : "Save post"}
@@ -254,6 +341,9 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
           className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
         >
           <Share2 className="h-4 w-4" aria-hidden />
+          {post.shareCount > 0 && (
+            <span className="font-money">{formatCount(post.shareCount)}</span>
+          )}
         </button>
       </footer>
 

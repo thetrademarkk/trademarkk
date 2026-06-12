@@ -32,11 +32,34 @@ export interface PostView {
   images: string[];
   likeCount: number;
   commentCount: number;
+  shareCount: number;
   createdAt: string;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
   mine: boolean;
   author: AuthorView;
+}
+
+/** Compact card in the detail page's "More like this" rail (no images on purpose). */
+export interface RelatedPostView {
+  id: string;
+  title: string | null;
+  body: string;
+  tags: string[];
+  likeCount: number;
+  commentCount: number;
+  createdAt: string;
+  author: AuthorView;
+}
+
+export interface PostDetailResponse {
+  post: PostView;
+  comments: CommentView[];
+  related: RelatedPostView[];
+  /** True when the rail actually shares tags (heading copy differs otherwise). */
+  relatedByTag: boolean;
+  /** Whether the signed-in viewer follows the author (false when signed out / own post). */
+  authorFollowedByMe: boolean;
 }
 
 export interface CommentView {

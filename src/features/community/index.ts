@@ -10,8 +10,17 @@ export { NotificationsBell } from "./components/notifications-bell";
 export { MessagesFab } from "./components/messages-button";
 export { MessagesInbox } from "./components/messages-inbox";
 export { MessageThread } from "./components/message-thread";
+export { RelatedPosts } from "./components/related-posts";
 export { ReportDialog } from "./components/report-dialog";
 export { RichText } from "./components/rich-text";
 export { usePost, useUserProfile, useMyProfile, useUpdateProfile } from "./api";
 export { SUGGESTED_TAGS } from "./types";
-export type { TradeCard, PostView, CommentView, ProfileView, NotificationView } from "./types";
+export type {
+  TradeCard,
+  PostView,
+  CommentView,
+  ProfileView,
+  NotificationView,
+  PostDetailResponse,
+  RelatedPostView,
+} from "./types";

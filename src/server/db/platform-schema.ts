@@ -95,6 +95,7 @@ export const posts = sqliteTable("posts", {
   tags: text("tags"), // JSON string[]
   likeCount: integer("like_count").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),
+  shareCount: integer("share_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 

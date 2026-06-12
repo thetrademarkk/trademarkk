@@ -2,17 +2,27 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Heart, Loader2, Reply, Trash2 } from "lucide-react";
+import { Heart, Loader2, Reply, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
+import { useSession } from "@/lib/auth-client";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ApiError, useAddComment, useDeleteComment, useToggleCommentLike } from "../api";
+import {
+  ApiError,
+  useAddComment,
+  useDeleteComment,
+  useMyProfile,
+  useToggleCommentLike,
+} from "../api";
+import { formatCount } from "../format";
 import type { CommentView } from "../types";
 import { CommunityAvatar } from "./avatar";
 import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
+
+const COMMENT_MAX = 2000;
 
 function CommentItem({
   comment,
@@ -28,7 +38,7 @@ function CommentItem({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className={cn("flex gap-2.5", isReply && "ml-9 mt-2")}>
+    <div className="flex gap-2.5">
       <Link
         href={`/community/u/${comment.author.username}`}
         aria-label={`${comment.author.displayName}'s profile`}
@@ -66,7 +76,9 @@ function CommentItem({
             )}
           >
             <Heart className={cn("h-3.5 w-3.5", comment.likedByMe && "fill-current")} aria-hidden />
-            {comment.likeCount > 0 && <span className="font-money">{comment.likeCount}</span>}
+            {comment.likeCount > 0 && (
+              <span className="font-money">{formatCount(comment.likeCount)}</span>
+            )}
           </button>
           {!isReply && (
             <button
@@ -91,12 +103,18 @@ function CommentItem({
   );
 }
 
-/** LinkedIn-style threaded comments: top-level + one reply level, with likes. */
+/**
+ * LinkedIn-style threaded comments: top-level + one reply level, with likes.
+ * On phones the composer docks to the bottom of the screen (chat-style) so
+ * readers can reply from anywhere in the thread; on desktop it sits inline.
+ */
 export function CommentSection({ postId, comments }: { postId: string; comments: CommentView[] }) {
   const addComment = useAddComment(postId);
   const deleteComment = useDeleteComment(postId);
   const toggleLike = useToggleCommentLike(postId);
   const confirmDialog = useConfirm();
+  const { data: session } = useSession();
+  const { data: me } = useMyProfile(Boolean(session));
   const [body, setBody] = React.useState("");
   const [replyTo, setReplyTo] = React.useState<CommentView | null>(null);
   const [gateOpen, setGateOpen] = React.useState(false);
@@ -139,34 +157,69 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
           : `${comments.length} comment${comments.length > 1 ? "s" : ""}`}
       </h2>
 
-      <div className="space-y-2">
-        {replyTo && (
-          <p className="flex items-center justify-between rounded-lg bg-accent/10 px-3 py-1.5 text-xs text-accent">
-            Replying to @{replyTo.author.username}
-            <button className="font-medium hover:underline" onClick={() => setReplyTo(null)}>
-              Cancel
-            </button>
-          </p>
-        )}
-        <Textarea
-          ref={inputRef}
-          rows={2}
-          maxLength={2000}
-          placeholder={replyTo ? "Write your reply…" : "Add your take…"}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          aria-label="Write a comment"
-        />
-        <div className="flex justify-end">
-          <Button
-            size="sm"
-            onClick={submit}
-            disabled={addComment.isPending || !body.trim()}
-            aria-busy={addComment.isPending}
-          >
-            {addComment.isPending && <Loader2 className="animate-spin" aria-hidden />}
-            {replyTo ? "Reply" : "Comment"}
-          </Button>
+      {/* Composer — inline on desktop, docked to the viewport bottom on phones.
+          The plain outer div absorbs the section's space-y margin: margins move
+          fixed elements too, which would float the dock above the bottom edge. */}
+      <div>
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0">
+          {replyTo && (
+            <p className="mb-2 flex items-center justify-between rounded-lg bg-accent/10 px-3 py-1.5 text-xs text-accent">
+              Replying to @{replyTo.author.username}
+              <button className="font-medium hover:underline" onClick={() => setReplyTo(null)}>
+                Cancel
+              </button>
+            </p>
+          )}
+          <div className="flex items-start gap-2.5">
+            {me ? (
+              <CommunityAvatar
+                size="sm"
+                avatar={me.avatar}
+                username={me.username}
+                displayName={me.displayName}
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"
+              >
+                <UserRound className="h-4 w-4" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1 space-y-2">
+              <Textarea
+                ref={inputRef}
+                rows={2}
+                maxLength={COMMENT_MAX}
+                placeholder={replyTo ? "Write your reply…" : "Add your take…"}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void submit();
+                  }
+                }}
+                aria-label="Write a comment"
+              />
+              <div className="flex items-center justify-end gap-3">
+                {body.length >= COMMENT_MAX - 200 && (
+                  <span className="font-money text-[11px] text-muted" aria-live="polite">
+                    {body.length}/{COMMENT_MAX}
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  onClick={submit}
+                  disabled={addComment.isPending || !body.trim()}
+                  aria-busy={addComment.isPending}
+                >
+                  {addComment.isPending && <Loader2 className="animate-spin" aria-hidden />}
+                  {replyTo ? "Reply" : "Comment"}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -174,39 +227,47 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
         <p className="py-4 text-center text-sm text-muted">Be the first to comment.</p>
       ) : (
         <ul className="space-y-4">
-          {topLevel.map((c) => (
-            <li key={c.id}>
-              <CommentItem
-                comment={c}
-                onReply={startReply}
-                onLike={like}
-                onDelete={async (id) =>
-                  (await confirmDialog({
-                    title: "Delete this comment?",
-                    description: "Its replies are deleted too.",
-                    confirmLabel: "Delete",
-                    destructive: true,
-                  })) && deleteComment.mutate(id)
-                }
-              />
-              {repliesFor(c.id).map((r) => (
+          {topLevel.map((c) => {
+            const replies = repliesFor(c.id);
+            return (
+              <li key={c.id}>
                 <CommentItem
-                  key={r.id}
-                  comment={r}
-                  isReply
+                  comment={c}
                   onReply={startReply}
                   onLike={like}
                   onDelete={async (id) =>
                     (await confirmDialog({
-                      title: "Delete this reply?",
+                      title: "Delete this comment?",
+                      description: "Its replies are deleted too.",
                       confirmLabel: "Delete",
                       destructive: true,
                     })) && deleteComment.mutate(id)
                   }
                 />
-              ))}
-            </li>
-          ))}
+                {replies.length > 0 && (
+                  // Thread rail — makes the reply level scannable at a glance.
+                  <div className="ml-[13px] mt-2 space-y-3 border-l-2 border-border/60 pl-4">
+                    {replies.map((r) => (
+                      <CommentItem
+                        key={r.id}
+                        comment={r}
+                        isReply
+                        onReply={startReply}
+                        onLike={like}
+                        onDelete={async (id) =>
+                          (await confirmDialog({
+                            title: "Delete this reply?",
+                            confirmLabel: "Delete",
+                            destructive: true,
+                          })) && deleteComment.mutate(id)
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

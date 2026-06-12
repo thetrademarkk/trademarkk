@@ -15,6 +15,7 @@ import type {
   FeedResponse,
   LeaderboardRow,
   NotificationView,
+  PostDetailResponse,
   PostView,
   ProfileView,
 } from "./types";
@@ -75,8 +76,7 @@ export function useTrendingTags() {
 export function usePost(id: string) {
   return useQuery({
     queryKey: ["community-post", id],
-    queryFn: () =>
-      request<{ post: PostView; comments: CommentView[] }>(`/api/community/posts/${id}`),
+    queryFn: () => request<PostDetailResponse>(`/api/community/posts/${id}`),
   });
 }
 
@@ -128,7 +128,7 @@ export function useToggleLike() {
           }
         : data
     );
-    qc.setQueryData<{ post: PostView; comments: CommentView[] }>(["community-post", id], (data) =>
+    qc.setQueryData<PostDetailResponse>(["community-post", id], (data) =>
       data ? { ...data, post: patchPost(data.post) } : data
     );
   };
@@ -164,7 +164,7 @@ export function useToggleBookmark() {
           }
         : data
     );
-    qc.setQueryData<{ post: PostView; comments: CommentView[] }>(["community-post", id], (data) =>
+    qc.setQueryData<PostDetailResponse>(["community-post", id], (data) =>
       data ? { ...data, post: patchPost(data.post) } : data
     );
   };
@@ -177,26 +177,83 @@ export function useToggleBookmark() {
   });
 }
 
+/** Counts a share (share sheet / copy link) — optimistic, anonymous, increment-only. */
+export function useRecordShare() {
+  const qc = useQueryClient();
+  const patchEverywhere = (id: string, delta: number) => {
+    const patchPost = (post: PostView): PostView => ({
+      ...post,
+      shareCount: Math.max(0, post.shareCount + delta),
+    });
+    qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((p) => ({
+              ...p,
+              posts: p.posts.map((post) => (post.id === id ? patchPost(post) : post)),
+            })),
+          }
+        : data
+    );
+    qc.setQueryData<PostDetailResponse>(["community-post", id], (data) =>
+      data ? { ...data, post: patchPost(data.post) } : data
+    );
+  };
+  return useMutation({
+    mutationFn: (id: string) =>
+      request<{ shareCount: number }>(`/api/community/posts/${id}/share`, { method: "POST" }),
+    onMutate: (id) => patchEverywhere(id, 1),
+    onError: (_e, id) => patchEverywhere(id, -1), // silent revert — sharing still worked locally
+  });
+}
+
+/** Follow toggle scoped to the post detail header — keeps that page's state instant. */
+export function useFollowAuthor(postId: string, username: string) {
+  const qc = useQueryClient();
+  const key = ["community-post", postId];
+  const set = (following: boolean) =>
+    qc.setQueryData<PostDetailResponse>(key, (data) =>
+      data ? { ...data, authorFollowedByMe: following } : data
+    );
+  return useMutation({
+    mutationFn: () =>
+      request<{ following: boolean }>(
+        `/api/community/users/${encodeURIComponent(username)}/follow`,
+        { method: "POST" }
+      ),
+    onMutate: () => {
+      const prev = qc.getQueryData<PostDetailResponse>(key)?.authorFollowedByMe ?? false;
+      set(!prev);
+      return { prev };
+    },
+    onSuccess: (r) => {
+      set(r.following);
+      void qc.invalidateQueries({ queryKey: ["community-user", username] });
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
+    onError: (_e, _v, ctx) => set(ctx?.prev ?? false),
+  });
+}
+
 export function useToggleCommentLike(postId: string) {
   const qc = useQueryClient();
   const patch = (commentId: string) => {
-    qc.setQueryData<{ post: PostView; comments: CommentView[] }>(
-      ["community-post", postId],
-      (data) =>
-        data
-          ? {
-              ...data,
-              comments: data.comments.map((c) =>
-                c.id === commentId
-                  ? {
-                      ...c,
-                      likedByMe: !c.likedByMe,
-                      likeCount: c.likeCount + (c.likedByMe ? -1 : 1),
-                    }
-                  : c
-              ),
-            }
-          : data
+    qc.setQueryData<PostDetailResponse>(["community-post", postId], (data) =>
+      data
+        ? {
+            ...data,
+            comments: data.comments.map((c) =>
+              c.id === commentId
+                ? {
+                    ...c,
+                    likedByMe: !c.likedByMe,
+                    likeCount: c.likeCount + (c.likedByMe ? -1 : 1),
+                  }
+                : c
+            ),
+          }
+        : data
     );
   };
   return useMutation({
@@ -407,15 +464,14 @@ export function useAddComment(postId: string) {
         body: JSON.stringify({ body, parentId }),
       }),
     onSuccess: (comment) => {
-      qc.setQueryData<{ post: PostView; comments: CommentView[] }>(
-        ["community-post", postId],
-        (data) =>
-          data
-            ? {
-                post: { ...data.post, commentCount: data.post.commentCount + 1 },
-                comments: [...data.comments, comment],
-              }
-            : data
+      qc.setQueryData<PostDetailResponse>(["community-post", postId], (data) =>
+        data
+          ? {
+              ...data, // keep related/follow state — don't drop detail extras
+              post: { ...data.post, commentCount: data.post.commentCount + 1 },
+              comments: [...data.comments, comment],
+            }
+          : data
       );
     },
   });

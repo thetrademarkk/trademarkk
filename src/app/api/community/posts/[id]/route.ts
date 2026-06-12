@@ -1,10 +1,87 @@
 import { NextResponse } from "next/server";
-import { eq, asc, and, inArray } from "drizzle-orm";
+import { eq, asc, and, desc, inArray, ne, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { blocks, commentLikes, comments, posts, profiles } from "@/server/db/platform-schema";
+import {
+  blocks,
+  commentLikes,
+  comments,
+  follows,
+  posts,
+  profiles,
+} from "@/server/db/platform-schema";
 import { deletePostCascade, getSession, hydratePosts } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
-import type { CommentView } from "@/features/community/types";
+import { rankRelated } from "@/features/community/related";
+import type { AuthorView, CommentView, RelatedPostView } from "@/features/community/types";
+
+const parseTags = (s: string | null): string[] => {
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+/** Up to 4 compact related posts: tag overlap → engagement → recency. Block-aware. */
+async function queryRelated(
+  postId: string,
+  tags: string[],
+  viewerId: string | null
+): Promise<{ related: RelatedPostView[]; relatedByTag: boolean }> {
+  const conditions = [ne(posts.id, postId)];
+  if (viewerId) {
+    conditions.push(
+      sql`${posts.userId} NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})`
+    );
+  }
+  const candidates = await platformDb
+    .select({
+      id: posts.id,
+      userId: posts.userId,
+      title: posts.title,
+      body: posts.body,
+      tags: posts.tags,
+      likeCount: posts.likeCount,
+      commentCount: posts.commentCount,
+      createdAt: posts.createdAt,
+    })
+    .from(posts)
+    .where(and(...conditions))
+    .orderBy(desc(posts.createdAt))
+    .limit(60); // recent window — plenty at current scale, bounded forever
+
+  const ranked = rankRelated(
+    { id: postId, tags },
+    candidates.map((c) => ({ ...c, tags: parseTags(c.tags) }))
+  );
+
+  const authorIds = [...new Set(ranked.posts.map((p) => p.userId))];
+  const authors = authorIds.length
+    ? await platformDb.select().from(profiles).where(inArray(profiles.userId, authorIds))
+    : [];
+  const authorMap = new Map<string, AuthorView>(
+    authors.map((a) => [
+      a.userId,
+      { username: a.username, displayName: a.displayName, avatar: a.avatar },
+    ])
+  );
+
+  return {
+    related: ranked.posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      tags: p.tags,
+      likeCount: p.likeCount,
+      commentCount: p.commentCount,
+      createdAt: p.createdAt,
+      author: authorMap.get(p.userId) ?? { username: "deleted", displayName: "Deleted user" },
+    })),
+    relatedByTag: ranked.byTag,
+  };
+}
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -13,6 +90,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const [post] = await hydratePosts([row], session?.user.id ?? null);
+  const [{ related, relatedByTag }, followRow] = await Promise.all([
+    queryRelated(id, post?.tags ?? [], session?.user.id ?? null),
+    session && session.user.id !== row.userId
+      ? platformDb
+          .select({ followerId: follows.followerId })
+          .from(follows)
+          .where(and(eq(follows.followerId, session.user.id), eq(follows.followingId, row.userId)))
+          .get()
+      : Promise.resolve(undefined),
+  ]);
   let commentRows = await platformDb
     .select()
     .from(comments)
@@ -67,7 +154,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     };
   });
 
-  return NextResponse.json({ post, comments: commentViews });
+  return NextResponse.json({
+    post,
+    comments: commentViews,
+    related,
+    relatedByTag,
+    authorFollowedByMe: Boolean(followRow),
+  });
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {

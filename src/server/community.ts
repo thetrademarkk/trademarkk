@@ -119,6 +119,7 @@ interface PostRow {
   tags: string | null;
   likeCount: number;
   commentCount: number;
+  shareCount: number;
   createdAt: string;
 }
 
@@ -182,6 +183,7 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
     images: imageMap.get(r.id) ?? [],
     likeCount: r.likeCount,
     commentCount: r.commentCount,
+    shareCount: r.shareCount,
     createdAt: r.createdAt,
     likedByMe: likedSet.has(r.id),
     bookmarkedByMe: bookmarkedSet.has(r.id),

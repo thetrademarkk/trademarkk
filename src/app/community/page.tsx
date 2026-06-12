@@ -13,10 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
 import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
+import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
 
 function CommunityHome() {
   const router = useRouter();
   const tag = useSearchParams().get("tag");
+  // Remember the active filters so the post detail's back link can restore them.
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem(FEED_CONTEXT_KEY, window.location.search);
+    } catch {
+      /* storage blocked — back link falls back to the plain feed */
+    }
+  }, [tag]);
   const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
     sort: "latest",
     scope: "all",

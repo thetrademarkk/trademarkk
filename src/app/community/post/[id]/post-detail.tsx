@@ -1,29 +1,80 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CommentSection, PostCard, usePost } from "@/features/community";
+import { CommentSection, PostCard, RelatedPosts, usePost } from "@/features/community";
+import { communityBackHref, FEED_CONTEXT_KEY } from "@/features/community/back-nav";
+
+/** Mirrors the post layout so loading doesn't flash a shapeless gray block. */
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading post">
+      <div className="rounded-xl border bg-surface p-4">
+        <div className="flex items-center gap-2.5">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-3.5 w-32 rounded" />
+            <Skeleton className="h-3 w-44 rounded" />
+          </div>
+        </div>
+        <div className="mt-4 space-y-2">
+          <Skeleton className="h-5 w-3/4 rounded" />
+          <Skeleton className="h-4 w-full rounded" />
+          <Skeleton className="h-4 w-full rounded" />
+          <Skeleton className="h-4 w-2/3 rounded" />
+        </div>
+        <div className="mt-4 flex gap-2 border-t pt-3">
+          <Skeleton className="h-7 w-14 rounded-md" />
+          <Skeleton className="h-7 w-14 rounded-md" />
+          <Skeleton className="h-7 w-9 rounded-md" />
+        </div>
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-4 w-28 rounded" />
+        <Skeleton className="h-16 rounded-lg" />
+        <div className="flex gap-2.5">
+          <Skeleton className="h-7 w-7 rounded-full" />
+          <Skeleton className="h-14 flex-1 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PostDetail({ id }: { id: string }) {
   const { data, isLoading, isError } = usePost(id);
+  // The feed page remembers its filters; the back link restores them. Reading
+  // sessionStorage in an effect keeps server and first client render identical.
+  const [backHref, setBackHref] = React.useState("/community");
+  React.useEffect(() => {
+    try {
+      setBackHref(communityBackHref(sessionStorage.getItem(FEED_CONTEXT_KEY)));
+    } catch {
+      /* storage blocked — plain feed link is fine */
+    }
+  }, []);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6">
-      <Link href="/community" className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 pb-44 sm:pb-6">
+      <Link
+        href={backHref}
+        className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted hover:text-accent"
+      >
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to community
       </Link>
       {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-56 rounded-xl" />
-          <Skeleton className="h-32 rounded-xl" />
-        </div>
+        <DetailSkeleton />
       ) : isError || !data ? (
-        <p className="py-16 text-center text-sm text-muted">This post doesn&apos;t exist (or was deleted).</p>
+        <p className="py-16 text-center text-sm text-muted">
+          This post doesn&apos;t exist (or was deleted).
+        </p>
       ) : (
         <div className="space-y-6">
-          <PostCard post={data.post} detail />
+          <PostCard post={data.post} detail authorFollowedByMe={data.authorFollowedByMe} />
           <CommentSection postId={id} comments={data.comments} />
+          <RelatedPosts posts={data.related} byTag={data.relatedByTag} />
         </div>
       )}
     </div>
