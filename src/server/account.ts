@@ -67,6 +67,17 @@ export async function purgeUserContent(userId: string) {
     );
   }
 
+  // Direct messages — both their conversations and every message in them.
+  // Threads are 1:1, so removing one participant removes the thread; keeping
+  // half a conversation would leak the deleted user's words past the account.
+  await platformDb.run(
+    sql`DELETE FROM dm_messages WHERE conversation_id IN (
+          SELECT id FROM conversations WHERE user_a = ${userId} OR user_b = ${userId})`
+  );
+  await platformDb.run(
+    sql`DELETE FROM conversations WHERE user_a = ${userId} OR user_b = ${userId}`
+  );
+
   // Social graph, notifications (sent and received), reports, authored blog posts.
   await platformDb.run(sql`DELETE FROM bookmarks WHERE user_id = ${userId}`);
   await platformDb.run(

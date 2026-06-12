@@ -16,7 +16,8 @@ const SCENES = [
   { pnl: 15780, win: 66, r: 1.9 },
 ];
 
-const CURVE = "M0,86 C30,80 45,84 70,72 C95,60 110,66 135,58 C160,50 175,56 200,42 C225,30 245,38 270,26 C295,16 315,22 340,12";
+const CURVE =
+  "M0,86 C30,80 45,84 70,72 C95,60 110,66 135,58 C160,50 175,56 200,42 C225,30 245,38 270,26 C295,16 315,22 340,12";
 
 const RULES = ["Risk max 1% per trade", "No trades first 15 min", "SL before entry"];
 
@@ -32,11 +33,19 @@ export function HeroShowcase() {
       setTicks(RULES.length);
       return;
     }
-    const t = setInterval(() => setScene((s) => (s + 1) % SCENES.length), 2600);
-    const r = setInterval(() => setTicks((n) => (n >= RULES.length ? 0 : n + 1)), 1300);
+    // The rolling tickers force layout on every update (NumberFlow measures
+    // text), so the loops start after the load window instead of competing
+    // with hydration — keeps mobile TBT down without losing the effect.
+    let t: ReturnType<typeof setInterval> | undefined;
+    let r: ReturnType<typeof setInterval> | undefined;
+    const warmup = setTimeout(() => {
+      t = setInterval(() => setScene((s) => (s + 1) % SCENES.length), 2600);
+      r = setInterval(() => setTicks((n) => (n >= RULES.length ? 0 : n + 1)), 1300);
+    }, 4000);
     return () => {
-      clearInterval(t);
-      clearInterval(r);
+      clearTimeout(warmup);
+      if (t) clearInterval(t);
+      if (r) clearInterval(r);
     };
   }, [reduced]);
 
@@ -80,7 +89,11 @@ export function HeroShowcase() {
           <div className="rounded-lg border bg-surface-2/40 p-3">
             <div className="micro-label">Avg R</div>
             <div className="mt-1 font-money text-xl font-semibold">
-              <NumberFlow value={s.r} format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }} suffix="R" />
+              <NumberFlow
+                value={s.r}
+                format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                suffix="R"
+              />
             </div>
           </div>
 
@@ -144,12 +157,19 @@ export function HeroShowcase() {
                     <span
                       className={cn(
                         "flex h-4 w-4 items-center justify-center rounded border transition-colors duration-300",
-                        done ? "border-profit bg-profit/20 text-profit" : "border-border text-transparent"
+                        done
+                          ? "border-profit bg-profit/20 text-profit"
+                          : "border-border text-transparent"
                       )}
                     >
                       <Check className="h-3 w-3" />
                     </span>
-                    <span className={cn("transition-colors duration-300", done ? "text-foreground" : "text-muted")}>
+                    <span
+                      className={cn(
+                        "transition-colors duration-300",
+                        done ? "text-foreground" : "text-muted"
+                      )}
+                    >
                       {rule}
                     </span>
                   </div>

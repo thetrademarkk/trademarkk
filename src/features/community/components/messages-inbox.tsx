@@ -70,7 +70,7 @@ export function MessagesInbox({ selectedId }: { selectedId: string | null }) {
           {c.unread > 0 && (
             <span
               aria-label={`${c.unread} unread`}
-              className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 font-money text-[10px] font-bold text-accent-fg"
+              className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent-solid px-1.5 font-money text-[10px] font-bold text-accent-fg"
             >
               {c.unread > 9 ? "9+" : c.unread}
             </span>

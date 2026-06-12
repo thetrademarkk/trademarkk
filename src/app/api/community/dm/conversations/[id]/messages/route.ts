@@ -11,6 +11,8 @@ import { sendDmSchema } from "@/features/community/schemas";
 import type { DmMessageView } from "@/features/community/types";
 
 const PAGE = 50;
+/** Cursors are message ISO timestamps — reject anything else outright. */
+const ISO_CURSOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 /** Thread messages (participant-only, newest page first) — marks incoming read. */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -21,7 +23,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const convo = await getConversationForUser(id, session.user.id);
   if (!convo) return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
 
-  const cursor = new URL(req.url).searchParams.get("cursor");
+  const rawCursor = new URL(req.url).searchParams.get("cursor");
+  if (rawCursor !== null && !ISO_CURSOR.test(rawCursor)) {
+    return NextResponse.json({ error: "Invalid cursor" }, { status: 400 });
+  }
+  const cursor = rawCursor;
   const conditions = [eq(dmMessages.conversationId, id)];
   if (cursor) conditions.push(lt(dmMessages.createdAt, cursor));
   const rows = await platformDb
@@ -70,7 +76,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to send messages" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`dm:${session.user.id}`, 60, 3600);
+  const { allowed } = await rateLimit(`dm:${session.user.id}`, 120, 3600);
   if (!allowed)
     return NextResponse.json({ error: "Sending too fast — try again soon" }, { status: 429 });
 

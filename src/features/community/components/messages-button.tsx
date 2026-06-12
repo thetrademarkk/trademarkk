@@ -33,7 +33,7 @@ export function MessagesFab() {
     >
       <MessageCircle className="h-5 w-5 text-accent" aria-hidden />
       {unread > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 font-money text-[10px] font-bold text-accent-fg ring-2 ring-bg">
+        <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-solid px-1 font-money text-[10px] font-bold text-accent-fg ring-2 ring-bg">
           {unread > 9 ? "9+" : unread}
         </span>
       )}

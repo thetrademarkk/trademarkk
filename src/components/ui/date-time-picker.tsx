@@ -62,7 +62,7 @@ function CalendarGrid({
               disabled
                 ? "cursor-not-allowed text-muted/40"
                 : selected
-                  ? "bg-accent font-semibold text-accent-fg"
+                  ? "bg-accent-solid font-semibold text-accent-fg"
                   : "hover:bg-surface-2",
               !selected && !disabled && key === todayK && "ring-1 ring-accent/60"
             )}
