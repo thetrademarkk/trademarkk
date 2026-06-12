@@ -67,6 +67,50 @@ Sources: [Framiq 2026 teardown](https://framiq.app/blog/best-saas-landing-pages-
       IntersectionObserver `Reveal` (shared by all marketing pages); landing
       route drops the animation-library bundle entirely.
 
+## v3 scope — user feedback on v2 (this PR)
+
+Direct user feedback drove all three changes; each reverses or extends a v2
+decision, so the reasoning is recorded here.
+
+- [x] **Demo video autoplays** ("video should be auto play"). v2 chose
+      click-to-play per the research above; the user wants the walkthrough
+      ambient. Decision: treat it as an ambient loop — `muted` + `loop` +
+      `playsInline`, **lazy via IntersectionObserver**: the `<video>` element
+      does not mount (nothing preloads, zero LCP impact — the lazy poster
+      image is all that exists) until the section first scrolls into view,
+      and playback pauses whenever it scrolls out (resumes on re-entry).
+      `prefers-reduced-motion` keeps the v2 click-to-play poster and gets
+      native controls after opting in. Sound stays opt-in for everyone via a
+      subtle corner mute toggle (the recording has soft UI click sounds).
+- [x] **Hero mock restored** ("the screenshot … is not looking relevant —
+      earlier it was good"). The v1 handcrafted dashboard mock (browser
+      chrome titled "TradeMark — Dashboard", ₹18,920 / 67% / 2.1R KPI cards,
+      self-drawing equity curve, day-strip pills, Today's-rules check tiles)
+      replaces the v2 screenshot. Refined while restoring: pure JSX/CSS
+      server component — the v1 NumberFlow/motion ticker loops (which forced
+      layout and cost mobile TBT) are gone; choreography is CSS keyframes
+      with `forwards` fill so reduced-motion lands on the finished state.
+      Crisp at any DPR and themes with the site — a screenshot can do
+      neither. `public/landing/dashboard.webp` stays for JSON-LD/OG.
+- [x] **Cursor effects, landing only** ("we can include cursor effects as
+      well"). Pattern researched across Linear/Vercel-style spotlight cards
+      (Cruip spotlight-card teardown, Frontend Masters "CSS Spotlight
+      Effect"): a soft radial spotlight follows the pointer over the hero,
+      and bento cards get a pointer-tracking inner glow + 1px border-shine
+      (mask-composite ring) with a gentle hover lift. One passive,
+      rAF-throttled `pointermove` listener writes CSS custom props; gradients
+      are paint-only (no layout writes, no React state per frame). Strictly
+      `(hover: hover) and (pointer: fine)` and disabled under
+      `prefers-reduced-motion`; no trails, no libraries.
+- [x] **Permanent landing e2e suite** — `scripts/e2e-landing.mjs` (12 steps:
+      mock content, lazy mount, autoplay/pause/resume, mute toggle, spotlight
+      vars, card glow + lift, and the three reduced-motion fallbacks).
+
+Additional sources for v3: [Cruip spotlight card](https://cruip.com/how-to-create-a-spotlight-card-hover-effect-with-tailwind-css/),
+[Frontend Masters CSS spotlight](https://frontendmasters.com/blog/css-spotlight-effect/),
+[web.dev lazy-loading video](https://web.dev/articles/lazy-loading-video),
+[Cloudinary autoplay do's/don'ts](https://cloudinary.com/guides/video-effects/video-autoplay-in-html).
+
 ## Backlog (v3+)
 
 - [ ] **Testimonials / wall of love** — only once real users consent; never
@@ -84,7 +128,11 @@ Sources: [Framiq 2026 teardown](https://framiq.app/blog/best-saas-landing-pages-
 - [x] **Accent-button contrast** — resolved by the audit lane's
       `--accent-solid` token (PR #23); landing adopted it for solid fills.
 - [ ] **Refresh the demo video** after the next major UI change (re-run the
-      capture pipeline; keep total media under 8 MB).
+      capture pipeline; keep total media under 8 MB). Publish it **with its
+      click-track audio**: the current walkthrough.mp4/webm encodes are
+      silent (the audio-mixed master `demo/trademark-demo.mp4` is a
+      different 86s/16:9 session, so its track can't be muxed in honestly) —
+      until then the v3 unmute toggle is wired but a no-op.
 
 ## Verification gates (every iteration)
 
@@ -107,6 +155,21 @@ prod deploy verified after merge.
   the fixes: LCP elements un-gated from opacity animations, prefetch=false
   on visible nav/CTA links, motion library dropped from the landing bundle,
   visibility-gated tickers.
+
+### v3 results (2026-06-12, local prod build on :3500)
+
+- Lighthouse `/` mobile, three runs: **perf 91 / 90 / 92 · a11y 100 ·
+  best-practices 100 · SEO 100** (LCP 3.3–3.5 s, TBT 80–130 ms, CLS 0).
+- Found while chasing the gate: `community-spotlight` imported
+  `TradeCardView` through the `@/features/community` barrel, dragging the
+  whole feed/composer/messaging bundle onto `/` (65 kB chunk, 90–130 ms
+  hydration long task; TBT had crept to 160–220 ms). Deep import dropped
+  first-load JS for `/` to **134 kB** and restored TBT.
+- e2e: new permanent `e2e-landing.mjs` **13/13** · e2e-smoke **25/25** ·
+  mobile-audit zero overflow at 360/390 · vitest 199 green · tsc/lint clean.
+- Hero mock is a pure server component — the LCP element stays the `<h1>`;
+  the autoplay video never mounts before its section intersects, so media
+  bytes stay off the critical path entirely.
 
 ## Shipped by the loop
 
