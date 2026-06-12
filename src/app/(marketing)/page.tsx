@@ -149,8 +149,13 @@ export default function LandingPage() {
             />
             <ol className="grid gap-10 md:grid-cols-3">
               {STEPS.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.12}>
-                  <li className="relative flex gap-4 md:flex-col md:items-center md:gap-0 md:text-center">
+                // The <li> stays a direct child of the <ol> (valid list semantics);
+                // the Reveal animation wraps the content inside it.
+                <li key={s.n} className="relative">
+                  <Reveal
+                    delay={i * 0.12}
+                    className="relative flex gap-4 md:flex-col md:items-center md:gap-0 md:text-center"
+                  >
                     <span className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-accent bg-bg font-money text-sm font-bold text-accent">
                       {s.n}
                     </span>
@@ -158,8 +163,8 @@ export default function LandingPage() {
                       <h3 className="text-base font-semibold md:mt-4">{s.title}</h3>
                       <p className="mt-1.5 max-w-xs text-sm leading-6 text-muted">{s.text}</p>
                     </div>
-                  </li>
-                </Reveal>
+                  </Reveal>
+                </li>
               ))}
             </ol>
           </div>

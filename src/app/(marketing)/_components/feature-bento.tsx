@@ -18,8 +18,16 @@ function CostTicker() {
     []
   );
   React.useEffect(() => {
-    const t = setInterval(() => setI((n) => (n + 1) % rows.length), 2200);
-    return () => clearInterval(t);
+    // Same warm-up as the hero: NumberFlow updates force layout, so the
+    // ticker stays still during the load window (it's below the fold anyway).
+    let t: ReturnType<typeof setInterval> | undefined;
+    const warmup = setTimeout(() => {
+      t = setInterval(() => setI((n) => (n + 1) % rows.length), 2200);
+    }, 4000);
+    return () => {
+      clearTimeout(warmup);
+      if (t) clearInterval(t);
+    };
   }, [rows.length]);
   return (
     <div className="mt-4 space-y-2">

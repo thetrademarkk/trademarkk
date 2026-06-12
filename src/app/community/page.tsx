@@ -203,7 +203,7 @@ function CommunityHome() {
       <button
         aria-label="Write a post"
         onClick={() => setComposeOpen(true)}
-        className="fixed bottom-5 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-accent p-3.5 text-accent-fg shadow-lg transition-transform active:scale-95 lg:hidden"
+        className="fixed bottom-5 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-accent-solid p-3.5 text-accent-fg shadow-lg transition-transform active:scale-95 lg:hidden"
       >
         <PenSquare className="h-5 w-5" aria-hidden />
       </button>

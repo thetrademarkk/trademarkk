@@ -89,7 +89,7 @@ export function BottomNav() {
       <button
         aria-label="Add trade"
         onClick={() => setQuickAddOpen(true)}
-        className="absolute left-1/2 top-0 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg ring-4 ring-bg transition-transform active:scale-95"
+        className="absolute left-1/2 top-0 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent-solid text-accent-fg shadow-lg ring-4 ring-bg transition-transform active:scale-95"
       >
         <Plus className="h-6 w-6" aria-hidden />
       </button>

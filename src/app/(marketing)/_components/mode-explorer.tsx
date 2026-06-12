@@ -43,12 +43,17 @@ export function ModeExplorer() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div role="tablist" aria-label="Storage modes" className="mx-auto flex w-fit rounded-xl border bg-surface p-1">
+      <div
+        role="tablist"
+        aria-label="Storage modes"
+        className="mx-auto flex w-fit rounded-xl border bg-surface p-1"
+      >
         {MODES.map((m) => (
           <button
             key={m.id}
             role="tab"
             aria-selected={active === m.id}
+            aria-label={m.label}
             onClick={() => setActive(m.id)}
             className={cn(
               "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
@@ -99,7 +104,9 @@ export function ModeExplorer() {
             </div>
           </div>
 
-          <p className="mx-auto mt-6 max-w-xl text-center text-sm leading-7 text-muted">{mode.text}</p>
+          <p className="mx-auto mt-6 max-w-xl text-center text-sm leading-7 text-muted">
+            {mode.text}
+          </p>
         </motion.div>
       </AnimatePresence>
 

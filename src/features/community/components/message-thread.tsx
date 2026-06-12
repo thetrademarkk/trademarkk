@@ -95,7 +95,7 @@ export function MessageThread({ conversationId }: { conversationId: string | nul
               className={cn(
                 "max-w-[78%] rounded-2xl px-3 py-1.5",
                 m.mine
-                  ? "rounded-br-sm bg-accent text-accent-fg"
+                  ? "rounded-br-sm bg-accent-solid text-accent-fg"
                   : "rounded-bl-sm bg-surface-2 text-foreground"
               )}
             >

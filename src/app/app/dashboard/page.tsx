@@ -4,7 +4,7 @@ import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
-import { KpiRow, EquityChart, RecentTrades, Greeting } from "@/features/dashboard";
+import { KpiRow, RecentTrades, Greeting } from "@/features/dashboard";
 import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
@@ -14,6 +14,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { todayKey } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// recharts is ~100 kB of route JS — load the chart after first paint so the
+// KPI row (the LCP element) isn't gated on it.
+const EquityChart = dynamic(
+  () => import("@/features/dashboard/components/equity-chart").then((m) => m.EquityChart),
+  { ssr: false, loading: () => <Skeleton className="h-72 lg:h-full" /> }
+);
 
 export default function DashboardPage() {
   const router = useRouter();

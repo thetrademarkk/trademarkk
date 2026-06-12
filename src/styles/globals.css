@@ -15,6 +15,10 @@
   --profit: #059669;
   --loss: #dc2626;
   --accent: #7c3aed;
+  /* Solid button/badge fill. Dark themes brighten --accent for text contrast
+     against dark surfaces, which drops white-on-accent below WCAG AA — so
+     solid fills use this deeper shade (≥4.5:1 with white) instead. */
+  --accent-solid: #7c3aed;
   --accent-fg: #ffffff;
   --warning: #d97706;
 }
@@ -29,6 +33,7 @@
   --profit: #34d399;
   --loss: #f87171;
   --accent: #8b5cf6;
+  --accent-solid: #7c3aed;
   --accent-fg: #ffffff;
   --warning: #fbbf24;
 }
@@ -43,6 +48,7 @@
   --profit: #34d399;
   --loss: #f87171;
   --accent: #818cf8;
+  --accent-solid: #4f46e5;
   --accent-fg: #ffffff;
   --warning: #fbbf24;
 }
@@ -57,6 +63,7 @@
   --profit: #34d399;
   --loss: #f87171;
   --accent: #8b5cf6;
+  --accent-solid: #7c3aed;
   --accent-fg: #ffffff;
   --warning: #fbbf24;
 }
@@ -81,6 +88,7 @@
   --color-profit: var(--profit);
   --color-loss: var(--loss);
   --color-accent: var(--accent);
+  --color-accent-solid: var(--accent-solid);
   --color-accent-fg: var(--accent-fg);
   --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -112,6 +120,12 @@
 /* ── Base ─────────────────────────────────────────────────────── */
 * {
   border-color: var(--border);
+}
+
+/* Reserve the scrollbar gutter so centered layouts don't jump sideways when
+   client-fetched content (feeds, tables) makes the page scrollable. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
