@@ -18,6 +18,7 @@ export async function GET() {
     bio: profile!.bio,
     website: profile!.website,
     avatar: profile!.avatar,
+    accent: profile!.accentColor,
     shareStreak: profile!.shareStreak === 1,
   });
 }
@@ -60,6 +61,7 @@ export async function PUT(req: Request) {
       ...(input.bio !== undefined ? { bio: input.bio.trim() || null } : {}),
       ...(input.website !== undefined ? { website: input.website.trim() || null } : {}),
       ...(input.avatar !== undefined ? { avatar: input.avatar || null } : {}),
+      ...(input.accent !== undefined ? { accentColor: input.accent || null } : {}),
     })
     .where(eq(profiles.userId, session.user.id));
 

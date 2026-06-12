@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAccentId } from "./accents";
 
 export const tradeCardSchema = z.object({
   symbol: z.string().min(1).max(20),
@@ -59,6 +60,12 @@ export const updateProfileSchema = z.object({
     .string()
     .max(160_000)
     .refine((v) => v === "" || v.startsWith("data:image/"), "Invalid image")
+    .optional(),
+  /** Preset cover-accent id only (no free hex); empty string clears it. */
+  accent: z
+    .string()
+    .max(20)
+    .refine((v) => v === "" || isAccentId(v), "Unknown accent")
     .optional(),
 });
 

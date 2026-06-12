@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCount, formatPostDate } from "./format";
+import { formatCount, formatPostDate, postContextLabel } from "./format";
 
 describe("formatCount", () => {
   it("passes small numbers through", () => {
@@ -30,6 +30,33 @@ describe("formatCount", () => {
     expect(formatCount(1_000_000)).toBe("1M");
     expect(formatCount(2_400_000)).toBe("2.4M");
     expect(formatCount(120_000_000)).toBe("120M");
+  });
+});
+
+describe("postContextLabel", () => {
+  it("prefers the title when present", () => {
+    expect(postContextLabel("BANKNIFTY breakout", "long body here")).toBe("BANKNIFTY breakout");
+  });
+
+  it("falls back to the body when the title is null or blank", () => {
+    expect(postContextLabel(null, "Sold the 52000 CE at open")).toBe("Sold the 52000 CE at open");
+    expect(postContextLabel("   ", "Body wins")).toBe("Body wins");
+  });
+
+  it("collapses body whitespace/newlines into one line", () => {
+    expect(postContextLabel(null, "line one\n\nline   two")).toBe("line one line two");
+  });
+
+  it("truncates long text with an ellipsis, trimming a mid-word cut", () => {
+    const long = "word ".repeat(40).trim();
+    const label = postContextLabel(null, long, 24);
+    expect(label.length).toBeLessThanOrEqual(25); // 24 + ellipsis
+    expect(label.endsWith("…")).toBe(true);
+    expect(label).not.toMatch(/\s…$/);
+  });
+
+  it("never returns an empty label", () => {
+    expect(postContextLabel(null, "   ")).toBe("a post");
   });
 });
 
