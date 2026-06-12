@@ -76,6 +76,7 @@ export function NotificationsBell() {
               >
                 <CommunityAvatar
                   size="sm"
+                  avatar={n.actor.avatar}
                   username={n.actor.username}
                   displayName={n.actor.displayName}
                 />

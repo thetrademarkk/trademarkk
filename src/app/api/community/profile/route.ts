@@ -16,6 +16,8 @@ export async function GET() {
     displayName: profile!.displayName,
     bio: profile!.bio,
     website: profile!.website,
+    avatar: profile!.avatar,
+    shareStreak: profile!.shareStreak === 1,
   });
 }
 
@@ -53,6 +55,7 @@ export async function PUT(req: Request) {
       ...(input.displayName ? { displayName: input.displayName.trim() } : {}),
       ...(input.bio !== undefined ? { bio: input.bio.trim() || null } : {}),
       ...(input.website !== undefined ? { website: input.website.trim() || null } : {}),
+      ...(input.avatar !== undefined ? { avatar: input.avatar || null } : {}),
     })
     .where(eq(profiles.userId, session.user.id));
 

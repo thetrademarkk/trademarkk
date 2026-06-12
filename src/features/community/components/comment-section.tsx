@@ -35,6 +35,7 @@ function CommentItem({
       >
         <CommunityAvatar
           size="sm"
+          avatar={comment.author.avatar}
           username={comment.author.username}
           displayName={comment.author.displayName}
         />

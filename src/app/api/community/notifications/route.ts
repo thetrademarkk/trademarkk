@@ -34,7 +34,7 @@ export async function GET() {
       id: r.id,
       type: r.type as NotificationView["type"],
       actor: a
-        ? { username: a.username, displayName: a.displayName }
+        ? { username: a.username, displayName: a.displayName, avatar: a.avatar }
         : { username: "deleted", displayName: "Someone" },
       postId: r.postId,
       read: r.read === 1,

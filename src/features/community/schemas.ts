@@ -46,6 +46,18 @@ export const updateProfileSchema = z.object({
   displayName: z.string().min(1).max(40).optional(),
   bio: z.string().max(280).optional(),
   website: z.string().url("Enter a full URL (https://…)").max(120).or(z.literal("")).optional(),
+  /** Compressed data-url ≤ ~120KB; empty string removes the photo. */
+  avatar: z
+    .string()
+    .max(160_000)
+    .refine((v) => v === "" || v.startsWith("data:image/"), "Invalid image")
+    .optional(),
+});
+
+export const shareStreakSchema = z.object({
+  share: z.boolean(),
+  current: z.number().int().min(0).max(3650),
+  best: z.number().int().min(0).max(3650),
 });
 
 export const REPORT_REASONS = [

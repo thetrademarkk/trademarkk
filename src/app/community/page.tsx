@@ -62,6 +62,12 @@ function CommunityHome() {
                 {t.label}
               </button>
             ))}
+            <Link
+              href="/community/leaderboard"
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Leaderboard
+            </Link>
             {me && (
               <Link
                 href={`/community/u/${me.username}`}
@@ -132,6 +138,12 @@ function CommunityHome() {
           )}
         </form>
         <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
+          <Link
+            href="/community/leaderboard"
+            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted"
+          >
+            Leaderboard
+          </Link>
           {tabs.map((t) => (
             <button
               key={t.id}

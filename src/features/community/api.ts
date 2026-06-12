@@ -7,7 +7,14 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import type { CommentView, FeedResponse, NotificationView, PostView, ProfileView } from "./types";
+import type {
+  CommentView,
+  FeedResponse,
+  LeaderboardRow,
+  NotificationView,
+  PostView,
+  ProfileView,
+} from "./types";
 import type { CreatePostInput, UpdateProfileInput } from "./schemas";
 
 export class ApiError extends Error {
@@ -230,6 +237,33 @@ export function useToggleBlock(username: string) {
   });
 }
 
+export function useLeaderboard(board: "contrib" | "streak", period: "month" | "all") {
+  return useQuery({
+    queryKey: ["community-leaderboard", board, period],
+    queryFn: () =>
+      request<{ rows: LeaderboardRow[] }>(
+        `/api/community/leaderboard?board=${board}&period=${period}`
+      ),
+    staleTime: 60_000,
+  });
+}
+
+/** Publishes (or hides) the viewer's journal streak — explicit opt-in only. */
+export function useShareStreak() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { share: boolean; current: number; best: number }) =>
+      request<{ shared: boolean }>("/api/community/streak", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["community-profile-me"] });
+      void qc.invalidateQueries({ queryKey: ["community-leaderboard"] });
+    },
+  });
+}
+
 export function useNotifications(enabled: boolean) {
   return useQuery({
     queryKey: ["community-notifications"],
@@ -287,9 +321,14 @@ export function useMyProfile(enabled: boolean) {
   return useQuery({
     queryKey: ["community-me"],
     queryFn: () =>
-      request<{ username: string; displayName: string; bio: string | null }>(
-        "/api/community/profile"
-      ),
+      request<{
+        username: string;
+        displayName: string;
+        bio: string | null;
+        website: string | null;
+        avatar: string | null;
+        shareStreak: boolean;
+      }>("/api/community/profile"),
     enabled,
     retry: false,
   });

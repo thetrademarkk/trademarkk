@@ -20,6 +20,7 @@ export interface TradeCard {
 export interface AuthorView {
   username: string;
   displayName: string;
+  avatar?: string | null;
 }
 
 export interface PostView {
@@ -54,12 +55,31 @@ export interface ProfileView {
   displayName: string;
   bio: string | null;
   website: string | null;
+  avatar: string | null;
   createdAt: string;
   postCount: number;
   followerCount: number;
   followingCount: number;
   followedByMe: boolean;
   blockedByMe: boolean;
+  /** Present only when the user opted in to publishing their streak. */
+  streak: { current: number; best: number } | null;
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  /** Contributors board */
+  score?: number;
+  posts?: number;
+  comments?: number;
+  likesReceived?: number;
+  /** Streaks board */
+  current?: number;
+  best?: number;
+  me: boolean;
 }
 
 export interface NotificationView {

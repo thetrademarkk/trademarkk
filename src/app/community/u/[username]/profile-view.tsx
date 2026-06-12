@@ -2,9 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, LinkIcon, Loader2, Pencil, UserCheck, UserPlus, UserX } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Flame,
+  LinkIcon,
+  Loader2,
+  Pencil,
+  UserCheck,
+  UserPlus,
+  UserX,
+} from "lucide-react";
 import { toast } from "sonner";
-import { timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
+import { compressAvatar } from "@/lib/images";
+import { badgesFor } from "@/lib/streak-badges";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -29,6 +41,20 @@ export function ProfileView({ username }: { username: string }) {
   const confirmDialog = useConfirm();
   const [editOpen, setEditOpen] = React.useState(false);
   const [gateOpen, setGateOpen] = React.useState(false);
+  // undefined = unchanged, "" = remove photo, data-url = new photo
+  const [avatarDraft, setAvatarDraft] = React.useState<string | undefined>(undefined);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const pickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setAvatarDraft(await compressAvatar(file));
+    } catch {
+      toast.error("Could not read that image");
+    }
+    e.target.value = "";
+  };
 
   const follow = () =>
     toggleFollow.mutate(undefined, {
@@ -81,6 +107,7 @@ export function ProfileView({ username }: { username: string }) {
         displayName: String(form.get("displayName")) || undefined,
         bio: String(form.get("bio") ?? ""),
         website: String(form.get("website") ?? ""),
+        ...(avatarDraft !== undefined ? { avatar: avatarDraft } : {}),
       });
       toast.success("Profile updated");
       setEditOpen(false);
@@ -102,7 +129,12 @@ export function ProfileView({ username }: { username: string }) {
       </Link>
 
       <header className="flex items-start gap-4 rounded-xl border bg-surface p-5">
-        <CommunityAvatar size="lg" username={profile.username} displayName={profile.displayName} />
+        <CommunityAvatar
+          size="lg"
+          username={profile.username}
+          displayName={profile.displayName}
+          avatar={profile.avatar}
+        />
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-bold leading-tight">{profile.displayName}</h1>
           <p className="text-sm text-muted">@{profile.username}</p>
@@ -119,6 +151,24 @@ export function ProfileView({ username }: { username: string }) {
               <LinkIcon className="h-3 w-3" aria-hidden />
               {profile.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
             </a>
+          )}
+          {profile.streak && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 font-medium text-warning">
+                <Flame className="h-3 w-3" aria-hidden />
+                {profile.streak.current}-day streak
+              </span>
+              <span className="text-muted">best {profile.streak.best}</span>
+              {badgesFor(profile.streak.best).map((b) => (
+                <span
+                  key={b.days}
+                  title={`${b.name} — ${b.days} days`}
+                  className={cn("flex h-6 w-6 items-center justify-center rounded-full", b.bg)}
+                >
+                  <b.icon className={cn("h-3.5 w-3.5", b.color)} aria-hidden />
+                </span>
+              ))}
+            </p>
           )}
           <p className="mt-2 text-xs text-muted">
             <span className="font-medium text-foreground">{profile.followerCount}</span> followers ·{" "}
@@ -189,6 +239,63 @@ export function ProfileView({ username }: { username: string }) {
             <DialogTitle>Edit profile</DialogTitle>
           </DialogHeader>
           <form className="space-y-3" onSubmit={saveProfile}>
+            {/* ── Profile photo ── */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                {avatarDraft !== undefined && avatarDraft === "" ? (
+                  <CommunityAvatar
+                    size="lg"
+                    username={profile.username}
+                    displayName={profile.displayName}
+                  />
+                ) : (
+                  <CommunityAvatar
+                    size="lg"
+                    username={profile.username}
+                    displayName={profile.displayName}
+                    avatar={avatarDraft ?? profile.avatar}
+                  />
+                )}
+                <button
+                  type="button"
+                  aria-label="Change profile photo"
+                  onClick={() => fileRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border bg-surface text-muted shadow-sm transition-colors hover:text-foreground"
+                >
+                  <Camera className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              </div>
+              <div className="text-xs text-muted">
+                <button
+                  type="button"
+                  className="text-accent hover:underline"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Upload photo
+                </button>
+                {(avatarDraft ? true : avatarDraft !== "" && profile.avatar) && (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      className="hover:text-loss"
+                      onClick={() => setAvatarDraft("")}
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+                <p className="mt-0.5">Square works best — auto-cropped to 256px.</p>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={pickAvatar}
+                aria-label="Profile photo file"
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="pf-name">Display name</Label>
               <Input

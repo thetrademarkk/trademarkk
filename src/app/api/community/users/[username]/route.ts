@@ -77,6 +77,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
       displayName: profile.displayName,
       bio: profile.bio,
       website: profile.website,
+      avatar: profile.avatar,
+      streak:
+        profile.shareStreak === 1
+          ? { current: profile.streakCurrent, best: profile.streakBest }
+          : null,
       createdAt: joinedAt,
       postCount: Number(countRow?.count ?? 0),
       followerCount: Number(followerRow?.count ?? 0),

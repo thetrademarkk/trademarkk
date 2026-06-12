@@ -64,6 +64,12 @@ export const profiles = sqliteTable("profiles", {
   displayName: text("display_name").notNull(),
   bio: text("bio"),
   website: text("website"),
+  avatar: text("avatar"), // compressed webp data-url, ≤ ~80KB
+  /** Streaks are journal data (private by design) — published only by opt-in. */
+  shareStreak: integer("share_streak").notNull().default(0),
+  streakCurrent: integer("streak_current").notNull().default(0),
+  streakBest: integer("streak_best").notNull().default(0),
+  streakUpdatedAt: text("streak_updated_at"),
   createdAt: text("created_at").notNull(),
 });
 

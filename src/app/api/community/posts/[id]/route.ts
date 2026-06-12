@@ -61,7 +61,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       createdAt: c.createdAt,
       mine: session?.user.id === c.userId,
       author: a
-        ? { username: a.username, displayName: a.displayName }
+        ? { username: a.username, displayName: a.displayName, avatar: a.avatar }
         : { username: "deleted", displayName: "Deleted user" },
     };
   });

@@ -103,7 +103,11 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
           href={`/community/u/${post.author.username}`}
           aria-label={`${post.author.displayName}'s profile`}
         >
-          <CommunityAvatar username={post.author.username} displayName={post.author.displayName} />
+          <CommunityAvatar
+            username={post.author.username}
+            displayName={post.author.displayName}
+            avatar={post.author.avatar}
+          />
         </Link>
         <div className="min-w-0 leading-tight">
           <Link

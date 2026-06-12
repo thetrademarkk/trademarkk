@@ -20,6 +20,21 @@ export async function compressImage(file: Blob): Promise<string> {
   return canvas.toDataURL("image/webp", 0.25);
 }
 
+/** Avatar compression: center-cropped square, 256px WebP (a few tens of KB). */
+export async function compressAvatar(file: Blob): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const sx = (bitmap.width - side) / 2;
+  const sy = (bitmap.height - side) / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, 256, 256);
+  bitmap.close();
+  return canvas.toDataURL("image/webp", 0.85);
+}
+
 /** Extracts the first image from a paste event, if any. */
 export function imageFromClipboard(e: ClipboardEvent): File | null {
   for (const item of Array.from(e.clipboardData?.items ?? [])) {

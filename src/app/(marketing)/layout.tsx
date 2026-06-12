@@ -32,12 +32,23 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             </div>
             <p className="mt-1 text-xs">{siteConfig.tagline} Open source, MIT licensed.</p>
           </div>
-          <nav className="flex gap-4 text-xs">
+          <nav className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
             {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="hover:text-foreground">{n.label}</Link>
+              <Link key={n.href} href={n.href} className="hover:text-foreground">
+                {n.label}
+              </Link>
             ))}
-            <Link href="/changelog" className="hover:text-foreground">Changelog</Link>
-            <a href={siteConfig.github} className="hover:text-foreground" target="_blank" rel="noreferrer">GitHub</a>
+            <Link href="/changelog" className="hover:text-foreground">
+              Changelog
+            </Link>
+            <a
+              href={siteConfig.github}
+              className="hover:text-foreground"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
             <FeedbackDialog
               trigger={<button className="hover:text-foreground cursor-pointer">Feedback</button>}
             />

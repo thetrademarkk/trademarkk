@@ -212,6 +212,11 @@ async function main() {
     `ALTER TABLE comments ADD COLUMN parent_id TEXT`,
     `ALTER TABLE comments ADD COLUMN like_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE profiles ADD COLUMN website TEXT`,
+    `ALTER TABLE profiles ADD COLUMN avatar TEXT`,
+    `ALTER TABLE profiles ADD COLUMN share_streak INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN streak_current INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN streak_best INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN streak_updated_at TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

@@ -159,7 +159,10 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
   ]);
 
   const authorMap = new Map<string, AuthorView>(
-    authors.map((a) => [a.userId, { username: a.username, displayName: a.displayName }])
+    authors.map((a) => [
+      a.userId,
+      { username: a.username, displayName: a.displayName, avatar: a.avatar },
+    ])
   );
   const likedSet = new Set(myLikes.map((l) => l.postId));
   const bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
