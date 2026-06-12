@@ -92,19 +92,21 @@ Sources: [Framiq 2026 teardown](https://framiq.app/blog/best-saas-landing-pages-
 `mobile-audit.mjs` zero overflow at 360/390 · Lighthouse mobile ≥ 90 on `/` ·
 prod deploy verified after merge.
 
-### v2 results (2026-06-12, local prod build)
+### v2 results (2026-06-12, local prod build, after merging main)
 
-- Lighthouse `/` mobile: **perf 91 · a11y 97 · best-practices 100 · SEO 100**
-  (FCP 1.2s, LCP 3.4s, CLS 0, TBT 100ms)
-- Lighthouse `/` desktop: **perf 100 · a11y 97 · best-practices 100 · SEO 100**
-  (LCP 0.7s, CLS 0)
+- Lighthouse `/` mobile: **perf 91 · a11y 100 · best-practices 100 · SEO 100**
+  (FCP 1.2s, LCP 3.4s, CLS 0, TBT 80ms)
+- Lighthouse `/` desktop: **perf 98 · a11y 100 · best-practices 100 · SEO 100**
+  (LCP 0.8s, CLS 0)
 - Demo video: 60s walkthrough, h264 mp4 2.1 MB + vp9 webm 1.8 MB + poster
   0.11 MB; hero screenshot webp 0.11 MB (all under the 8 MB budget).
-- e2e-smoke 23/23 · landing suite 10/10 (hero image, live metrics vs API,
+- e2e-smoke 24/24 · landing suite 10/10 (hero image, live metrics vs API,
   video click-to-play, both CTAs, scrolled header, footer links,
-  reduced-motion) · mobile-audit zero overflow · vitest 115 green.
-- a11y 97 at measurement time was the accent-button contrast; main's
-  `--accent-solid` token (PR #23) merged in and the landing adopted it.
+  reduced-motion) · mobile-audit zero overflow · vitest 163 green.
+- Before the perf pass the page scored 68 mobile (LCP 4.6s, TBT 590ms);
+  the fixes: LCP elements un-gated from opacity animations, prefetch=false
+  on visible nav/CTA links, motion library dropped from the landing bundle,
+  visibility-gated tickers.
 
 ## Shipped by the loop
 
