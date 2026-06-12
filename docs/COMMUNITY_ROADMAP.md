@@ -23,7 +23,7 @@
 
 - [x] **Direct messages (chat) v1** — 1:1 conversations: `conversations` + `messages` tables, /community/messages inbox + thread view, "Message" button on profiles, unread badge in header bell area, 5s polling (SSE/websockets later). Block-aware (blocked users can't DM). Rate-limited.
 - [x] **Feed composer upgrade** — inline (LinkedIn-style) top-of-feed composer instead of dialog-only; image preview grid; draft persistence. _(2026-06-12, PR #18)_
-- [ ] **Post detail polish** — back navigation context, share-count, related posts by tag, sticky comment box on mobile.
+- [x] **Post detail polish** — back navigation context, share-count, related posts by tag, sticky comment box on mobile. _(2026-06-12, PR #28 — plus follow chip in author header, absolute dates, OG metadata, structured skeleton, Ctrl+Enter composer)_
 - [ ] **Notification grouping** — "X and 3 others liked your post" rollups, mark-one-read, notification page (not just dropdown).
 - [ ] **Profile polish** — pinned post, post/comment count tabs (Posts | Comments | Likes), cover accent color picker.
 - [ ] **Search v2** — unified search across posts/users/tags with keyboard navigation (Twitter-style typeahead).
@@ -38,3 +38,4 @@
 
 - [x] 2026-06-12 — Direct messages (chat) v1 — PR #12
 - [x] 2026-06-12 — Feed composer upgrade (inline top-of-feed composer, drafts in tm.community-draft) — PR #18
+- [x] 2026-06-12 — Post detail polish (back-nav context, share counts, related rail, docked mobile composer, follow chip) — PR #28
