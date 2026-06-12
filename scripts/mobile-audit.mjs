@@ -22,6 +22,7 @@ const APP = [
   "/app/journal",
   "/app/calendar",
   "/app/analytics",
+  "/app/insights",
   "/app/rules",
   "/app/playbooks",
   "/app/reports",

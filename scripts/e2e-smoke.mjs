@@ -154,6 +154,13 @@ await step("analytics: all four tabs render", async () => {
   await page.getByText("R-multiple distribution").waitFor();
 });
 
+console.log("— Insights —");
+await step("insights: honest 'not enough data' state below min sample", async () => {
+  // Only one closed trade exists at this point — every insight must stay suppressed.
+  await page.goto(`${BASE}/app/insights`, { waitUntil: "networkidle" });
+  await page.getByText("Not enough data yet").waitFor({ timeout: 15000 });
+});
+
 console.log("— Playbooks —");
 await step("playbooks render with stats", async () => {
   await page.goto(`${BASE}/app/playbooks`, { waitUntil: "networkidle" });

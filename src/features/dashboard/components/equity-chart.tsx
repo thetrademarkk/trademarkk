@@ -1,16 +1,26 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatINR } from "@/lib/utils";
-import { equityCurve, closedOnly, type TradeLike } from "@/lib/stats/stats";
+import { equityCurve, withStartBaseline, closedOnly, type TradeLike } from "@/lib/stats/stats";
 
 export function EquityChart({ trades }: { trades: TradeLike[] }) {
-  const points = equityCurve(closedOnly(trades));
+  const points = withStartBaseline(equityCurve(closedOnly(trades)));
   if (points.length < 2) {
     return (
       <Card className="h-full">
-        <CardHeader><CardTitle>Equity curve</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Equity curve</CardTitle>
+        </CardHeader>
         <CardContent className="flex h-48 items-center justify-center text-sm text-muted">
           Log a few trades to see your curve.
         </CardContent>
@@ -22,7 +32,9 @@ export function EquityChart({ trades }: { trades: TradeLike[] }) {
 
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle>Equity curve (cumulative net P&L)</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle>Equity curve (cumulative net P&L)</CardTitle>
+      </CardHeader>
       <CardContent className="h-56 md:h-64 pl-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -39,7 +51,10 @@ export function EquityChart({ trades }: { trades: TradeLike[] }) {
               tickLine={false}
               axisLine={false}
               tickFormatter={(d: string) =>
-                new Date(d + "T12:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
+                new Date(d + "T12:00:00").toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                })
               }
               minTickGap={40}
             />
@@ -60,7 +75,14 @@ export function EquityChart({ trades }: { trades: TradeLike[] }) {
               labelStyle={{ color: "var(--text-muted)" }}
               formatter={(value: number | string) => [formatINR(Number(value)), "Equity"]}
             />
-            <Area type="monotone" dataKey="equity" stroke={color} strokeWidth={1.5} fill="url(#equityFill)" />
+            <Area
+              type="monotone"
+              dataKey="equity"
+              stroke={color}
+              strokeWidth={1.5}
+              fill="url(#equityFill)"
+              dot={points.length <= 5 ? { r: 3, fill: color, strokeWidth: 0 } : false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>

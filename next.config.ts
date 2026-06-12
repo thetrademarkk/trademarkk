@@ -30,6 +30,10 @@ const nextConfig: NextConfig = {
   // Test/CI builds set NEXT_DIST_DIR (e.g. ".next-e2e") so they never clobber
   // the dev server's .next cache — building while `next dev` runs corrupts it.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Pin the workspace root to THIS checkout. Without it, Next walks up,
+  // finds another lockfile (e.g. the main checkout above a git worktree) and
+  // mixes two React copies — the /_error prerender then dies on useContext.
+  outputFileTracingRoot: __dirname,
   headers: async () => [
     {
       source: "/(.*)",

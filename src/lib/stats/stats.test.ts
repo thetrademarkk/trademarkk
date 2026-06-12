@@ -9,6 +9,7 @@ import {
   rHistogram,
   streaks,
   winRate,
+  withStartBaseline,
   type TradeLike,
 } from "./stats";
 
@@ -54,6 +55,23 @@ describe("equity & drawdown", () => {
     const map = dailyPnl(sample);
     expect(map.get("2026-06-01")).toBe(1000);
     expect(map.size).toBe(4);
+  });
+  it("withStartBaseline prepends a zero point the day before the first trade", () => {
+    // Two trades on the same day — a brand-new user's first session must still chart.
+    const curve = withStartBaseline(
+      equityCurve([t(-15841, "2026-06-12T10:00:00Z"), t(-2005, "2026-06-12T11:00:00Z")])
+    );
+    expect(curve).toEqual([
+      { date: "2026-06-11", equity: 0, pnl: 0 },
+      { date: "2026-06-12", equity: -17846, pnl: -17846 },
+    ]);
+  });
+  it("withStartBaseline handles month boundaries", () => {
+    const curve = withStartBaseline(equityCurve([t(100, "2024-03-01T10:00:00Z")]));
+    expect(curve[0]).toEqual({ date: "2024-02-29", equity: 0, pnl: 0 });
+  });
+  it("withStartBaseline leaves an empty curve empty", () => {
+    expect(withStartBaseline([])).toEqual([]);
   });
 });
 
