@@ -6,7 +6,7 @@ export { CommunityAvatar } from "./components/avatar";
 export { TradeCardView } from "./components/trade-card-view";
 export { SignInGate } from "./components/sign-in-gate";
 export { NotificationsBell } from "./components/notifications-bell";
-export { MessagesButton } from "./components/messages-button";
+export { MessagesFab } from "./components/messages-button";
 export { MessagesInbox } from "./components/messages-inbox";
 export { MessageThread } from "./components/message-thread";
 export { ReportDialog } from "./components/report-dialog";
