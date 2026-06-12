@@ -86,11 +86,11 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      <p className="mt-2 text-xs text-muted">
-        {board === "contrib"
-          ? "Score = posts ×4 + comments ×2 + likes received ×1."
-          : "Journaling streaks, shared by choice from each trader's own journal."}
-      </p>
+      {board === "streak" && (
+        <p className="mt-2 text-xs text-muted">
+          Shared by choice from each trader&apos;s own journal.
+        </p>
+      )}
 
       {isLoading ? (
         <Skeleton className="mt-6 h-72 rounded-xl" />

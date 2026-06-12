@@ -258,7 +258,8 @@ export function useShareStreak() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["community-profile-me"] });
+      void qc.invalidateQueries({ queryKey: ["community-me"] }); // drives the toggle state
+      void qc.invalidateQueries({ queryKey: ["community-user"] });
       void qc.invalidateQueries({ queryKey: ["community-leaderboard"] });
     },
   });

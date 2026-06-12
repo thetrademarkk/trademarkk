@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { withThemeTransition } from "@/lib/theme-transition";
 
 const MODE_META = {
   hosted: { icon: Cloud, label: "Hosted" },
@@ -141,7 +142,10 @@ export function Topbar() {
             )}
             <DropdownMenuLabel>Theme</DropdownMenuLabel>
             {THEMES.map((t) => (
-              <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
+              <DropdownMenuItem
+                key={t.id}
+                onClick={() => withThemeTransition(() => setTheme(t.id))}
+              >
                 <Moon className={t.id === theme ? "text-accent" : "opacity-40"} />
                 {t.label}
               </DropdownMenuItem>

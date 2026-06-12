@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { getSession } from "@/server/community";
+import { cached } from "@/server/cache";
 import type { LeaderboardRow } from "@/features/community/types";
 
 /**
@@ -18,11 +19,14 @@ export async function GET(req: Request) {
   const me = session?.user.id ?? "";
 
   if (board === "streak") {
-    const rows = await platformDb.all(
-      sql`SELECT user_id AS userId, username, display_name AS displayName, avatar,
-                 streak_current AS current, streak_best AS best
-          FROM profiles WHERE share_streak = 1 AND streak_best > 0
-          ORDER BY streak_current DESC, streak_best DESC LIMIT 50`
+    // Aggregates cached 2 min per instance; "me" personalization stays per-request.
+    const rows = await cached("lb:streak", 120_000, () =>
+      platformDb.all(
+        sql`SELECT user_id AS userId, username, display_name AS displayName, avatar,
+                   streak_current AS current, streak_best AS best
+            FROM profiles WHERE share_streak = 1 AND streak_best > 0
+            ORDER BY streak_current DESC, streak_best DESC LIMIT 50`
+      )
     );
     const out: LeaderboardRow[] = (rows as Record<string, unknown>[]).map((r, i) => ({
       rank: i + 1,
@@ -37,8 +41,9 @@ export async function GET(req: Request) {
   }
 
   const since = period === "month" ? new Date(Date.now() - 30 * 864e5).toISOString() : "1970";
-  const rows = await platformDb.all(
-    sql`SELECT p.user_id AS userId, p.username, p.display_name AS displayName, p.avatar,
+  const rows = await cached(`lb:contrib:${period}`, 120_000, () =>
+    platformDb.all(
+      sql`SELECT p.user_id AS userId, p.username, p.display_name AS displayName, p.avatar,
                COALESCE(po.cnt, 0) AS posts,
                COALESCE(co.cnt, 0) AS comments,
                COALESCE(lr.cnt, 0) AS likesReceived,
@@ -55,6 +60,7 @@ export async function GET(req: Request) {
         ) lr ON lr.user_id = p.user_id
         WHERE COALESCE(po.cnt, 0) + COALESCE(co.cnt, 0) + COALESCE(lr.cnt, 0) > 0
         ORDER BY score DESC LIMIT 50`
+    )
   );
   const out: LeaderboardRow[] = (rows as Record<string, unknown>[]).map((r, i) => ({
     rank: i + 1,

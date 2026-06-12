@@ -29,9 +29,11 @@ export function StreakIndicator() {
   const share = useShareStreak();
   if (!data) return null;
 
-  const { current, best, todayLogged, noTradeToday, tradedToday } = data;
+  const { current, best, todayLogged, noTradeToday, tradedToday, isWeekendToday } = data;
   const effectiveBest = Math.max(best, current);
   const next = nextBadge(effectiveBest);
+  // Weekends are market-closed: covered by default, nothing to log.
+  const covered = todayLogged || isWeekendToday;
 
   const mark = () =>
     toggle.mutate(true, {
@@ -67,12 +69,10 @@ export function StreakIndicator() {
           className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-surface-2"
         >
           <Flame
-            className={cn("h-4 w-4", todayLogged ? "fill-warning text-warning" : "text-muted")}
+            className={cn("h-4 w-4", covered ? "fill-warning text-warning" : "text-muted")}
             aria-hidden
           />
-          <span
-            className={cn("font-money font-semibold", todayLogged ? "text-warning" : "text-muted")}
-          >
+          <span className={cn("font-money font-semibold", covered ? "text-warning" : "text-muted")}>
             {current}
           </span>
         </button>
@@ -80,7 +80,7 @@ export function StreakIndicator() {
       <DropdownMenuContent align="end" className="w-72 p-3">
         <div className="flex items-center gap-2.5">
           <Flame
-            className={cn("h-7 w-7", todayLogged ? "fill-warning text-warning" : "text-muted")}
+            className={cn("h-7 w-7", covered ? "fill-warning text-warning" : "text-muted")}
             aria-hidden
           />
           <div>
@@ -116,13 +116,15 @@ export function StreakIndicator() {
         )}
 
         <p className="mt-2.5 text-xs leading-5 text-muted">
-          {todayLogged
-            ? noTradeToday && !tradedToday
-              ? "Rest day logged for today ✓"
-              : "Today is logged ✓ See you tomorrow."
-            : "Log a trade, write your journal, or mark a rest day to keep the flame alive."}
+          {isWeekendToday && !todayLogged
+            ? "Weekend — markets are closed. Your streak is safe."
+            : todayLogged
+              ? noTradeToday && !tradedToday
+                ? "Rest day logged for today ✓"
+                : "Today is logged ✓ See you tomorrow."
+              : "Log a trade, write your journal, or mark a rest day to keep the flame alive."}
         </p>
-        {!todayLogged && (
+        {!covered && (
           <Button
             size="sm"
             variant="outline"

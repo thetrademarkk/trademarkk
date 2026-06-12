@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { withThemeTransition } from "@/lib/theme-transition";
 
 export function AppearanceSection() {
   const { theme, setTheme } = useTheme();
@@ -28,7 +29,9 @@ export function AppearanceSection() {
 
   return (
     <Card>
-      <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label>Theme</Label>
@@ -36,7 +39,7 @@ export function AppearanceSection() {
             {THEMES.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTheme(t.id)}
+                onClick={() => withThemeTransition(() => setTheme(t.id))}
                 className={cn(
                   "rounded-lg border p-3 text-left text-sm transition-colors",
                   theme === t.id ? "border-accent ring-1 ring-accent" : "hover:bg-surface-2"
@@ -46,7 +49,13 @@ export function AppearanceSection() {
                   className="mb-2 block h-6 rounded border"
                   style={{
                     background:
-                      t.id === "light" ? "#fafafa" : t.id === "midnight" ? "#0b1220" : t.id === "oled" ? "#000" : "#0a0a0b",
+                      t.id === "light"
+                        ? "#fafafa"
+                        : t.id === "midnight"
+                          ? "#0b1220"
+                          : t.id === "oled"
+                            ? "#000"
+                            : "#0a0a0b",
                   }}
                 />
                 {t.label}

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
@@ -18,8 +19,17 @@ export default function DashboardPage() {
   const router = useRouter();
   const { period } = useFilterStore();
   const { from, to } = periodToRange(period);
-  const { data: trades, isLoading } = useTrades({ from, to });
-  const { data: allTrades = [] } = useTrades({});
+  // One table scan instead of two: fetch all trades once, filter the period
+  // client-side (the heatmap needs the full set anyway).
+  const { data: allTrades, isLoading } = useTrades({});
+  const trades = React.useMemo(
+    () =>
+      (allTrades ?? []).filter((t) => {
+        const d = t.opened_at.slice(0, 10);
+        return (!from || d >= from) && (!to || d <= to);
+      }),
+    [allTrades, from, to]
+  );
   const { data: adherence } = useAdherence(from, to);
   const { data: journalDates = [] } = useJournalDates();
 
@@ -37,7 +47,7 @@ export default function DashboardPage() {
   }
 
   const now = new Date();
-  const monthPnl = dailyPnl(closedOnly(allTrades));
+  const monthPnl = dailyPnl(closedOnly(allTrades ?? []));
 
   return (
     <div className="space-y-4">

@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { withThemeTransition } from "@/lib/theme-transition";
 
 /** Compact theme picker for the marketing header. */
 export function ThemeToggle() {
@@ -27,12 +28,18 @@ export function ThemeToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {THEMES.map((t) => (
-          <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
+          <DropdownMenuItem key={t.id} onClick={() => withThemeTransition(() => setTheme(t.id))}>
             <span
               className="h-3.5 w-3.5 rounded-full border"
               style={{
                 background:
-                  t.id === "light" ? "#fafafa" : t.id === "midnight" ? "#0b1220" : t.id === "oled" ? "#000" : "#1b1b1f",
+                  t.id === "light"
+                    ? "#fafafa"
+                    : t.id === "midnight"
+                      ? "#0b1220"
+                      : t.id === "oled"
+                        ? "#000"
+                        : "#1b1b1f",
               }}
             />
             {t.label}

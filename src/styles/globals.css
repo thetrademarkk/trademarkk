@@ -91,12 +91,22 @@
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Base ─────────────────────────────────────────────────────── */
@@ -165,8 +175,16 @@ label:has(> input[type="file"].hidden) {
 
 .hero-glow {
   background:
-    radial-gradient(600px 300px at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
-    radial-gradient(800px 400px at 80% 20%, color-mix(in srgb, #34d399 10%, transparent), transparent 70%);
+    radial-gradient(
+      600px 300px at 50% 0%,
+      color-mix(in srgb, var(--accent) 22%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      800px 400px at 80% 20%,
+      color-mix(in srgb, #34d399 10%, transparent),
+      transparent 70%
+    );
 }
 
 .grid-fade {
@@ -178,8 +196,13 @@ label:has(> input[type="file"].hidden) {
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 .animate-float-slow {
   animation: float-slow 7s ease-in-out infinite;
@@ -192,4 +215,21 @@ label:has(> input[type="file"].hidden) {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* -- Smooth theme switching ------------------------------------------------ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+.theme-fade,
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition:
+    background-color 0.35s ease,
+    border-color 0.35s ease,
+    color 0.35s ease,
+    fill 0.35s ease !important;
 }

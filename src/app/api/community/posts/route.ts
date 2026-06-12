@@ -5,23 +5,29 @@ import { posts, postImages } from "@/server/db/platform-schema";
 import { ensureProfile, getSession, notifyMentions, queryFeed } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
+import { cached, invalidateCached } from "@/server/cache";
 import { createPostSchema } from "@/features/community/schemas";
 
 /** Public feed — readable logged-out. */
 export async function GET(req: Request) {
   const session = await getSession();
   const url = new URL(req.url);
-  const result = await queryFeed(
-    {
-      sort: url.searchParams.get("sort") === "top" ? "top" : "latest",
-      cursor: url.searchParams.get("cursor"),
-      tag: url.searchParams.get("tag"),
-      search: url.searchParams.get("q"),
-      scope: url.searchParams.get("scope") as "all" | "following" | "saved" | null,
-    },
-    session?.user.id ?? null
-  );
-  return NextResponse.json(result);
+  const query = {
+    sort: url.searchParams.get("sort") === "top" ? ("top" as const) : ("latest" as const),
+    cursor: url.searchParams.get("cursor"),
+    tag: url.searchParams.get("tag"),
+    search: url.searchParams.get("q"),
+    scope: url.searchParams.get("scope") as "all" | "following" | "saved" | null,
+  };
+
+  // Anonymous first pages have no viewer-specific fields (likedByMe etc. are
+  // always false) — share a short-lived cache. Signed-in readers stay fresh.
+  if (!session && !query.cursor && (!query.scope || query.scope === "all")) {
+    const key = `feed:${query.sort}:${query.tag ?? ""}:${query.search ?? ""}`;
+    return NextResponse.json(await cached(key, 30_000, () => queryFeed(query, null)));
+  }
+
+  return NextResponse.json(await queryFeed(query, session?.user.id ?? null));
 }
 
 export async function POST(req: Request) {
@@ -59,5 +65,6 @@ export async function POST(req: Request) {
       .values(input.images.map((data, position) => ({ id: newId(), postId: id, position, data })));
   }
   await notifyMentions(input.body, session.user.id, id);
+  invalidateCached("feed:"); // new post must appear for anonymous readers too
   return NextResponse.json({ id }, { status: 201 });
 }

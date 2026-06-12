@@ -10,6 +10,8 @@ export interface StreakData extends StreakResult {
   noTradeToday: boolean;
   /** Today already has at least one trade logged. */
   tradedToday: boolean;
+  /** Sat/Sun: markets closed — counts as covered without any action. */
+  isWeekendToday: boolean;
 }
 
 /** Streak = trades ∪ journal entries ∪ explicit no-trade marks, per day. */
@@ -30,10 +32,12 @@ export function useStreak() {
       const today = todayKey();
       const noTradeDates = new Set(noTrade.rows.map((r) => String(r.d)));
       const tradeDates = new Set(trades.rows.map((r) => String(r.d)));
+      const dow = new Date().getDay();
       return {
         ...computeStreak(logged, today),
         noTradeToday: noTradeDates.has(today),
         tradedToday: tradeDates.has(today),
+        isWeekendToday: dow === 0 || dow === 6,
       };
     },
   });
