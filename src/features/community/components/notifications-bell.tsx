@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Bell, Check, Inbox } from "lucide-react";
+import { Bell, CheckCheck, Inbox } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
-import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,32 +11,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMarkNotificationsRead, useNotifications } from "../api";
-import { CommunityAvatar } from "./avatar";
+import { groupNotifications, type NotificationGroup } from "../notifications";
+import { NotificationGroupRow } from "./notification-row";
 
-const COPY: Record<string, string> = {
-  like: "liked your post",
-  comment: "commented on your post",
-  reply: "replied to your comment",
-  follow: "followed you",
-  mention: "mentioned you",
-};
-
-/** Notification bell with unread badge — shown to signed-in community members. */
+/**
+ * Notification bell with unread badge. Rows collapse LinkedIn-style ("Asha,
+ * Vik and 3 others liked your post"); opening a row marks only that group's
+ * members read, so the rest of the badge survives until each item is seen.
+ */
 export function NotificationsBell() {
   const { data: session } = useSession();
   const { data } = useNotifications(Boolean(session));
   const markRead = useMarkNotificationsRead();
+  const groups = React.useMemo(
+    () => groupNotifications(data?.notifications ?? []),
+    [data?.notifications]
+  );
   if (!session) return null;
 
   const unread = data?.unread ?? 0;
-  const items = data?.notifications ?? [];
+  const openGroup = (g: NotificationGroup) => {
+    if (!g.read) markRead.mutate(g.ids);
+  };
 
   return (
-    <DropdownMenu
-      onOpenChange={(open) => {
-        if (open && unread > 0) markRead.mutate();
-      }}
-    >
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
@@ -56,41 +54,32 @@ export function NotificationsBell() {
       <DropdownMenuContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-semibold">Notifications</span>
-          {items.length > 0 && <Check className="h-3.5 w-3.5 text-muted" aria-hidden />}
+          {unread > 0 && (
+            <button
+              type="button"
+              onClick={() => markRead.mutate(undefined)}
+              className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-accent"
+            >
+              <CheckCheck className="h-3.5 w-3.5" aria-hidden /> Mark all read
+            </button>
+          )}
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {items.length === 0 ? (
+          {groups.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-3 py-8 text-center text-sm text-muted">
               <Inbox className="h-6 w-6" aria-hidden />
               Nothing yet — say hi
             </div>
           ) : (
-            items.map((n) => (
-              <Link
-                key={n.id}
-                href={n.postId ? `/community/post/${n.postId}` : `/community/u/${n.actor.username}`}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-surface-2",
-                  !n.read && "bg-accent/5"
-                )}
-              >
-                <CommunityAvatar
-                  size="sm"
-                  avatar={n.actor.avatar}
-                  username={n.actor.username}
-                  displayName={n.actor.displayName}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="font-medium">{n.actor.displayName}</span>{" "}
-                  <span className="text-muted">{COPY[n.type] ?? n.type}</span>
-                </span>
-                <time dateTime={n.createdAt} className="shrink-0 text-xs text-muted">
-                  {timeAgo(n.createdAt)}
-                </time>
-              </Link>
-            ))
+            groups.map((g) => <NotificationGroupRow key={g.key} group={g} onOpen={openGroup} />)
           )}
         </div>
+        <Link
+          href="/community/notifications"
+          className="block border-t px-3 py-2 text-center text-xs font-medium text-muted transition-colors hover:text-accent"
+        >
+          View all notifications
+        </Link>
       </DropdownMenuContent>
     </DropdownMenu>
   );
