@@ -26,6 +26,9 @@ jobs:
       # the Windows-generated lockfile. install tolerates that drift.
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
+      - run: npm run ext:typecheck
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Browser extension bundle (fast — vite, no network):
+      - run: npm run ext:build

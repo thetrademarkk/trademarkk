@@ -19,9 +19,10 @@ const socialProviders =
 export const auth = betterAuth({
   secret: serverEnv.authSecret,
   baseURL: serverEnv.authUrl,
-  // Only the deployment's own origin may drive auth flows (CSRF hardening —
+  // Only the deployment's own origin — plus the pinned companion-extension
+  // origin (sign-out from the panel) — may drive auth flows (CSRF hardening —
   // Better Auth rejects state-changing requests from other origins).
-  trustedOrigins: [serverEnv.authUrl],
+  trustedOrigins: [serverEnv.authUrl, serverEnv.extensionOrigin].filter(Boolean),
   database: drizzleAdapter(platformDb, {
     provider: "sqlite",
     schema: {

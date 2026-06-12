@@ -10,6 +10,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "ext:build": "vite build --config extension/vite.config.ts",
+    "ext:typecheck": "tsc -p extension --noEmit",
     "e2e": "node scripts/e2e-smoke.mjs",
     "migrate:platform": "tsx scripts/migrate-platform.ts",
     "postinstall": "node scripts/copy-assets.mjs",
@@ -82,6 +84,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.1.8",
+    "@types/chrome": "^0.0.326",
     "@types/node": "^22.15.0",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.1.0",
@@ -99,6 +102,8 @@
     "tailwindcss": "^4.1.8",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
+    "@vitejs/plugin-react": "^4.5.0",
+    "vite": "^6.3.5",
     "vitest": "^3.2.0"
   }
 }
