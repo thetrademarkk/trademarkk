@@ -47,3 +47,6 @@ demo/*.wav
 demo/*.pcm
 demo/*.jpg
 demo/clicks.json
+
+# Personal Claude Code settings (machine-local permissions)
+.claude/settings.local.json
