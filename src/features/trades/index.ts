@@ -18,3 +18,13 @@ export {
 } from "./queries";
 export { describeInstrument } from "./types";
 export type { TradeRow, TradeWithMeta, Tag, TradeFilters, AccountRow, PlaybookRow } from "./types";
+export {
+  countActiveFilters,
+  decodeFiltersFromSearch,
+  encodeFiltersToSearch,
+  filterTrades,
+  hasActiveFilters,
+  matchesTrade,
+  sanitizeFilters,
+} from "./filter-predicate";
+export type { AdvancedTradeFilters, RuleDayContext } from "./filter-predicate";
