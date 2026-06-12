@@ -161,6 +161,11 @@ await step("insights: honest 'not enough data' state below min sample", async ()
   await page.getByText("Not enough data yet").waitFor({ timeout: 15000 });
 });
 
+await step("insights: no tilt card sneaks past the gate on thin data", async () => {
+  const tiltCards = await page.locator('[data-insight^="tilt-"]').count();
+  if (tiltCards > 0) throw new Error(`${tiltCards} tilt card(s) rendered with one trade`);
+});
+
 console.log("— Playbooks —");
 await step("playbooks render with stats", async () => {
   await page.goto(`${BASE}/app/playbooks`, { waitUntil: "networkidle" });
