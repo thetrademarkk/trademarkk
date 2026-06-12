@@ -121,7 +121,11 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
               @{post.author.username}
             </Link>
             {" · "}
-            <time dateTime={post.createdAt}>{timeAgo(post.createdAt)}</time>
+            {/* ISR documents render this label at revalidate time; it can lag
+                by minutes at hydration — suppress the benign text mismatch. */}
+            <time dateTime={post.createdAt} suppressHydrationWarning>
+              {timeAgo(post.createdAt)}
+            </time>
           </p>
         </div>
         <DropdownMenu>

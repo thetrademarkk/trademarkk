@@ -35,6 +35,14 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // refresh the expiry once per day of activity
+    // Short-lived signed cookie mirror of the session — getSession() skips the
+    // platform-DB round trip for 5 minutes at a time (a DB hit per request
+    // otherwise). Sign-out clears the cookie; worst case a revoked session
+    // stays valid 5 min on another device, which is acceptable here.
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5,
+    },
   },
   emailAndPassword: {
     enabled: true,

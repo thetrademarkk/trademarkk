@@ -12,6 +12,16 @@ export const metadata: Metadata = {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
+      {/* Pre-hydration onboarding redirect: no stored mode means AppShell will
+          router.replace("/app/onboarding") anyway — but only after the whole
+          app bundle hydrates (~seconds on mobile). Doing it at parse time
+          skips that dead download and paints onboarding (static HTML) almost
+          immediately. AppShell keeps the effect for SPA navigations. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `try{if(location.pathname.indexOf('/app/onboarding')!==0&&!localStorage.getItem('tm.mode'))location.replace('/app/onboarding')}catch(e){}`,
+        }}
+      />
       <DbSessionProvider>
         <AppShell>{children}</AppShell>
       </DbSessionProvider>

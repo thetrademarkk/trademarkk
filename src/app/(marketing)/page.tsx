@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { ArrowRight, Github, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig, jsonLdScript } from "@/config/site";
@@ -68,26 +69,29 @@ export default function LandingPage() {
         <div className="hero-glow absolute inset-0" aria-hidden />
         <div className="grid-fade absolute inset-0" aria-hidden />
         <div className="relative mx-auto w-full max-w-5xl px-4 pb-20 pt-16 text-center md:pt-24">
-          <Reveal>
+          {/* Above-the-fold copy animates with CSS (.animate-rise), not the JS
+              Reveal — a motion entrance leaves the hero text (the LCP element)
+              at inline opacity:0 until hydration, which tanked mobile LCP. */}
+          <div className="animate-rise">
             <p className="mx-auto mb-5 flex w-fit items-center gap-2 rounded-full border bg-surface/60 px-3.5 py-1.5 text-xs text-muted backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
               Open source · Free forever · Built for India
             </p>
-          </Reveal>
-          <Reveal delay={0.08}>
+          </div>
+          <div className="animate-rise" style={{ "--rise-delay": "80ms" } as CSSProperties}>
             <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-7xl">
               Mark your trade,
               <br />
               <span className="text-gradient">every day.</span>
             </h1>
-          </Reveal>
-          <Reveal delay={0.16}>
+          </div>
+          <div className="animate-rise" style={{ "--rise-delay": "160ms" } as CSSProperties}>
             <p className="mx-auto mt-5 max-w-xl text-base text-muted md:text-lg">
               The open-source trading journal for intraday &amp; FnO traders. Trades, mistakes,
               rules and reviews — with your data in <em>your own</em> database.
             </p>
-          </Reveal>
-          <Reveal delay={0.24}>
+          </div>
+          <div className="animate-rise" style={{ "--rise-delay": "240ms" } as CSSProperties}>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Button size="lg" asChild className="group">
                 <Link href="/app/onboarding">
@@ -100,7 +104,7 @@ export default function LandingPage() {
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted">Free forever · Open source · No card required</p>
-          </Reveal>
+          </div>
 
           <HeroShowcase />
 

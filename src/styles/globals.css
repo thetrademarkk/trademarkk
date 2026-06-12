@@ -222,11 +222,31 @@ label:has(> input[type="file"].hidden) {
   animation: float-slow 7s ease-in-out infinite;
 }
 
+/* CSS-driven hero entrance: unlike a JS (motion) entrance, this never leaves
+   the server-rendered text at opacity 0 waiting for hydration — the hero
+   paints with the document, which is what mobile LCP scores. Deliberately
+   transform-only: Chrome drops elements that fade in from opacity:0 as LCP
+   candidates, so a fade would hand LCP to whatever paints next (header logo).
+   Stagger with --rise-delay. */
+@keyframes rise {
+  from {
+    transform: translateY(16px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.55s cubic-bezier(0.21, 0.65, 0.36, 1) both;
+  animation-delay: var(--rise-delay, 0s);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }

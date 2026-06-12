@@ -11,6 +11,14 @@ import { ReadingProgress } from "../_components/progress-bar";
 
 export const revalidate = 3600;
 
+// Without generateStaticParams a [slug] route stays fully dynamic and
+// `revalidate` never applies — every article view was an SSR invocation.
+// Empty list = ISR on demand: rendered once per slug, then CDN-cached 1h
+// (matching the /blog index, which is already revalidate-3600 static).
+export function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({
   params,
 }: {
