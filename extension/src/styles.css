@@ -1,0 +1,554 @@
+/* TradeMark panel — design tokens mirrored from src/styles/globals.css.
+   Dark (carbon) is the default; light follows prefers-color-scheme. */
+
+:root {
+  --bg: #0a0a0b;
+  --surface: #131316;
+  --surface-2: #1b1b1f;
+  --border: #26262b;
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --profit: #34d399;
+  --loss: #f87171;
+  --accent: #8b5cf6;
+  --accent-fg: #ffffff;
+  --warning: #fbbf24;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-2: #f4f4f5;
+    --border: #e4e4e7;
+    --text: #18181b;
+    --text-muted: #71717a;
+    --profit: #059669;
+    --loss: #dc2626;
+    --accent: #7c3aed;
+    --accent-fg: #ffffff;
+    --warning: #d97706;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.popup {
+  width: 360px;
+  max-height: 580px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+}
+button:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.55;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  width: 100%;
+  outline: none;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ── Shell ────────────────────────────────────────────────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+body.popup .panel {
+  min-height: 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 650;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+.brand svg {
+  border-radius: 5px;
+}
+
+.glance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.glance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.glance-chip.profit {
+  color: var(--profit);
+}
+.glance-chip.loss {
+  color: var(--loss);
+}
+.glance-chip.streak {
+  color: var(--warning);
+}
+.glance-chip.streak.idle {
+  color: var(--text-muted);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+.icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.panel-main {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0 0 10px;
+}
+.card-title .meta {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ── Quick trade form ─────────────────────────────────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.field label {
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+
+.parse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-top: 5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.side-toggle button {
+  padding: 7px 0;
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.side-toggle button.active-buy {
+  background: color-mix(in srgb, var(--profit) 18%, transparent);
+  color: var(--profit);
+}
+.side-toggle button.active-sell {
+  background: color-mix(in srgb, var(--loss) 18%, transparent);
+  color: var(--loss);
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 8px;
+}
+.disclosure:hover {
+  color: var(--text);
+}
+
+.form-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--loss);
+  font-size: 12.5px;
+  margin-bottom: 8px;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 650;
+  font-size: 13.5px;
+  transition: filter 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-weight: 550;
+  font-size: 12.5px;
+}
+.btn-ghost:hover {
+  border-color: var(--accent);
+}
+
+/* Trade saved state */
+.saved {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  padding: 18px 8px;
+  animation: rise 0.25s ease-out;
+}
+.saved .saved-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--profit) 16%, transparent);
+  color: var(--profit);
+}
+.saved .title {
+  font-weight: 650;
+  font-size: 14px;
+}
+.saved .sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.saved .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Rules ────────────────────────────────────────────────────── */
+.rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+}
+.rule-text {
+  font-size: 13px;
+  min-width: 0;
+}
+.rule-text.broken {
+  color: var(--loss);
+}
+.rule-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.rule-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  color: color-mix(in srgb, var(--text-muted) 55%, transparent);
+}
+.rule-btn:hover {
+  color: var(--text-muted);
+}
+.rule-btn.on-followed {
+  background: color-mix(in srgb, var(--profit) 20%, transparent);
+  border-color: var(--profit);
+  color: var(--profit);
+}
+.rule-btn.on-broken {
+  background: color-mix(in srgb, var(--loss) 20%, transparent);
+  border-color: var(--loss);
+  color: var(--loss);
+}
+.rule-btn.on-na {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ── Centered states (signed out / errors / loading) ──────────── */
+.state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 40px 24px;
+  animation: rise 0.25s ease-out;
+}
+body.popup .state {
+  padding: 32px 20px;
+}
+.state .state-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.state h2 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
+}
+.state p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 260px;
+}
+.state .btn-primary {
+  width: auto;
+  padding: 9px 18px;
+  margin-top: 4px;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── Settings drawer ──────────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.45);
+  z-index: 20;
+  animation: fade 0.15s ease-out;
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 92vw);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 12px;
+  animation: slide-in 0.18s ease-out;
+  overflow-y: auto;
+}
+.drawer h2 {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.drawer .who {
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+.drawer .section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.drawer .hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.drawer .footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.drawer .version {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.note a,
+.link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.link:hover,
+.note a:hover {
+  text-decoration: underline;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+}

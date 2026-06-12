@@ -16,6 +16,14 @@ export const serverEnv = {
   upstashUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
   adminEmails: process.env.ADMIN_EMAILS ?? "",
+  /**
+   * Origin of the official companion extension — pinned to one extension ID
+   * via the manifest "key" (never a wildcard). The ID is public information;
+   * every request from it still needs a session and obeys rate limits.
+   * Forks/self-hosters override with their own ID; set "" to disable.
+   */
+  extensionOrigin:
+    process.env.EXTENSION_ORIGIN ?? "chrome-extension://ibfnimbkdoiafemjonbnnjhnojodanej",
 };
 
 export const hasTursoApi = () => Boolean(serverEnv.tursoApiToken && serverEnv.tursoOrg);

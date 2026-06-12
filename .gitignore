@@ -33,6 +33,10 @@ npm-debug.log*
 # generated assets
 public/sqljs/
 
+# browser extension build output + signing key material (key.pem covered by *.pem)
+extension/dist/
+extension/.key.json
+
 .vercel
 
 # local-only e2e helper scripts (verification scratchpads)

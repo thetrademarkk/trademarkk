@@ -20,6 +20,9 @@ and rules — and keep your data in **your own database**.
   - 🔐 **BYOD** — bring your own free Turso DB. Credentials never leave the browser.
   - 💻 **Local/demo** — SQLite in the browser (wasm + IndexedDB), zero accounts.
 - **PWA** — installable, dark-first, 4 themes, color-blind-safe P&L mode, fully responsive.
+- **Chrome extension** — a side panel that logs trades and ticks your daily rules without
+  leaving your broker's page, writing to the same journal DB. See
+  [docs/extension.md](docs/extension.md).
 
 ## Stack
 
@@ -37,14 +40,14 @@ npm run dev
 
 ### Environment variables
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `TURSO_PLATFORM_DB_URL` / `TURSO_PLATFORM_DB_TOKEN` | ✅ | Platform DB (auth + db-mapping only) |
-| `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` | ✅ | Auth sessions |
-| `TURSO_PLATFORM_API_TOKEN` / `TURSO_ORG_SLUG` | for hosted mode | Provisions per-user DBs & mints scoped tokens |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional | Google sign-in (set `NEXT_PUBLIC_GOOGLE_AUTH=1` too) |
-| `RESEND_API_KEY` / `EMAIL_FROM` | optional | Email verification & password reset (skipped in dev) |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional | Distributed rate limiting |
+| Variable                                              | Required        | Purpose                                              |
+| ----------------------------------------------------- | --------------- | ---------------------------------------------------- |
+| `TURSO_PLATFORM_DB_URL` / `TURSO_PLATFORM_DB_TOKEN`   | ✅              | Platform DB (auth + db-mapping only)                 |
+| `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL`              | ✅              | Auth sessions                                        |
+| `TURSO_PLATFORM_API_TOKEN` / `TURSO_ORG_SLUG`         | for hosted mode | Provisions per-user DBs & mints scoped tokens        |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | optional        | Google sign-in (set `NEXT_PUBLIC_GOOGLE_AUTH=1` too) |
+| `RESEND_API_KEY` / `EMAIL_FROM`                       | optional        | Email verification & password reset (skipped in dev) |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional        | Distributed rate limiting                            |
 
 Without `TURSO_PLATFORM_API_TOKEN`, hosted mode returns a clear 503 — BYOD and demo modes
 work regardless.
