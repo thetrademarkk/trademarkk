@@ -3,10 +3,14 @@ import {
   Boxes,
   CalendarDays,
   Clock3,
+  CloudLightning,
   Flame,
+  Gauge,
   Receipt,
   Scale,
   ShieldAlert,
+  Sunset,
+  Timer,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +28,10 @@ const ICONS: Record<InsightId, LucideIcon> = {
   instruments: Boxes,
   streaks: Zap,
   "fee-drag": Receipt,
+  "tilt-sizing": Gauge,
+  "tilt-pace": Timer,
+  "tilt-fade": Sunset,
+  "tilt-burst": CloudLightning,
 };
 
 const TINTS: Record<InsightSeverity, { card: string; icon: string }> = {
@@ -36,7 +44,11 @@ export function InsightCard({ insight }: { insight: Insight }) {
   const Icon = ICONS[insight.id];
   const tint = TINTS[insight.severity];
   return (
-    <article className={cn("rounded-xl border bg-surface p-4", tint.card)}>
+    <article
+      data-insight={insight.id}
+      data-severity={insight.severity}
+      className={cn("rounded-xl border bg-surface p-4", tint.card)}
+    >
       <div className="flex items-center gap-2">
         <Icon className={cn("h-4 w-4 shrink-0", tint.icon)} aria-hidden />
         <h3 className="text-sm font-semibold">{insight.title}</h3>

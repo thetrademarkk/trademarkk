@@ -34,7 +34,11 @@ export type InsightId =
   | "long-short"
   | "instruments"
   | "streaks"
-  | "fee-drag";
+  | "fee-drag"
+  | "tilt-sizing"
+  | "tilt-pace"
+  | "tilt-fade"
+  | "tilt-burst";
 
 export interface InsightFigure {
   label: string;
@@ -206,13 +210,13 @@ export function streaksInsight(closed: TradeLike[]): Insight | null {
 }
 
 /** Splits closed trades into "opened <15min after a losing close" vs the rest. */
-export function splitRevenge(closed: TradeLike[]): { revenge: TradeLike[]; rest: TradeLike[] } {
+export function splitRevenge<T extends TradeLike>(closed: T[]): { revenge: T[]; rest: T[] } {
   const lossCloses = closed
     .filter((t) => t.net_pnl < 0 && t.closed_at)
     .map((t) => ({ id: t.id, ts: new Date(t.closed_at!).getTime() }))
     .sort((a, b) => a.ts - b.ts);
-  const revenge: TradeLike[] = [];
-  const rest: TradeLike[] = [];
+  const revenge: T[] = [];
+  const rest: T[] = [];
   for (const t of closed) {
     const open = new Date(t.opened_at).getTime();
     // Binary search: first loss close >= open − window.
