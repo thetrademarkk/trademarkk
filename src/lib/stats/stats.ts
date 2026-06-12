@@ -72,6 +72,21 @@ export function equityCurve(trades: TradeLike[], startingCapital = 0): EquityPoi
   });
 }
 
+/**
+ * Prepend a starting-capital point one day before the first trading day.
+ * Cumulative P&L starts at zero, so a single day of trades still renders
+ * as a curve instead of an invisible lone point.
+ */
+export function withStartBaseline(points: EquityPoint[], startingCapital = 0): EquityPoint[] {
+  if (points.length === 0) return points;
+  const dayBefore = new Date(points[0]!.date + "T12:00:00Z");
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  return [
+    { date: dayBefore.toISOString().slice(0, 10), equity: startingCapital, pnl: 0 },
+    ...points,
+  ];
+}
+
 /** Map of YYYY-MM-DD → net P&L for that day (by close time). */
 export function dailyPnl(trades: TradeLike[]): Map<string, number> {
   const map = new Map<string, number>();
