@@ -70,6 +70,10 @@ export const profiles = sqliteTable("profiles", {
   streakCurrent: integer("streak_current").notNull().default(0),
   streakBest: integer("streak_best").notNull().default(0),
   streakUpdatedAt: text("streak_updated_at"),
+  /** The author's one pinned post (shown first on their profile). */
+  pinnedPostId: text("pinned_post_id"),
+  /** Preset cover-accent id (see features/community/accents.ts) — never free hex. */
+  accentColor: text("accent_color"),
   createdAt: text("created_at").notNull(),
 });
 

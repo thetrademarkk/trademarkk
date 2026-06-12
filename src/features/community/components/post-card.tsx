@@ -10,6 +10,8 @@ import {
   Link2,
   Loader2,
   MessageCircle,
+  Pin,
+  PinOff,
   Share2,
   Trash2,
   UserCheck,
@@ -29,6 +31,7 @@ import {
   ApiError,
   useDeletePost,
   useFollowAuthor,
+  usePinPost,
   useRecordShare,
   useToggleBlock,
   useToggleBookmark,
@@ -46,11 +49,14 @@ export function PostCard({
   post,
   detail = false,
   authorFollowedByMe,
+  showPinned = false,
 }: {
   post: PostView;
   detail?: boolean;
   /** Detail page only — renders the Follow chip in the author header when provided. */
   authorFollowedByMe?: boolean;
+  /** Profile page only — shows the "Pinned" marker on the author's pinned post. */
+  showPinned?: boolean;
 }) {
   const router = useRouter();
   const toggleLike = useToggleLike();
@@ -58,6 +64,7 @@ export function PostCard({
   const toggleBlock = useToggleBlock(post.author.username);
   const recordShare = useRecordShare();
   const followAuthor = useFollowAuthor(post.id, post.author.username);
+  const pinPost = usePinPost();
   const deletePost = useDeletePost();
   const confirmDialog = useConfirm();
   const [gateOpen, setGateOpen] = React.useState(false);
@@ -105,6 +112,15 @@ export function PostCard({
           : toast.error("Could not follow"),
     });
 
+  const handlePin = () =>
+    pinPost.mutate(post.id, {
+      onSuccess: (r) =>
+        toast.success(
+          r.pinned ? "Pinned to the top of your profile" : "Unpinned from your profile"
+        ),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update the pin"),
+    });
+
   const handleDelete = async () => {
     const ok = await confirmDialog({
       title: "Delete this post?",
@@ -141,6 +157,14 @@ export function PostCard({
 
   return (
     <article className="rounded-xl border bg-surface p-4 transition-colors hover:border-border/80">
+      {showPinned && post.pinned && (
+        <p
+          data-pinned-marker
+          className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted"
+        >
+          <Pin className="h-3 w-3" aria-hidden /> Pinned
+        </p>
+      )}
       <header className="flex items-center gap-2.5">
         <Link
           href={`/community/u/${post.author.username}`}
@@ -216,9 +240,22 @@ export function PostCard({
               <Link2 /> Copy link
             </DropdownMenuItem>
             {post.mine ? (
-              <DropdownMenuItem onClick={handleDelete} className="text-loss">
-                <Trash2 /> Delete post
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onClick={handlePin}>
+                  {post.pinned ? (
+                    <>
+                      <PinOff /> Unpin from profile
+                    </>
+                  ) : (
+                    <>
+                      <Pin /> Pin to profile
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} className="text-loss">
+                  <Trash2 /> Delete post
+                </DropdownMenuItem>
+              </>
             ) : (
               <>
                 <DropdownMenuItem onClick={() => setReportOpen(true)}>

@@ -37,6 +37,8 @@ export interface PostView {
   likedByMe: boolean;
   bookmarkedByMe: boolean;
   mine: boolean;
+  /** True when the author pinned this post to their profile. */
+  pinned: boolean;
   author: AuthorView;
 }
 
@@ -79,14 +81,27 @@ export interface ProfileView {
   bio: string | null;
   website: string | null;
   avatar: string | null;
+  /** Preset cover-accent id (renders the header gradient band), or null. */
+  accent: string | null;
   createdAt: string;
   postCount: number;
+  commentCount: number;
+  likeCount: number;
   followerCount: number;
   followingCount: number;
   followedByMe: boolean;
   blockedByMe: boolean;
   /** Present only when the user opted in to publishing their streak. */
   streak: { current: number; best: number } | null;
+}
+
+/** One row in a profile's Comments tab — the comment plus its post context. */
+export interface ProfileCommentView {
+  id: string;
+  body: string;
+  likeCount: number;
+  createdAt: string;
+  post: { id: string; title: string | null; body: string };
 }
 
 export interface LeaderboardRow {
