@@ -17,6 +17,7 @@ import type {
   NotificationView,
   PostDetailResponse,
   PostView,
+  ProfileCommentView,
   ProfileView,
 } from "./types";
 import type { CreatePostInput, UpdateProfileInput } from "./schemas";
@@ -94,6 +95,8 @@ export function usePost(id: string) {
 function invalidatePostLists(qc: ReturnType<typeof useQueryClient>) {
   void qc.invalidateQueries({ queryKey: ["community-feed"] });
   void qc.invalidateQueries({ queryKey: ["community-user"] }); // all profile pages
+  void qc.invalidateQueries({ queryKey: ["community-user-likes"] }); // Likes tabs
+  void qc.invalidateQueries({ queryKey: ["community-user-comments"] }); // Comments tabs
 }
 
 export function useCreatePost() {
@@ -151,7 +154,10 @@ export function useToggleLike() {
     onMutate: (id) => patchEverywhere(id),
     onError: (_e, id) => patchEverywhere(id), // revert
     // Profile pages cache posts separately — refresh them with the server truth.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-user"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["community-user"] });
+      void qc.invalidateQueries({ queryKey: ["community-user-likes"] });
+    },
   });
 }
 
@@ -243,6 +249,21 @@ export function useFollowAuthor(postId: string, username: string) {
       void qc.invalidateQueries({ queryKey: ["community-feed"] });
     },
     onError: (_e, _v, ctx) => set(ctx?.prev ?? false),
+  });
+}
+
+/** Pins/unpins one of the viewer's OWN posts to their profile top. */
+export function usePinPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      request<{ pinned: boolean }>(`/api/community/posts/${id}/pin`, { method: "POST" }),
+    onSuccess: () => {
+      // The pin marker rides on every cached copy of the author's posts.
+      void qc.invalidateQueries({ queryKey: ["community-user"] });
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+      void qc.invalidateQueries({ queryKey: ["community-post"] });
+    },
   });
 }
 
@@ -528,6 +549,7 @@ export function useMyProfile(enabled: boolean) {
         bio: string | null;
         website: string | null;
         avatar: string | null;
+        accent: string | null;
         shareStreak: boolean;
       }>("/api/community/profile"),
     enabled,
@@ -550,9 +572,44 @@ export function useUserProfile(username: string) {
     queryFn: () =>
       request<{
         profile: ProfileView & { mine: boolean };
+        pinnedPost: PostView | null;
         posts: PostView[];
         nextCursor: string | null;
       }>(`/api/community/users/${encodeURIComponent(username)}`),
+  });
+}
+
+/** Profile "Comments" tab — fetched lazily when the tab opens. */
+export function useUserComments(username: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: ["community-user-comments", username],
+    queryFn: ({ pageParam }) =>
+      request<{ comments: ProfileCommentView[]; nextCursor: string | null }>(
+        `/api/community/users/${encodeURIComponent(username)}/comments${
+          pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""
+        }`
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled,
+    staleTime: 15_000,
+  });
+}
+
+/** Profile "Likes" tab — posts the user liked, newest like first. */
+export function useUserLikes(username: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: ["community-user-likes", username],
+    queryFn: ({ pageParam }) =>
+      request<{ posts: PostView[]; nextCursor: string | null }>(
+        `/api/community/users/${encodeURIComponent(username)}/likes${
+          pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""
+        }`
+      ),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled,
+    staleTime: 15_000,
   });
 }
 

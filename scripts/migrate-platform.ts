@@ -238,6 +238,8 @@ async function main() {
     `ALTER TABLE profiles ADD COLUMN streak_best INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE profiles ADD COLUMN streak_updated_at TEXT`,
     `ALTER TABLE posts ADD COLUMN share_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN pinned_post_id TEXT`,
+    `ALTER TABLE profiles ADD COLUMN accent_color TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

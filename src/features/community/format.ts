@@ -17,6 +17,18 @@ export function formatCount(n: number): string {
 }
 
 /**
+ * Compact label for "Commented on <post>" context rows: the post title when it
+ * has one, otherwise the start of the body. Trims mid-word cuts and never
+ * exceeds `max` characters (plus the ellipsis).
+ */
+export function postContextLabel(title: string | null, body: string, max = 64): string {
+  const source = (title ?? "").trim() || body.trim().replace(/\s+/g, " ");
+  if (!source) return "a post";
+  if (source.length <= max) return source;
+  return `${source.slice(0, max).trimEnd()}…`;
+}
+
+/**
  * Absolute timestamp for the post detail header — readers landing from a
  * shared link need the real date, not "3w ago". Example: "12 Jun 2026, 7:05 pm".
  */

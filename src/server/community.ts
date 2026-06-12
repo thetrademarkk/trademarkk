@@ -165,6 +165,8 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
       { username: a.username, displayName: a.displayName, avatar: a.avatar },
     ])
   );
+  // The author's pin rides along with the profile rows we already fetched.
+  const pinnedByAuthor = new Map(authors.map((a) => [a.userId, a.pinnedPostId]));
   const likedSet = new Set(myLikes.map((l) => l.postId));
   const bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
   const imageMap = new Map<string, string[]>();
@@ -188,6 +190,7 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
     likedByMe: likedSet.has(r.id),
     bookmarkedByMe: bookmarkedSet.has(r.id),
     mine: viewerId === r.userId,
+    pinned: pinnedByAuthor.get(r.userId) === r.id,
     author: authorMap.get(r.userId) ?? { username: "deleted", displayName: "Deleted user" },
   }));
 }
@@ -259,5 +262,10 @@ export async function deletePostCascade(postId: string) {
   await platformDb.delete(comments).where(eq(comments.postId, postId));
   await platformDb.delete(likes).where(eq(likes.postId, postId));
   await platformDb.delete(postImages).where(eq(postImages.postId, postId));
+  // A deleted post must not linger as anyone's profile pin.
+  await platformDb
+    .update(profiles)
+    .set({ pinnedPostId: null })
+    .where(eq(profiles.pinnedPostId, postId));
   await platformDb.delete(posts).where(eq(posts.id, postId));
 }
