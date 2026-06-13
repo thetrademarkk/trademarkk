@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Settings } from "lucide-react";
+import { ClipboardList, Settings, Zap } from "lucide-react";
 import type { DbClient } from "@/lib/db/types";
 import {
   AppUnreachableError,
@@ -15,6 +15,7 @@ import { BrandMark } from "./Brand";
 import { ByodConnect } from "./ByodConnect";
 import { GlanceStrip } from "./GlanceStrip";
 import { ImportLauncher } from "./ImportLauncher";
+import { PreTradePlanForm } from "./PreTradePlanForm";
 import { RulesCard } from "./RulesCard";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TradeForm } from "./TradeForm";
@@ -35,6 +36,9 @@ type PanelState =
   | { phase: "schema-outdated" }
   | { phase: "ready"; db: DbClient; mode: "hosted" | "byod" };
 
+/** Hero tab: log a trade you've taken, or plan one before you enter. */
+type EntryMode = "log" | "plan";
+
 const SIGNED_OUT_POLL_MS = 3000;
 
 export function App() {
@@ -42,6 +46,7 @@ export function App() {
   const [state, setState] = React.useState<PanelState>({ phase: "loading" });
   const [user, setUser] = React.useState<AppStatus["user"]>(null);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [entryMode, setEntryMode] = React.useState<EntryMode>("log");
   const generation = React.useRef(0);
 
   const boot = React.useCallback(async () => {
@@ -144,7 +149,12 @@ export function App() {
         <DbProvider value={state.db}>
           <BadgeSync mode={state.mode} />
           <main className="panel-main">
-            <TradeForm appUrl={appUrl} />
+            <EntryTabs mode={entryMode} onChange={setEntryMode} />
+            {entryMode === "log" ? (
+              <TradeForm appUrl={appUrl} />
+            ) : (
+              <PreTradePlanForm appUrl={appUrl} />
+            )}
             <ImportLauncher appUrl={appUrl} />
             <RulesCard appUrl={appUrl} />
           </main>
@@ -159,6 +169,34 @@ export function App() {
           onChanged={() => void boot()}
         />
       )}
+    </div>
+  );
+}
+
+/** Two-tab switch between the quick log and the pre-trade plan flow. */
+function EntryTabs({ mode, onChange }: { mode: EntryMode; onChange: (m: EntryMode) => void }) {
+  return (
+    <div className="entry-tabs" role="tablist" aria-label="Trade entry">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "log"}
+        className={mode === "log" ? "active" : ""}
+        onClick={() => onChange("log")}
+      >
+        <Zap size={14} />
+        Log a trade
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "plan"}
+        className={mode === "plan" ? "active" : ""}
+        onClick={() => onChange("plan")}
+      >
+        <ClipboardList size={14} />
+        Plan a trade
+      </button>
     </div>
   );
 }
