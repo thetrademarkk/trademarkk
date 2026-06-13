@@ -14,7 +14,7 @@ if (!token) {
   console.error("Set VERCEL_TOKEN. Create one at https://vercel.com/account/tokens");
   process.exit(1);
 }
-const PROJECT = "trademark";
+const PROJECT = "trademarkk";
 const SCOPE = process.env.VERCEL_SCOPE ? `--scope ${process.env.VERCEL_SCOPE}` : "";
 const T = `--token ${token} ${SCOPE}`.trim();
 const run = (cmd, opts = {}) => execSync(cmd, { stdio: "pipe", encoding: "utf-8", ...opts });
@@ -60,7 +60,7 @@ const setEnv = (key, value) => {
 console.log("→ Pushing secrets to Production…");
 for (const key of SECRET_KEYS) setEnv(key, env[key]);
 
-// With PROD_URL set (the stable domain, e.g. https://trademark-smoky.vercel.app)
+// With PROD_URL set (the stable domain, e.g. https://thetrademarkk.com)
 // we can push the auth URLs up front and deploy exactly once.
 const prodUrl = process.env.PROD_URL;
 let finalUrl = prodUrl;

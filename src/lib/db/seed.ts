@@ -38,12 +38,14 @@ export const DEFAULT_PLAYBOOKS = [
   {
     name: "Opening Range Breakout",
     description: "Break of the first 15-minute range with volume confirmation.",
-    criteria: "- 15m opening range defined\n- Breakout candle closes outside range\n- Volume above average\n- Entry on retest",
+    criteria:
+      "- 15m opening range defined\n- Breakout candle closes outside range\n- Volume above average\n- Entry on retest",
   },
   {
     name: "VWAP Reversal",
     description: "Mean reversion to VWAP after an extended move.",
-    criteria: "- Price extended >1% from VWAP\n- Reversal candle pattern\n- Entry against the move, SL beyond extreme",
+    criteria:
+      "- Price extended >1% from VWAP\n- Reversal candle pattern\n- Entry against the move, SL beyond extreme",
   },
   {
     name: "Breakout Retest",
@@ -86,8 +88,14 @@ export async function seedDefaults(db: DbClient, opts: SeedOptions): Promise<str
       sql: `INSERT INTO playbooks (id, name, description, criteria, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
       args: [newId(), p.name, p.description, p.criteria, ts, ts],
     })),
-    { sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('capital', ?)`, args: [String(opts.startingCapital)] },
-    { sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('default_risk_pct', ?)`, args: [String(opts.defaultRiskPct)] },
+    {
+      sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('capital', ?)`,
+      args: [String(opts.startingCapital)],
+    },
+    {
+      sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('default_risk_pct', ?)`,
+      args: [String(opts.defaultRiskPct)],
+    },
     { sql: `INSERT OR REPLACE INTO settings (key, value) VALUES ('onboarded', '1')`, args: [] },
   ];
   await db.batch(stmts);
@@ -164,7 +172,12 @@ export async function seedSampleData(db: DbClient): Promise<void> {
       const entry = isEq ? between(400, 3000) : between(80, 380);
       const win = rand() < 0.46;
       const exit = win ? entry * between(1.08, 1.55) : entry * between(0.6, 0.93);
-      const plannedSl = direction === "long" ? entry * between(0.75, 0.88) : entry * between(1.12, 1.25);
+      const plannedSl =
+        direction === "long" ? entry * between(0.75, 0.88) : entry * between(1.12, 1.25);
+      // A planned target on the same side as the trade (≈ 1.5–2.5R from entry),
+      // so plan-adherence (target hit / cut early / stopped) has data to grade.
+      const plannedTarget =
+        direction === "long" ? entry * between(1.18, 1.4) : entry * between(0.6, 0.82);
 
       const openHour = 9 + Math.floor(rand() * 5);
       const openMin = openHour === 9 ? 16 + Math.floor(rand() * 44) : Math.floor(rand() * 60);
@@ -198,24 +211,55 @@ export async function seedSampleData(db: DbClient): Promise<void> {
       const expiry = isEq ? null : dateKey;
       stmts.push({
         sql: `INSERT INTO trades (id, account_id, symbol, exchange, segment, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
-              VALUES (?, ?, ?, 'NSE', ?, ?, ?, ?, ?, 'closed', ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+              VALUES (?, ?, ?, 'NSE', ?, ?, ?, ?, ?, 'closed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         args: [
-          tradeId, accountId, symbol, segment, expiry, strike, optionType, direction, qty,
-          e, x, e, round2(plannedSl),
-          openedAt.toISOString(), closedAt.toISOString(),
-          gross, charges, net, r,
+          tradeId,
+          accountId,
+          symbol,
+          segment,
+          expiry,
+          strike,
+          optionType,
+          direction,
+          qty,
+          e,
+          x,
+          e,
+          round2(plannedSl),
+          round2(plannedTarget),
+          openedAt.toISOString(),
+          closedAt.toISOString(),
+          gross,
+          charges,
+          net,
+          r,
           rand() < 0.7 ? pick(playbooks) : null,
           2 + Math.floor(rand() * 4),
-          ts, ts,
+          ts,
+          ts,
         ],
       });
       stmts.push({
         sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [newId(), tradeId, direction === "long" ? "buy" : "sell", qty, e, openedAt.toISOString()],
+        args: [
+          newId(),
+          tradeId,
+          direction === "long" ? "buy" : "sell",
+          qty,
+          e,
+          openedAt.toISOString(),
+        ],
       });
       stmts.push({
         sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [newId(), tradeId, direction === "long" ? "sell" : "buy", qty, x, closedAt.toISOString()],
+        args: [
+          newId(),
+          tradeId,
+          direction === "long" ? "sell" : "buy",
+          qty,
+          x,
+          closedAt.toISOString(),
+        ],
       });
       if (!win && rand() < 0.55) {
         stmts.push({
@@ -246,8 +290,16 @@ export async function seedSampleData(db: DbClient): Promise<void> {
           ]),
           rand() < 0.4 ? "Choppy first hour. Sat on hands as planned." : null,
           dayPnl >= 0
-            ? pick(["Followed the plan well. Patience paid.", "Good execution, exits could be better.", "Solid day — process over outcome."])
-            : pick(["Forced trades in chop. Should have stopped earlier.", "Broke my own rules — revenge traded after SL hit.", "Bad day, but losses contained within limit."]),
+            ? pick([
+                "Followed the plan well. Patience paid.",
+                "Good execution, exits could be better.",
+                "Solid day — process over outcome.",
+              ])
+            : pick([
+                "Forced trades in chop. Should have stopped earlier.",
+                "Broke my own rules — revenge traded after SL hit.",
+                "Bad day, but losses contained within limit.",
+              ]),
           dayPnl >= 0 ? 3 + Math.floor(rand() * 3) : 1 + Math.floor(rand() * 3),
           dayPnl >= 0 ? 1 : rand() < 0.5 ? 1 : 0,
           ts,

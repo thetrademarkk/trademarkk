@@ -3,3 +3,9 @@
 .next-e2e
 node_modules
 e2e-fail-*.png
+
+# Excluded from deploy uploads. Root-anchored so public/demo/ (the landing
+# page's walkthrough video) is kept. NOTE: scripts/ MUST stay (postinstall
+# runs scripts/copy-assets.mjs); docs/extension are harmless but small.
+/demo/
+/market-data/

@@ -1,14 +1,20 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { HeartPulse, Lightbulb } from "lucide-react";
 import { useFilterStore, periodToRange, PERIOD_LABELS } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
-import { useAdherence } from "@/features/rules";
+import { useAdherence, useRuleBreaksByDay } from "@/features/rules";
 import {
   computeInsights,
   computeTiltInsights,
   ruleBreakInsight,
+  splitRevenge,
+  buildDayInfractions,
+  confidenceCalibration,
+  disciplineTrend,
+  planAdherenceSummary,
   InsightCard,
   MIN_SAMPLE,
 } from "@/features/insights";
@@ -16,12 +22,30 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// recharts (the score trend line) stays out of the route bundle — the section
+// hydrates after first paint, same pattern as the analytics charts.
+const DisciplineSection = dynamic(
+  () =>
+    import("@/features/insights/components/discipline-section").then((m) => m.DisciplineSection),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid gap-3 pt-2 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-72" />
+        ))}
+      </div>
+    ),
+  }
+);
+
 export default function InsightsPage() {
   const { period } = useFilterStore();
   const { from, to } = periodToRange(period);
   // Same single-scan pattern as the dashboard: fetch once, filter client-side.
   const { data: allTrades, isLoading } = useTrades({});
   const { data: adherence } = useAdherence(from, to);
+  const { data: ruleBreaksByDay } = useRuleBreaksByDay();
 
   const trades = React.useMemo(
     () =>
@@ -45,6 +69,35 @@ export default function InsightsPage() {
   }, [trades, adherence]);
 
   const tilt = React.useMemo(() => computeTiltInsights(trades), [trades]);
+
+  // Discipline & psychology v2 — per-day score trend, plan adherence, calibration.
+  const discipline = React.useMemo(() => {
+    const closed = trades.filter((t) => t.status === "closed");
+    // Per-day tilt triggers = trades opened within 15min of a losing close.
+    const { revenge } = splitRevenge(closed);
+    const tiltTriggersByDay = new Map<string, number>();
+    for (const t of revenge) {
+      const d = t.opened_at.slice(0, 10);
+      tiltTriggersByDay.set(d, (tiltTriggersByDay.get(d) ?? 0) + 1);
+    }
+    const dayRows = buildDayInfractions({
+      trades: trades.map((t) => ({
+        id: t.id,
+        status: t.status,
+        opened_at: t.opened_at,
+        closed_at: t.closed_at,
+        net_pnl: t.net_pnl,
+        mistakeTagCount: t.tags.filter((g) => g.kind === "mistake" || g.kind === "emotion").length,
+      })),
+      ruleBreaksByDay: ruleBreaksByDay ?? new Map(),
+      tiltTriggersByDay,
+    });
+    return {
+      trend: disciplineTrend(dayRows),
+      plan: planAdherenceSummary(trades),
+      calibration: confidenceCalibration(trades),
+    };
+  }, [trades, ruleBreaksByDay]);
 
   if (isLoading || !allTrades) {
     return (
@@ -73,11 +126,18 @@ export default function InsightsPage() {
           description="Log or import your trades and your patterns will start showing up here."
         />
       ) : insights.length === 0 && tilt.length === 0 ? (
-        <EmptyState
-          icon={Lightbulb}
-          title="Not enough data yet"
-          description={`Insights unlock once a pattern has at least ${MIN_SAMPLE} closed trades behind it in the selected period (${PERIOD_LABELS[period]}). Keep journaling.`}
-        />
+        <>
+          <EmptyState
+            icon={Lightbulb}
+            title="Not enough data yet"
+            description={`Insights unlock once a pattern has at least ${MIN_SAMPLE} closed trades behind it in the selected period (${PERIOD_LABELS[period]}). Keep journaling.`}
+          />
+          <DisciplineSection
+            trend={discipline.trend}
+            plan={discipline.plan}
+            calibration={discipline.calibration}
+          />
+        </>
       ) : (
         <>
           {insights.length > 0 && (
@@ -112,6 +172,12 @@ export default function InsightsPage() {
               </p>
             )}
           </section>
+
+          <DisciplineSection
+            trend={discipline.trend}
+            plan={discipline.plan}
+            calibration={discipline.calibration}
+          />
 
           <p className="text-xs text-muted">
             Every insight needs at least {MIN_SAMPLE} trades behind it — thin patterns stay hidden

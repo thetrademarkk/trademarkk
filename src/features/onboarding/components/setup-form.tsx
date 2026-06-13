@@ -4,24 +4,30 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDb } from "@/providers/db-session-provider";
-import { seedDefaults } from "@/lib/db/seed";
+import { seedDefaults, seedSampleData } from "@/lib/db/seed";
 import { BROKERS } from "@/config/brokers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /** First-run setup: account, broker (charges profile), capital, risk. Seeds defaults. */
 export function SetupForm({ onDone }: { onDone: () => void }) {
   const { db } = useDb();
   const qc = useQueryClient();
   const [broker, setBroker] = React.useState("zerodha");
-  const [busy, setBusy] = React.useState(false);
+  const [busy, setBusy] = React.useState<"setup" | "sample" | null>(null);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy("setup");
     try {
       await seedDefaults(db, {
         accountName: String(form.get("name") || "My Account"),
@@ -35,7 +41,24 @@ export function SetupForm({ onDone }: { onDone: () => void }) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  };
+
+  // Populates the journal with ~3 months of realistic demo trades, rule checks,
+  // journals and tags — so a first-time visitor can explore every screen
+  // (insights, analytics, discipline) with data instead of an empty shell.
+  const loadSample = async () => {
+    setBusy("sample");
+    try {
+      await seedSampleData(db);
+      await qc.invalidateQueries();
+      toast.success("Sample journal loaded — explore away!");
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not load sample data");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -48,10 +71,14 @@ export function SetupForm({ onDone }: { onDone: () => void }) {
       <div className="space-y-1">
         <Label>Broker (sets the charges calculator)</Label>
         <Select value={broker} onValueChange={setBroker}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {BROKERS.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>
+              <SelectItem key={b.id} value={b.id}>
+                {b.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -69,8 +96,17 @@ export function SetupForm({ onDone }: { onDone: () => void }) {
       <p className="text-xs text-muted">
         We&apos;ll also add starter rules, mistake tags and playbooks — edit them anytime.
       </p>
-      <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? "Setting up…" : "Start journaling"}
+      <Button type="submit" className="w-full" disabled={busy !== null}>
+        {busy === "setup" ? "Setting up…" : "Start journaling"}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={loadSample}
+        disabled={busy !== null}
+      >
+        {busy === "sample" ? "Loading sample data…" : "Explore with sample data"}
       </Button>
     </form>
   );
