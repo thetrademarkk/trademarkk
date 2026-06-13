@@ -219,6 +219,23 @@ export const followedTags = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.tag] })]
 );
 
+/**
+ * Symbols ($cashtags) a user is watching. Posts tagging a watched symbol surface
+ * in the viewer's Watchlist feed (alongside posts by followed users). PK
+ * (user_id, symbol) makes watch idempotent; one row per (user, symbol). Symbols
+ * are stored UPPERCASE (same form as `post_symbols`). Indexed by symbol so the
+ * "who watches this ticker" direction stays cheap.
+ */
+export const watchedSymbols = sqliteTable(
+  "watched_symbols",
+  {
+    userId: text("user_id").notNull(),
+    symbol: text("symbol").notNull(), // uppercase NSE/BSE ticker token
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })]
+);
+
 /** In-app notifications: like | comment | reply | follow | mention. */
 export const notifications = sqliteTable("notifications", {
   id: text("id").primaryKey(),

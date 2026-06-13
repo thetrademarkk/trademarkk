@@ -58,11 +58,17 @@ for (const path of [
 }
 
 console.log("— Community —");
-await step("per-symbol stream renders with the not-advice banner", async () => {
+await step("per-symbol stream renders with the not-advice banner + Watch button", async () => {
   // Signed-out /community never reaches networkidle (polling) → domcontentloaded.
   await page.goto(`${BASE}/community/s/NIFTY`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "$NIFTY" }).first().waitFor({ timeout: 30000 });
   await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
+  // The Watch button (Watchlist feed scope) is rendered for everyone; clicking
+  // it signed-out prompts sign-in rather than mutating.
+  await page
+    .getByRole("button", { name: /^Watch$/ })
+    .first()
+    .waitFor({ timeout: 15000 });
 });
 
 await step("topic/tag page renders with header + Follow + not-advice banner", async () => {

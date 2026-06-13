@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     tag,
     search: url.searchParams.get("q"),
     symbol: rawSymbol ? rawSymbol.toUpperCase().slice(0, 20) : null,
-    scope: url.searchParams.get("scope") as "all" | "following" | "saved" | null,
+    scope: url.searchParams.get("scope") as "all" | "following" | "saved" | "watchlist" | null,
   };
 
   // Anonymous first pages have no viewer-specific fields (likedByMe etc. are

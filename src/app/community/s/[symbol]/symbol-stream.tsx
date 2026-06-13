@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Composer, Feed } from "@/features/community";
 import { SentimentGauge } from "@/features/community/components/sentiment-gauge";
+import { WatchButton } from "@/features/community/components/watch-button";
 import { COMMUNITY_DRAFT_KEY, readDraft } from "@/features/community/draft";
 import type { FeedSort } from "@/features/community/api";
 import type { Exchange } from "@/features/community/symbols";
@@ -70,9 +71,12 @@ export function SymbolStream({
               {initialCount === 1 ? "post" : "posts"}
             </p>
           </div>
-          <Button size="sm" className="shrink-0" onClick={() => setComposeOpen(true)}>
-            <PenSquare aria-hidden /> <span className="hidden sm:inline">Post</span>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <WatchButton symbol={symbol} />
+            <Button size="sm" className="shrink-0" onClick={() => setComposeOpen(true)}>
+              <PenSquare aria-hidden /> <span className="hidden sm:inline">Post</span>
+            </Button>
+          </div>
         </div>
 
         {/* Not-advice banner — non-negotiable on a per-ticker page. */}

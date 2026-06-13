@@ -18,6 +18,7 @@ import {
   posts,
   profiles,
   reports,
+  watchedSymbols,
 } from "./db/platform-schema";
 import type { AuthorView, PostView, QuotedPostView, TradeCard } from "@/features/community/types";
 import {
@@ -29,6 +30,7 @@ import {
 import { parseEditHistory, type PostEditSnapshot } from "@/features/community/edit-window";
 import { planSymbolSync } from "@/features/community/cashtags";
 import { MAX_FOLLOWED_TAGS, normalizeTag } from "@/features/community/followed-tags";
+import { MAX_WATCHED_SYMBOLS, normalizeWatchSymbol } from "@/features/community/watchlist";
 import { normalizeQuoteBody, resolveReshareTarget } from "@/features/community/reshare";
 import {
   rankTrending,
@@ -415,8 +417,8 @@ export interface FeedQuery {
   search?: string | null;
   /** Per-symbol stream scope — only posts tagged with this $cashtag (uppercase). */
   symbol?: string | null;
-  /** "following" / "saved" scope the feed to the viewer's graph. */
-  scope?: "all" | "following" | "saved" | null;
+  /** "following" / "saved" / "watchlist" scope the feed to the viewer's graph. */
+  scope?: "all" | "following" | "saved" | "watchlist" | null;
   authorUserId?: string;
   limit?: number;
 }
@@ -459,6 +461,24 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
                AND EXISTS (
                  SELECT 1 FROM json_each(${posts.tags}) je WHERE je.value = ft.tag
                )
+           ))`
+    );
+  }
+  if (q.scope === "watchlist" && viewerId) {
+    // The Watchlist feed surfaces posts that TAG a watched symbol OR are BY a
+    // followed user — the symbol-axis mirror of the Following union (rank-8).
+    // The symbol side matches via a correlated EXISTS over post_symbols joined
+    // to the viewer's watched_symbols, so one query returns each post once (no
+    // JS union/dedupe needed); the followed-author side reuses the follows
+    // subquery. The blocked-user filter above still applies (separate ANDed
+    // condition). An empty watchlist with no follows yields nothing but the
+    // viewer's own followed authors — exactly the honest empty/own state.
+    conditions.push(
+      sql`(${posts.userId} IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})
+           OR EXISTS (
+             SELECT 1 FROM post_symbols ps
+             JOIN watched_symbols ws ON ws.symbol = ps.symbol
+             WHERE ps.post_id = ${posts.id} AND ws.user_id = ${viewerId}
            ))`
     );
   }
@@ -628,6 +648,79 @@ export async function toggleFollowTag(
     .values({ userId: viewerId, tag, createdAt: new Date().toISOString() })
     .onConflictDoNothing();
   return { following: true };
+}
+
+/* ── Watchlist (watched symbols) ───────────────────────────────────────────── */
+
+/** The symbols a user watches, sorted. Empty for signed-out viewers / on error. */
+export async function getWatchedSymbols(viewerId: string | null): Promise<string[]> {
+  if (!viewerId) return [];
+  try {
+    const rows = await platformDb
+      .select({ symbol: watchedSymbols.symbol })
+      .from(watchedSymbols)
+      .where(eq(watchedSymbols.userId, viewerId))
+      .orderBy(watchedSymbols.symbol);
+    return rows.map((r) => r.symbol);
+  } catch {
+    return [];
+  }
+}
+
+/** Whether the viewer watches a specific symbol. */
+export async function isSymbolWatched(viewerId: string | null, symbol: string): Promise<boolean> {
+  const s = normalizeWatchSymbol(symbol);
+  if (!viewerId || !s) return false;
+  try {
+    const row = await platformDb
+      .select({ symbol: watchedSymbols.symbol })
+      .from(watchedSymbols)
+      .where(and(eq(watchedSymbols.userId, viewerId), eq(watchedSymbols.symbol, s)))
+      .get();
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Toggles watching a symbol for the viewer. Idempotent via the (user_id, symbol)
+ * PK. Returns the new watched state. Caps the number of symbols a user can watch.
+ * Returns null when the symbol is invalid (the caller 400s).
+ */
+export async function toggleWatchSymbol(
+  viewerId: string,
+  rawSymbol: string
+): Promise<{ watching: boolean } | null> {
+  const symbol = normalizeWatchSymbol(rawSymbol);
+  if (!symbol) return null;
+
+  const existing = await platformDb
+    .select({ symbol: watchedSymbols.symbol })
+    .from(watchedSymbols)
+    .where(and(eq(watchedSymbols.userId, viewerId), eq(watchedSymbols.symbol, symbol)))
+    .get();
+
+  if (existing) {
+    await platformDb
+      .delete(watchedSymbols)
+      .where(and(eq(watchedSymbols.userId, viewerId), eq(watchedSymbols.symbol, symbol)));
+    return { watching: false };
+  }
+
+  // Enforce the per-user cap before inserting a new watch.
+  const count = await platformDb
+    .select({ n: sql<number>`count(*)` })
+    .from(watchedSymbols)
+    .where(eq(watchedSymbols.userId, viewerId))
+    .get();
+  if ((count?.n ?? 0) >= MAX_WATCHED_SYMBOLS) return null;
+
+  await platformDb
+    .insert(watchedSymbols)
+    .values({ userId: viewerId, symbol, createdAt: new Date().toISOString() })
+    .onConflictDoNothing();
+  return { watching: true };
 }
 
 /**

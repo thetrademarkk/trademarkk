@@ -25,6 +25,7 @@ import type {
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import { toggleFollowedTag } from "./followed-tags";
+import { toggleWatchedSymbol } from "./watchlist";
 import { extractCashtags } from "./cashtags";
 import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
@@ -50,7 +51,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export type FeedSort = "latest" | "top";
-export type FeedScope = "all" | "following" | "saved";
+export type FeedScope = "all" | "following" | "saved" | "watchlist";
 
 export function useFeed(
   sort: FeedSort,
@@ -272,6 +273,55 @@ export function useToggleFollowTag() {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: key });
       // A followed tag's posts flow into the Following feed.
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
+  });
+}
+
+/* ── Watchlist (watched symbols) ─────────────────────────────── */
+
+/**
+ * The signed-in viewer's watched symbols. Drives the per-symbol stream's Watch
+ * button state, the left-rail "Your watchlist" list, and the Watchlist feed
+ * availability. Empty (and skipped) for signed-out viewers.
+ */
+export function useWatchedSymbols(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-watched-symbols"],
+    queryFn: () => request<{ symbols: string[] }>("/api/community/watchlist"),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Optimistic watch/unwatch of a symbol. Patches the cached watched-symbols list
+ * instantly (so the stream-page Watch button and the left-rail list flip
+ * together) and rolls back on error. Refreshes the Watchlist feed on success so
+ * a newly-watched symbol's posts appear without a manual reload.
+ */
+export function useToggleWatch() {
+  const qc = useQueryClient();
+  const key = ["community-watched-symbols"];
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      request<{ watching: boolean }>(`/api/community/watchlist/${encodeURIComponent(symbol)}`, {
+        method: "POST",
+      }),
+    onMutate: (symbol) => {
+      const prev = qc.getQueryData<{ symbols: string[] }>(key);
+      qc.setQueryData<{ symbols: string[] }>(key, (data) => ({
+        symbols: toggleWatchedSymbol(data?.symbols ?? [], symbol),
+      }));
+      return { prev };
+    },
+    onError: (_e, _symbol, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      // A watched symbol's posts flow into the Watchlist feed.
       void qc.invalidateQueries({ queryKey: ["community-feed"] });
     },
   });

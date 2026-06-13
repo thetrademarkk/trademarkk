@@ -234,6 +234,15 @@ const STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_followed_tags_user ON followed_tags (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_followed_tags_tag ON followed_tags (tag)`,
+  // ── Watchlist: symbols a user watches surface in their Watchlist feed scope ──
+  `CREATE TABLE IF NOT EXISTS watched_symbols (
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, symbol)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_watched_symbols_user ON watched_symbols (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_watched_symbols_symbol ON watched_symbols (symbol)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,

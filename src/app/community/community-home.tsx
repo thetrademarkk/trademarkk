@@ -17,6 +17,7 @@ import {
   TrendingBoard,
   useMyProfile,
 } from "@/features/community";
+import { WatchlistRail } from "@/features/community/components/watchlist-rail";
 import {
   useFollowedTags,
   useTrendingTags,
@@ -65,9 +66,10 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
   });
   const [composeOpen, setComposeOpen] = React.useState(false);
   const { data: session } = useSession();
-  const { data: me } = useMyProfile(Boolean(session));
+  const signedIn = Boolean(session);
+  const { data: me } = useMyProfile(signedIn);
   const { data: trending } = useTrendingTags();
-  const { data: followedTags } = useFollowedTags(Boolean(session));
+  const { data: followedTags } = useFollowedTags(signedIn);
   const topics =
     trending?.tags && trending.tags.length > 0
       ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
@@ -77,6 +79,10 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
     { id: "latest", label: "Latest", sort: "latest", scope: "all" },
     { id: "top", label: "Top this week", sort: "top", scope: "all" },
     { id: "following", label: "Following", sort: "latest", scope: "following" },
+    // Watchlist (watched symbols OR followed authors) — only meaningful signed in.
+    ...(signedIn
+      ? [{ id: "watchlist", label: "Watchlist", sort: "latest", scope: "watchlist" } as const]
+      : []),
     { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
   ];
   const activeTab =
@@ -172,6 +178,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               </div>
             </div>
           )}
+          <WatchlistRail enabled={signedIn} />
         </div>
       </aside>
 
