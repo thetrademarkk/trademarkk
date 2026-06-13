@@ -6,12 +6,16 @@ import { buildTradeSaveStatements } from "@/features/trades/save-statements";
 import { computeStreak } from "@/lib/stats/streak";
 import { newId } from "@/lib/id";
 import { todayKey } from "@/lib/utils";
+import { istDayKey, pushBadgeSnapshot } from "./badge-sync";
 
 /**
  * Panel-side journal access: the SAME SQL the web client runs, against the
  * same DbClient abstraction — rule check-offs and trades sync instantly with
  * the web app because they are literally the same rows.
  */
+
+/** react-query key for the rules-nudge badge counts (kept fresh by mutations). */
+const BADGE_QUERY_KEY = ["badge"] as const;
 
 const DbContext = React.createContext<DbClient | null>(null);
 export const DbProvider = DbContext.Provider;
@@ -109,7 +113,11 @@ export function useSetRuleCheck(date: string) {
     onError: (_e, _input, ctx) => {
       if (ctx?.prev) qc.setQueryData(["rule-checks", date], ctx.prev);
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: ["rule-checks", date] }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["rule-checks", date] });
+      // Refresh the rules-nudge toolbar badge — a check-off may zero the count.
+      void qc.invalidateQueries({ queryKey: BADGE_QUERY_KEY });
+    },
   });
 }
 
@@ -160,8 +168,53 @@ export function useSaveTrade() {
       await db.batch(statements);
       return id;
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["glance"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["glance"] });
+      // The first trade of the day flips the badge on — refresh its count.
+      void qc.invalidateQueries({ queryKey: BADGE_QUERY_KEY });
+    },
   });
+}
+
+/** Count of trades opened or closed on `day` — the badge's "has traded today". */
+function useTradesTodayCount(day: string) {
+  const db = useDb();
+  return useQuery({
+    queryKey: [...BADGE_QUERY_KEY, day],
+    queryFn: async () => {
+      const res = await db.execute(
+        `SELECT COUNT(*) AS c FROM trades
+         WHERE substr(opened_at, 1, 10) = ? OR substr(closed_at, 1, 10) = ?`,
+        [day, day]
+      );
+      return Number(res.rows[0]?.c ?? 0);
+    },
+  });
+}
+
+/**
+ * Keeps the rules-nudge toolbar badge in sync while the panel is open, then
+ * hands the snapshot to the service worker (which owns the actual badge text).
+ *
+ * The unticked-rule count is derived from the SAME cached `useRules` +
+ * `useRuleChecks` queries the RulesCard renders, so a tri-state flip updates the
+ * badge INSTANTLY (optimistic, no extra DB read, no read-after-write race). Only
+ * the "has traded today" check needs its own cheap COUNT(*), invalidated on
+ * trade-save / import. Renders nothing.
+ */
+export function useBadgeSync(mode: "hosted" | "byod"): void {
+  const day = istDayKey();
+  const { data: rules } = useRules();
+  const { data: checks } = useRuleChecks(day);
+  const { data: tradesToday } = useTradesTodayCount(day);
+
+  React.useEffect(() => {
+    // Wait until all three inputs have loaded so we never push a spurious zero.
+    if (rules === undefined || checks === undefined || tradesToday === undefined) return;
+    // Unticked = active rule with no tri-state recorded for the day.
+    const untickedRules = rules.filter((r) => !checks.has(r.id)).length;
+    void pushBadgeSnapshot({ tradesToday, untickedRules, signedIn: true, mode, day });
+  }, [rules, checks, tradesToday, mode, day]);
 }
 
 /** The charge profile configured for an account (defaults to zerodha). */

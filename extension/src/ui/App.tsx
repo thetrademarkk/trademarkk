@@ -7,9 +7,10 @@ import {
   fetchStatus,
   type AppStatus,
 } from "../lib/app-api";
+import { clearBadge } from "../lib/badge-sync";
 import { getAppUrl, setByodCreds } from "../lib/config";
 import { ByodConnectError, resolveConnection } from "../lib/connection";
-import { DbProvider } from "../lib/journal";
+import { DbProvider, useBadgeSync } from "../lib/journal";
 import { BrandMark } from "./Brand";
 import { ByodConnect } from "./ByodConnect";
 import { GlanceStrip } from "./GlanceStrip";
@@ -95,6 +96,15 @@ export function App() {
     return () => clearInterval(t);
   }, [state.phase, boot]);
 
+  // Clear the rules-nudge toolbar badge whenever there's no readable journal:
+  // signed out, local/unsupported mode (setup-incomplete), schema-outdated,
+  // missing BYOD creds, or a connection error. The ready branch keeps it in
+  // sync via useBadgeSync. (loading is transient — leave the badge as-is.)
+  React.useEffect(() => {
+    const readable = state.phase === "ready" || state.phase === "loading";
+    if (!readable) void clearBadge(state.phase === "setup-incomplete" ? "local" : null);
+  }, [state.phase]);
+
   if (!appUrl || state.phase === "loading") {
     return (
       <div className="panel">
@@ -132,6 +142,7 @@ export function App() {
 
       {state.phase === "ready" && (
         <DbProvider value={state.db}>
+          <BadgeSync mode={state.mode} />
           <main className="panel-main">
             <TradeForm appUrl={appUrl} />
             <ImportLauncher appUrl={appUrl} />
@@ -150,6 +161,12 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** Drives the rules-nudge toolbar badge while the panel is open (renders nothing). */
+function BadgeSync({ mode }: { mode: "hosted" | "byod" }) {
+  useBadgeSync(mode);
+  return null;
 }
 
 function Header({ children, onSettings }: { children?: React.ReactNode; onSettings: () => void }) {
