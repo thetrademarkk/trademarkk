@@ -12,6 +12,15 @@ export const user = sqliteTable("user", {
   image: text("image"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  // ── Email-abuse hardening (durable per-account cooldown + daily caps) ──
+  // Epoch-ms of the last sent email of each kind; the daily counter resets
+  // inline when the stored timestamp's IST/local date != today (no cron).
+  lastPasswordResetEmailAt: integer("last_password_reset_email_at"),
+  passwordResetEmailCountToday: integer("password_reset_email_count_today").notNull().default(0),
+  lastVerificationEmailAt: integer("last_verification_email_at"),
+  verificationEmailCountToday: integer("verification_email_count_today").notNull().default(0),
+  lastOtpEmailAt: integer("last_otp_email_at"),
+  otpEmailCountToday: integer("otp_email_count_today").notNull().default(0),
 });
 
 export const session = sqliteTable("session", {
@@ -258,6 +267,18 @@ export const webVitals = sqliteTable("web_vitals", {
   value: real("value").notNull(), // ms for timing metrics; unitless score for CLS
   path: text("path").notNull(),
   createdAt: text("created_at").notNull(),
+});
+
+/**
+ * Durable fixed-window rate-limit store. One row per limiter key; the count is
+ * reset when `windowStart` ages past the window. Backs `rateLimit()` so limits
+ * actually enforce across serverless cold starts (an in-memory Map would reset
+ * per lambda invocation). Old rows are pruned opportunistically.
+ */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: integer("window_start").notNull().default(0), // epoch ms
 });
 
 /** One row per user → which Turso DB holds their journal, and which mode they're in. */
