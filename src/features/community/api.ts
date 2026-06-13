@@ -96,6 +96,52 @@ export function useCommunitySearch(q: string) {
   });
 }
 
+/* ── Composer autocomplete (@mention / #hashtag typeahead) ─────────────────── */
+
+export interface AutocompleteUser {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+}
+export interface AutocompleteTag {
+  tag: string;
+  count: number;
+}
+
+/**
+ * @mention suggestions for the composer typeahead. Block-aware on the server;
+ * the result holds between keystrokes so the dropdown never flashes empty.
+ * Enabled only while an @token is active (`enabled`), debounced by the caller.
+ */
+export function useUserAutocomplete(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-ac-user", q],
+    queryFn: () =>
+      request<{ users: AutocompleteUser[] }>(
+        `/api/community/autocomplete?kind=user&q=${encodeURIComponent(q)}`
+      ),
+    enabled,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/** #hashtag suggestions (existing tags by prefix + curated topics with counts). */
+export function useTagAutocomplete(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-ac-tag", q],
+    queryFn: () =>
+      request<{ tags: AutocompleteTag[] }>(
+        `/api/community/autocomplete?kind=tag&q=${encodeURIComponent(q)}`
+      ),
+    enabled,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
 export function useTrendingTags() {
   return useQuery({
     queryKey: ["community-trending-tags"],

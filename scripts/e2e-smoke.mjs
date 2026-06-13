@@ -170,7 +170,7 @@ await step("calendar heatmap renders", async () => {
 });
 
 console.log("— Analytics —");
-await step("analytics: all six tabs render", async () => {
+await step("analytics: all seven tabs render", async () => {
   await page.goto(`${BASE}/app/analytics`, { waitUntil: "networkidle" });
   // One closed trade exists (quick-add above) → hour chart has data.
   await page.getByText("By entry hour").waitFor({ timeout: 20000 });
@@ -183,6 +183,15 @@ await step("analytics: all six tabs render", async () => {
   await page.getByRole("tab", { name: "Options" }).click();
   await page.getByText("By strategy").waitFor({ timeout: 15000 });
   await page.getByText("Days to expiry").waitFor();
+  // Monte Carlo tab — one closed EQ trade carries no R, so the simulator must
+  // show its honest "not enough data" gate (needs MIN_TRADES R-bearing trades),
+  // never a fabricated cone.
+  await page.getByRole("tab", { name: "Monte Carlo" }).click();
+  await page.getByTestId("mc-gate").waitFor({ timeout: 15000 });
+  await page
+    .getByText(/Not enough data yet/)
+    .first()
+    .waitFor();
   // More-statistics pack — one closed trade is below every MIN_SAMPLE gate, so
   // the per-bucket charts must show honest empty states, not fabricated bars.
   await page.getByRole("tab", { name: "More" }).click();

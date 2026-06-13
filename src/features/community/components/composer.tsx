@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { ComposerTextarea } from "./composer-textarea";
 import { ApiError, useCreatePost } from "../api";
 import { clearDraft, readDraft, writeDraft } from "../draft";
 import { SUGGESTED_TAGS, type TradeCard } from "../types";
@@ -133,14 +133,14 @@ export function Composer({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="composer-body">Your post</Label>
-        <Textarea
+        <ComposerTextarea
           id="composer-body"
           ref={bodyRef}
           rows={5}
           maxLength={5000}
-          placeholder="Share the idea, the lesson, the question…"
+          placeholder="Share the idea, the lesson, the question… use @ to mention, $ for tickers, # for topics"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onValueChange={setBody}
           onPaste={(e) => {
             const file = Array.from(e.clipboardData.items)
               .find((i) => i.type.startsWith("image/"))

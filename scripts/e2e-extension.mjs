@@ -87,6 +87,50 @@ await step("panel loads and opens settings", async () => {
     await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
     await panel.getByLabel("TradeMarkk app URL").waitFor({ timeout: 5000 });
   }
+  await panel.getByRole("button", { name: "Close settings" }).click({ timeout: 5000 });
+});
+
+// ── Keyboard shortcut + popup-mode polish (Chromium-fork fallback surface) ──
+// The shortcut is declared in the manifest and handled in the dependency-free
+// service worker; assert the manifest entry is present (the SW handler is unit-
+// covered by commands.test.ts). Then verify the popup surface — the same React
+// UI Chrome shows on forks without chrome.sidePanel — renders the panel root at
+// the 320px popup floor with no horizontal overflow.
+await step("manifest declares the open-panel keyboard command", async () => {
+  const commands = await panel.evaluate(() => chrome.runtime.getManifest().commands);
+  const cmd = commands?.["open-trademarkk-panel"];
+  if (!cmd) throw new Error(`open-trademarkk-panel command missing: ${JSON.stringify(commands)}`);
+  if (cmd.suggested_key?.default !== "Ctrl+Shift+J")
+    throw new Error(`unexpected default key: ${JSON.stringify(cmd.suggested_key)}`);
+  if (cmd.suggested_key?.mac !== "MacCtrl+Shift+J")
+    throw new Error(`unexpected mac key: ${JSON.stringify(cmd.suggested_key)}`);
+});
+
+await step("popup renders the panel root at 320px with no horizontal overflow", async () => {
+  const popup = await ctx.newPage();
+  try {
+    // Chrome's popup floor is 320px wide — render the popup document there and
+    // assert the same companion UI mounts and never spills horizontally.
+    await popup.setViewportSize({ width: 320, height: 580 });
+    await popup.goto(`chrome-extension://${EXT_ID}/popup.html`, { waitUntil: "load" });
+    await popup.getByText("TradeMarkk").first().waitFor({ timeout: 15000 });
+    // The popup body carries the .popup class (the fork-fallback chrome) and
+    // mounts the React panel root inside #root.
+    if (!(await popup.locator("body.popup .panel").count()))
+      throw new Error("popup did not mount the panel shell");
+    const overflow = await popup.evaluate(() => {
+      const de = document.documentElement;
+      return {
+        docOverflow: de.scrollWidth - de.clientWidth,
+        bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+      };
+    });
+    // A 1px rounding slack is fine; anything more is a real horizontal scrollbar.
+    if (overflow.docOverflow > 1 || overflow.bodyOverflow > 1)
+      throw new Error(`popup overflows horizontally at 320px: ${JSON.stringify(overflow)}`);
+  } finally {
+    await popup.close();
+  }
 });
 
 await step("app URL override saves (self-hoster flow)", async () => {

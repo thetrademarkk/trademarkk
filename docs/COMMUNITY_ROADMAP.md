@@ -26,7 +26,7 @@ composer PR #18, post-detail polish PR #28, notification grouping PR #36,
 profile polish, header search v2) live in the "Shipped by the loop" log below.
 
 1. [x] **Richer reactions** — Like / Insightful / Respect / Celebrate (LinkedIn-style), one per user, hover/long-press picker, stacked summary, reaction-weighted Top-feed. _(2026-06-13, PR — this iteration)_
-2. [ ] **@mention + $cashtag + #hashtag composer autocomplete** — inline typeahead in the composer & comment box; resolves handles/symbols/tags as you type.
+2. [x] **@mention + $cashtag + #hashtag composer autocomplete** — inline typeahead in the composer & comment box; resolves handles/symbols/tags as you type. _(2026-06-13, PR #63)_
 3. [ ] **Edit posts/comments in a 15-min window** with an immutable edit history ("edited" marker + revision log).
 4. [ ] **Decayed, cost-weighted Top-feed hot-score** — comments/reshares weigh more than reactions, recency decay, per-author diversity cap; deterministic, no ML.
 5. [ ] **Link OG unfurl preview cards** — SSRF-safe host allowlist for fetched links + own OG tags on posts.
@@ -49,3 +49,4 @@ profile polish, header search v2) live in the "Shipped by the loop" log below.
 - [x] 2026-06-12 — Post detail polish (back-nav context, share counts, related rail, docked mobile composer, follow chip) — PR #28
 - [x] 2026-06-12 — Notification grouping (LinkedIn-style rollups, scoped mark-read, /community/notifications page) — PR #36
 - [x] 2026-06-13 — Richer reactions (Like/Insightful/Respect/Celebrate; additive `likes.reaction` + denormalized `posts.reactions`; hover/long-press picker, stacked summary, weighted Top-feed) — PR (this iteration)
+- [x] 2026-06-13 — @mention + $cashtag + #hashtag composer autocomplete (caret-aware typeahead in the composer & comment box; block-aware @users + #tags via `GET /api/community/autocomplete`, curated in-repo $symbols client-side w/ free entry; keyboard-navigable listbox; rich-text linkifies all three; signed-in 360px header overflow fixed) — PR #63

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ComposerTextarea } from "./composer-textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   ApiError,
@@ -187,13 +187,13 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
               </span>
             )}
             <div className="min-w-0 flex-1 space-y-2">
-              <Textarea
+              <ComposerTextarea
                 ref={inputRef}
                 rows={2}
                 maxLength={COMMENT_MAX}
                 placeholder={replyTo ? "Write your reply…" : "Add your take…"}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onValueChange={setBody}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();

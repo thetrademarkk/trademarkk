@@ -25,9 +25,19 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
                 <CommunitySearch />
               </Suspense>
               <NotificationsBell />
-              <Button variant="outline" size="sm" asChild>
+              {/* On phones the journal CTA collapses to its icon so the
+                  search + bell + CTA cluster fits within 360px (the text label
+                  returns at >=sm). aria-label keeps it named when text hides. */}
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="px-2 sm:px-3"
+                aria-label="My journal"
+              >
                 <Link href="/app/dashboard">
-                  <NotebookPen className="h-3.5 w-3.5" aria-hidden /> My journal
+                  <NotebookPen className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">My journal</span>
                 </Link>
               </Button>
             </>
