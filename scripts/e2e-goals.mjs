@@ -107,8 +107,16 @@ await step("demo onboarding → empty dashboard", async () => {
   await page.getByText("Net P&L").first().waitFor({ timeout: 30000 });
 });
 
-await step("no goals yet → setup prompt card, no banner", async () => {
-  await page.getByTestId("weekly-goals-empty").waitFor({ timeout: 15000 });
+await step("no goals yet → topbar Goals entry present, no widget, no banner", async () => {
+  // The dashboard empty nudge was removed; the topbar "Goals" link is the entry.
+  await page.getByRole("link", { name: "Weekly goals" }).first().waitFor({ timeout: 15000 });
+  if (
+    await page
+      .getByTestId("weekly-goals")
+      .isVisible()
+      .catch(() => false)
+  )
+    throw new Error("configured weekly-goals widget shown before goals set");
   if (
     await banners()
       .isVisible()

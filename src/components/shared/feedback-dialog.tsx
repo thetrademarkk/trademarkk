@@ -26,10 +26,21 @@ const CATEGORIES = [
 ] as const;
 
 /** Product feedback dialog — anonymous-friendly, works on every surface. */
-export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
+export function FeedbackDialog({
+  trigger,
+  open: openProp,
+  onOpenChange,
+}: {
+  trigger?: React.ReactNode;
+  /** Controlled mode — lets a menu item open it without rendering a trigger. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [open, setOpen] = React.useState(false);
+  const [openState, setOpenState] = React.useState(false);
+  const open = openProp ?? openState;
+  const setOpen = onOpenChange ?? setOpenState;
   const [category, setCategory] = React.useState<(typeof CATEGORIES)[number]["id"]>("idea");
   const [message, setMessage] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -65,13 +76,15 @@ export function FeedbackDialog({ trigger }: { trigger?: React.ReactNode }) {
 
   return (
     <>
-      <span onClick={() => setOpen(true)}>
-        {trigger ?? (
-          <Button variant="outline" size="sm">
-            <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden /> Feedback
-          </Button>
-        )}
-      </span>
+      {(trigger !== undefined || openProp === undefined) && (
+        <span onClick={() => setOpen(true)}>
+          {trigger ?? (
+            <Button variant="outline" size="sm">
+              <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden /> Feedback
+            </Button>
+          )}
+        </span>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

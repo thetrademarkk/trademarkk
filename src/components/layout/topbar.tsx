@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -13,6 +14,7 @@ import {
   Moon,
   Search,
   ShieldCheck,
+  Target,
 } from "lucide-react";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { StreakIndicator } from "@/features/streak";
@@ -54,6 +56,7 @@ export function Topbar() {
   const { setCommandOpen } = useUiStore();
   const { state, disconnect } = useDbSession();
   const { setTheme, theme } = useTheme();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const title = NAV_ITEMS.find((i) => pathname.startsWith(i.href))?.label ?? "TradeMarkk";
   const mode = state.status === "ready" ? state.mode : null;
@@ -93,20 +96,19 @@ export function Topbar() {
 
       <div className="ml-auto flex items-center gap-2">
         <StreakIndicator />
-        <FeedbackDialog
-          trigger={
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="Send feedback"
-              title="Send feedback"
-              className="gap-1.5 text-muted"
-            >
-              <MessageSquareText className="h-4 w-4" />
-              <span className="hidden text-xs md:inline">Feedback</span>
-            </Button>
-          }
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          aria-label="Weekly goals"
+          title="Weekly goals"
+          className="gap-1.5 text-muted"
+        >
+          <Link href="/app/settings#goals">
+            <Target className="h-4 w-4" />
+            <span className="hidden text-xs md:inline">Goals</span>
+          </Link>
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -158,6 +160,15 @@ export function Topbar() {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setFeedbackOpen(true);
+              }}
+            >
+              <MessageSquareText />
+              Send feedback
+            </DropdownMenuItem>
             {status?.isAdmin && (
               <DropdownMenuItem asChild>
                 <Link href="/admin">
@@ -172,6 +183,7 @@ export function Topbar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       </div>
     </header>
   );
