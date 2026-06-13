@@ -38,12 +38,15 @@ profile polish, header search v2) live in the "Shipped by the loop" log below.
 11. [x] **Watchlist-driven feed scope** — watched symbol OR followed author. _[needs #6]_ _(2026-06-14 — accumulated, pending batch deploy)_
 12. [x] **For-You interest feed + cold-start starter follows** — engaged tags + 2nd-degree by hot-score; onboarding seeds; no ML. _(2026-06-14 — accumulated, pending batch deploy)_
 13. [x] **Content-quality + anti-tip/spam gate** — SEBI-sane, conservative pure heuristics: anti-tip/pump nudge (soft-flags tip/call/assured-return language for moderation review; HARD-blocks only egregious paid-group/solicitation spam), low-effort/all-caps/link-only/keyboard-mash gate, near-duplicate repost gate. Flagged posts surface to the admin queue (feeds rank-14). _(2026-06-14 — accumulated, pending batch deploy)_
+14. [x] **Admin moderation / report-queue UI** — unified admin-only queue merging user **reports** + **auto-flagged** posts (rank-13 quality gate) in one filterable (source · open/actioned), sortable, paginated list; moderator actions: dismiss (mark report actioned, kept as history), delete content (post/comment cascade), clear a false-positive quality flag, and **suspend/reinstate a user** (additive `user.status='banned'` blocks posting/commenting/resharing/editing at the create endpoints with a 403; existing content stays); append-only `mod_actions` audit log (actor/action/target/at). Strictly admin-only (isAdmin + isAllowedOrigin + zod + rate-limit; non-admins 403 on every endpoint). _(2026-06-14 — accumulated, pending batch deploy)_
 
-**Later (14–20):** admin moderation/report-queue UI · SSE "N new posts" pill · reputation/track-record · follow suggestions · event/earnings threads · notification preferences · awards · then DM v2 (images/typing/read-receipts) · muted words.
+**Later (15–20):** SSE "N new posts" pill · reputation/track-record · follow suggestions · event/earnings threads · notification preferences · awards · then DM v2 (images/typing/read-receipts) · muted words.
 
 ## Shipped by the loop
 
 <!-- The loop appends: - [x] YYYY-MM-DD — item — PR #N -->
+
+- [x] 2026-06-14 — Admin moderation / report-queue UI (rank-14) — unified reports + auto-flagged moderation queue, dismiss/delete/clear-flag/ban-user actions, additive `user.status` ban flag + `mod_actions` audit log, admin-only — (accumulated, pending batch deploy)
 
 - [x] 2026-06-12 — Direct messages (chat) v1 — PR #12
 - [x] 2026-06-12 — Feed composer upgrade (inline top-of-feed composer, drafts in tm.community-draft) — PR #18

@@ -30,26 +30,6 @@ export interface AdminOverview {
   }[];
 }
 
-export interface ReportRow {
-  id: string;
-  targetType: "post" | "comment";
-  targetId: string;
-  reason: string | null;
-  createdAt: string;
-  reporter: string;
-  targetPreview: string | null;
-  postId: string | null;
-}
-
-/** A post auto-flagged by the content-quality gate (not yet user-reported). */
-export interface FlaggedPostRow {
-  id: string;
-  flag: string | null;
-  createdAt: string;
-  author: string;
-  preview: string;
-}
-
 export function useAdminOverview() {
   return useQuery({
     queryKey: ["admin-overview"],
@@ -61,13 +41,59 @@ export function useAdminOverview() {
   });
 }
 
-export function useAdminReports() {
+/* ── Moderation queue (rank-14): unified reports + auto-flagged posts ── */
+
+export interface ModQueueItemView {
+  key: string;
+  source: "report" | "flag";
+  status: "open" | "actioned";
+  targetType: "post" | "comment";
+  targetId: string;
+  postId: string | null;
+  label: string;
+  note: string | null;
+  preview: string | null;
+  author: string | null;
+  authorId: string | null;
+  authorBanned: boolean;
+  reporter: string | null;
+  createdAt: string;
+}
+
+export interface ModQueueResponse {
+  items: ModQueueItemView[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  openCounts: { reports: number; flags: number };
+}
+
+export type ModSourceFilter = "all" | "report" | "flag";
+export type ModStatusFilter = "open" | "actioned" | "all";
+export type ModSort = "newest" | "oldest";
+
+export interface ModQueueParams {
+  source: ModSourceFilter;
+  status: ModStatusFilter;
+  sort: ModSort;
+  page: number;
+}
+
+export function useModQueue(params: ModQueueParams) {
   return useQuery({
-    queryKey: ["admin-reports"],
+    queryKey: ["admin-moderation", params],
     queryFn: async () => {
-      const res = await fetch("/api/admin/reports");
-      if (!res.ok) throw new Error("Failed to load reports");
-      return (await res.json()) as { reports: ReportRow[]; flagged?: FlaggedPostRow[] };
+      const qs = new URLSearchParams({
+        source: params.source,
+        status: params.status,
+        sort: params.sort,
+        page: String(params.page),
+      });
+      const res = await fetch(`/api/admin/moderation?${qs}`);
+      if (!res.ok) throw new Error("Failed to load the moderation queue");
+      return (await res.json()) as ModQueueResponse;
     },
+    placeholderData: (prev) => prev,
   });
 }

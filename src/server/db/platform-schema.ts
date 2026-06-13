@@ -21,6 +21,12 @@ export const user = sqliteTable("user", {
   verificationEmailCountToday: integer("verification_email_count_today").notNull().default(0),
   lastOtpEmailAt: integer("last_otp_email_at"),
   otpEmailCountToday: integer("otp_email_count_today").notNull().default(0),
+  /**
+   * Account moderation status: 'banned' = suspended (blocked from posting/
+   * commenting at the create endpoints with a 403), NULL = active. Additive,
+   * idempotent — set/cleared only by an admin via the moderation queue.
+   */
+  status: text("status"),
 });
 
 export const session = sqliteTable("session", {
@@ -275,6 +281,27 @@ export const reports = sqliteTable("reports", {
   targetType: text("target_type").notNull(), // 'post' | 'comment'
   targetId: text("target_id").notNull(),
   reason: text("reason"),
+  /**
+   * Lifecycle: 'open' (awaiting review) | 'actioned' (dismissed/resolved by a
+   * moderator). Dismissing marks the report actioned rather than deleting it so
+   * the moderation queue keeps an open-vs-actioned history. Defaults to 'open'.
+   */
+  status: text("status").notNull().default("open"),
+  createdAt: text("created_at").notNull(),
+});
+
+/**
+ * Append-only moderation audit log: one row per moderator action (dismiss /
+ * delete-content / clear-flag / ban-user / unban-user) so every action is
+ * traceable. Kept deliberately simple — no soft-delete, no edits. Admin-only.
+ */
+export const modActions = sqliteTable("mod_actions", {
+  id: text("id").primaryKey(),
+  actorId: text("actor_id").notNull(), // the admin who acted
+  action: text("action").notNull(), // see features/community/moderation.ts MOD_ACTIONS
+  targetType: text("target_type").notNull(), // 'post' | 'comment' | 'user' | 'report'
+  targetId: text("target_id").notNull(),
+  detail: text("detail"), // optional context (e.g. the report id, or a short note)
   createdAt: text("created_at").notNull(),
 });
 

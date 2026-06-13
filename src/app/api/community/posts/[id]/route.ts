@@ -20,6 +20,7 @@ import {
 import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
 import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
+import { isUserBanned } from "@/server/moderation";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -198,6 +199,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Suspended accounts cannot edit content either (mirrors the create gate).
+  if (await isUserBanned(session.user.id))
+    return NextResponse.json(
+      { error: "Your account is suspended and cannot post or comment." },
+      { status: 403 }
+    );
 
   const row = await platformDb.select().from(posts).where(eq(posts.id, id)).get();
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });

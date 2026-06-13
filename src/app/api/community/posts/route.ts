@@ -18,6 +18,7 @@ import { createPostSchema } from "@/features/community/schemas";
 import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
 import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
+import { isUserBanned } from "@/server/moderation";
 
 /** Tag grammar — same as the post-creation schema (lowercase, digits, dashes). */
 const TAG_RE = /^[a-z0-9-]{2,20}$/;
@@ -54,6 +55,12 @@ export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to post" }, { status: 401 });
+  // Suspended accounts cannot create content (clear 403; existing content stays).
+  if (await isUserBanned(session.user.id))
+    return NextResponse.json(
+      { error: "Your account is suspended and cannot post or comment." },
+      { status: 403 }
+    );
 
   const { allowed } = await rateLimit(`post:${session.user.id}`, 5, 3600);
   if (!allowed)

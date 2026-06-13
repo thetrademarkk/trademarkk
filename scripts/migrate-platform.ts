@@ -272,6 +272,19 @@ const STATEMENTS = [
     site_name TEXT,
     fetched_at TEXT NOT NULL
   )`,
+  // ── Moderation audit log: one append-only row per moderator action so every
+  // dismiss / delete / ban is traceable (who, what, which target, when). Simple
+  // by design — no soft-delete, no edits. ──
+  `CREATE TABLE IF NOT EXISTS mod_actions (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mod_actions_time ON mod_actions (created_at DESC)`,
 ];
 
 async function main() {
@@ -326,6 +339,16 @@ async function main() {
     // is never flagged; egregious spam is blocked outright, never stored).
     // Existing rows default to NULL — additive, idempotent. ──
     `ALTER TABLE posts ADD COLUMN quality_flag TEXT`,
+    // ── User suspension/ban: 'banned' | NULL (active). A banned user is blocked
+    // from creating posts/comments/reshares at the create endpoints with a 403;
+    // their existing content stays (a moderator can also delete it). Additive,
+    // idempotent — existing rows default to NULL (active). ──
+    `ALTER TABLE user ADD COLUMN status TEXT`,
+    // ── Report lifecycle: 'open' (needs review) | 'actioned' (dismissed/resolved).
+    // Dismissing a report now marks it actioned instead of deleting the row, so the
+    // moderation queue can show an open-vs-actioned history. Existing rows backfill
+    // to 'open' via the UPDATE below. Additive, idempotent. ──
+    `ALTER TABLE reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,
@@ -350,6 +373,8 @@ async function main() {
     // Moderation: cheap "show me flagged posts, newest first" scan for the admin
     // queue. The vast majority of rows have a NULL quality_flag (cheap to skip).
     `CREATE INDEX IF NOT EXISTS idx_posts_quality_flag ON posts (quality_flag, created_at DESC)`,
+    // Moderation queue scan: "open reports, newest first".
+    `CREATE INDEX IF NOT EXISTS idx_reports_status ON reports (status, created_at DESC)`,
   ];
   for (const sql of POST_ALTER_INDEXES) {
     await client.execute(sql);
