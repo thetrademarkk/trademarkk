@@ -13,6 +13,14 @@ const RHistogram = dynamic(
   () => import("@/features/analytics/components/r-histogram").then((m) => m.RHistogram),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
+const MoreStats = dynamic(
+  () => import("@/features/analytics/components/more-stats").then((m) => m.MoreStats),
+  { ssr: false, loading: () => <Skeleton className="h-64" /> }
+);
+const DayTimeHeatmap = dynamic(
+  () => import("@/features/analytics/components/day-time-heatmap").then((m) => m.DayTimeHeatmap),
+  { ssr: false, loading: () => <Skeleton className="h-64" /> }
+);
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,11 +58,12 @@ export default function AnalyticsPage() {
       <PageHeader title="Analytics" description="Where your edge actually is — and isn't." />
 
       <Tabs defaultValue="time">
-        <TabsList>
+        <TabsList className="flex max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="time">Time</TabsTrigger>
           <TabsTrigger value="setup">Setup</TabsTrigger>
           <TabsTrigger value="instrument">Instrument</TabsTrigger>
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
+          <TabsTrigger value="more">More</TabsTrigger>
         </TabsList>
 
         <TabsContent value="time" className="grid gap-4 md:grid-cols-2">
@@ -101,6 +110,11 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="more" className="space-y-4">
+          <DayTimeHeatmap trades={closed} />
+          <MoreStats trades={closed} />
         </TabsContent>
       </Tabs>
     </div>
