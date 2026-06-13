@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Static fixture replicating the STRUCTURE of the Upstox Pro web order window
+    (pro.upstox.com) for extension e2e tests — real Upstox sits behind a login,
+    so the capture adapter is exercised against this stand-in instead.
+
+    Public DOM research (see docs/EXTENSION_ROADMAP.md ADR v2) established that
+    Upstox Pro is a React app with CSS-Modules HASHED class names (e.g.
+    `_symbol_6136e`) that change every deploy — so this fixture deliberately
+    uses hashed-looking class names and the adapter must NOT rely on them
+    literally. What it relies on (and what this fixture provides):
+      - the floating window mounts DYNAMICALLY (B/S quick buttons), so the
+        content script's MutationObserver path is what's tested;
+      - visible field LABELS "Qty" / "Price" walked to the adjacent <input>;
+      - a buy/sell class FRAGMENT on the window + the "Confirm to buy/sell"
+        button copy + active side-tab text for the side;
+      - `[class*='_symbol_']` / `[class*='ltp']` substring matchers as a last
+        resort.
+
+    Visuals are approximate on purpose; structure is what the adapter reads.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upstox fixture — order window</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #0e0f12;
+        color: #e7e7ea;
+      }
+      ._watchlist_9f2a1 {
+        width: 430px;
+        border-right: 1px solid #23252b;
+        min-height: 100vh;
+      }
+      ._row_9f2a1 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #1a1c20;
+      }
+      ._symbol_9f2a1 {
+        font-weight: 500;
+      }
+      ._category_9f2a1 {
+        font-size: 10px;
+        color: #8b8d93;
+      }
+      ._ltp_9f2a1 {
+        margin-left: auto;
+      }
+      ._quick_9f2a1 button {
+        font: inherit;
+        font-size: 12px;
+        width: 28px;
+        height: 24px;
+        border: 1px solid #2c2f36;
+        border-radius: 4px;
+        background: #16181d;
+        color: #e7e7ea;
+        cursor: pointer;
+      }
+      ._buy_9f2a1 {
+        color: #2ec27e;
+      }
+      ._sell_9f2a1 {
+        color: #ff5b5b;
+      }
+      ._orderWindow_3c8f2 {
+        position: fixed;
+        left: 120px;
+        top: 90px;
+        width: 360px;
+        background: #16181d;
+        border: 1px solid #2c2f36;
+        border-radius: 8px;
+        box-shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+      }
+      ._header_3c8f2 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 15px;
+        border-bottom: 1px solid #23252b;
+      }
+      ._symbolName_3c8f2 {
+        font-weight: 600;
+      }
+      ._category_3c8f2 {
+        font-size: 11px;
+        color: #8b8d93;
+        margin-left: 4px;
+      }
+      ._ltp_3c8f2 {
+        margin-left: auto;
+        font-size: 12px;
+        color: #b7b9bf;
+      }
+      ._sideTabs_3c8f2 {
+        display: flex;
+        padding: 10px 15px 0;
+        gap: 8px;
+      }
+      ._sideTab_3c8f2 {
+        flex: 1;
+        text-align: center;
+        padding: 6px 0;
+        border-radius: 6px 6px 0 0;
+        font-size: 12px;
+        background: #1a1c20;
+        cursor: pointer;
+      }
+      ._sideTab_3c8f2._active_3c8f2 {
+        font-weight: 600;
+      }
+      ._orderWindow_3c8f2._buy_3c8f2 ._sideTab_3c8f2._active_3c8f2 {
+        background: #103a29;
+        color: #2ec27e;
+      }
+      ._orderWindow_3c8f2._sell_3c8f2 ._sideTab_3c8f2._active_3c8f2 {
+        background: #3a1414;
+        color: #ff5b5b;
+      }
+      ._body_3c8f2 {
+        display: flex;
+        gap: 10px;
+        padding: 14px 15px;
+      }
+      ._field_3c8f2 {
+        flex: 1;
+      }
+      ._field_3c8f2 label {
+        display: block;
+        font-size: 11px;
+        color: #8b8d93;
+        margin-bottom: 4px;
+      }
+      ._field_3c8f2 input {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        padding: 6px 8px;
+        background: #0e0f12;
+        border: 1px solid #2c2f36;
+        border-radius: 4px;
+        color: #e7e7ea;
+      }
+      ._field_3c8f2 input:disabled {
+        opacity: 0.5;
+      }
+      ._footer_3c8f2 {
+        display: flex;
+        align-items: center;
+        padding: 12px 15px;
+        border-top: 1px solid #23252b;
+      }
+      ._margin_3c8f2 {
+        font-size: 12px;
+        color: #8b8d93;
+      }
+      ._footer_3c8f2 ._confirm_3c8f2 {
+        margin-left: auto;
+        font: inherit;
+        padding: 8px 18px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #fff;
+      }
+      ._orderWindow_3c8f2._buy_3c8f2 ._confirm_3c8f2 {
+        background: #2ec27e;
+      }
+      ._orderWindow_3c8f2._sell_3c8f2 ._confirm_3c8f2 {
+        background: #ff5b5b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="_watchlist_9f2a1" id="watchlistTestId">
+        <div class="_row_9f2a1" data-fixture-row="RELIANCE">
+          <span class="_symbol_9f2a1">RELIANCE</span>
+          <span class="_category_9f2a1">NSE</span>
+          <span class="_ltp_9f2a1">2,979.95</span>
+          <span class="_quick_9f2a1">
+            <button type="button" class="_buy_9f2a1" data-fixture="buy" aria-label="Buy RELIANCE">
+              B
+            </button>
+            <button
+              type="button"
+              class="_sell_9f2a1"
+              data-fixture="sell"
+              aria-label="Sell RELIANCE"
+            >
+              S
+            </button>
+          </span>
+        </div>
+        <div class="_row_9f2a1" data-fixture-row="NSE_FO|NIFTY2661924500CE">
+          <span class="_symbol_9f2a1">NIFTY 24500 CE</span>
+          <span class="_category_9f2a1">NFO</span>
+          <span class="_ltp_9f2a1">145.30</span>
+          <span class="_quick_9f2a1">
+            <button type="button" class="_buy_9f2a1" data-fixture="buy" aria-label="Buy NIFTY">
+              B
+            </button>
+            <button type="button" class="_sell_9f2a1" data-fixture="sell" aria-label="Sell NIFTY">
+              S
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Upstox mounts its floating order window on demand — the fixture does the
+      // same so the content script's MutationObserver path is what's exercised.
+      function openOrderWindow(row, side) {
+        document.querySelector("._orderWindow_3c8f2")?.remove();
+        const symbol = row.querySelector("._symbol_9f2a1").textContent.trim();
+        const exchange = row.querySelector("._category_9f2a1").textContent.trim();
+        const ltp = row.querySelector("._ltp_9f2a1").textContent.trim();
+        // The NIFTY option row mimics a MARKET order: price input disabled at 0,
+        // exercising the adapter's last-price fallback. RELIANCE is a limit order.
+        const market = exchange === "NFO";
+        const key = row.dataset.fixtureRow;
+
+        const win = document.createElement("form");
+        win.className = "_orderWindow_3c8f2 _" + side + "_3c8f2";
+        const cap = side === "buy" ? "buy" : "sell";
+        win.innerHTML = `
+          <div class="_header_3c8f2">
+            <span>
+              <span class="_symbolName_3c8f2">${key}</span>
+              <span class="_category_3c8f2">${exchange}</span>
+            </span>
+            <span class="_ltp_3c8f2">LTP ₹${ltp}</span>
+          </div>
+          <div class="_sideTabs_3c8f2">
+            <div class="_sideTab_3c8f2 ${side === "buy" ? "_active_3c8f2" : ""}">Buy</div>
+            <div class="_sideTab_3c8f2 ${side === "sell" ? "_active_3c8f2" : ""}">Sell</div>
+          </div>
+          <div class="_body_3c8f2">
+            <div class="_field_3c8f2">
+              <label>Qty</label>
+              <input type="number" inputmode="numeric" value="1" />
+            </div>
+            <div class="_field_3c8f2">
+              <label>Price</label>
+              <input type="number" inputmode="decimal" step="0.05"
+                value="${market ? "0" : ltp.replace(/,/g, "")}" ${market ? "disabled" : ""} />
+            </div>
+            <div class="_field_3c8f2">
+              <label>Trigger price</label>
+              <input type="number" value="0" disabled />
+            </div>
+          </div>
+          <div class="_footer_3c8f2">
+            <span class="_margin_3c8f2">Margin ₹1,407.95</span>
+            <button type="submit" class="_confirm_3c8f2">Confirm to ${cap}</button>
+          </div>`;
+        win.addEventListener("submit", (e) => e.preventDefault());
+        document.getElementById("root").appendChild(win);
+      }
+
+      document.querySelectorAll("[data-fixture]").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          openOrderWindow(btn.closest("[data-fixture-row]"), btn.dataset.fixture)
+        );
+      });
+    </script>
+  </body>
+</html>

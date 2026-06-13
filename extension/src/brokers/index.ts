@@ -1,5 +1,6 @@
 import type { BrokerCaptureAdapter, BrokerId } from "./types";
 import { kiteAdapter } from "./kite";
+import { upstoxAdapter } from "./upstox";
 
 /**
  * Registry of broker capture adapters. Adding a broker (Upstox, Groww, …) is:
@@ -11,7 +12,10 @@ import { kiteAdapter } from "./kite";
  *  4. Register it here — the settings toggle, permission flow and panel
  *     prefill pick it up automatically.
  */
-export const captureAdapters: readonly BrokerCaptureAdapter[] = [kiteAdapter];
+export const captureAdapters: readonly BrokerCaptureAdapter[] = [kiteAdapter, upstoxAdapter];
+
+// (Adding the next broker is one more entry above + its content entry + a
+//  build pass in package.json's ext:build — the registry drives everything else.)
 
 export function brokerLabel(id: BrokerId): string {
   return captureAdapters.find((a) => a.id === id)?.label ?? id;
