@@ -34,13 +34,20 @@ merged to main.
 
 ### Next (not yet built)
 
-- [ ] **BT-04 engine** — deterministic 1-minute bar-replay against the LOCAL
-      `market-data/market_archive_1m` archive + fixtures. IST integer epoch-ms,
-      next-bar-open fills, point-in-time marks from option OHLC (never BS),
-      SL-first tie-break, fixed within-bar evaluation order, risk checks at 1m,
-      `computeCharges` per round-trip (golden cent-for-cent), `metrics.ts`
-      (Sharpe/Sortino/Calmar/MAR/DD-duration/exposure/turnover), seeded mulberry32
-      → identical-hash determinism, ≥5 golden-trade strategies + 10 edge tests.
+- [x] **BT-04 engine** ✅ (accumulated, pending batch deploy) — deterministic
+      1-minute bar-replay (`src/lib/backtest/engine/*`, engineVersion 1.0.0)
+      against the LOCAL archive via a 6-fn `DataSource` interface (the BT-08 seam)
+      with a `FixtureDataSource` + Node `local-source` adapter. IST integer
+      epoch-ms, next-bar-open fills, point-in-time marks from option OHLC (never
+      BS), expiry-at-LTP, SL-first tie-break, fixed within-bar order, risk at 1m,
+      liquidity-scaled `fill-model`, `computeCharges` per round-trip (cent-for-cent
+      vs charges.golden), NEW `metrics.ts`
+      (Sharpe/Sortino/Calmar/MAR/DD-duration/exposure/turnover), `mc-cone.ts`
+      reusing `runSimulation` with the D3 raw-rupee vs R-based split (MIN_TRADES 30),
+      seeded mulberry32 → 100-run identical-hash determinism. 59 new tests: 10+
+      hard-invariant edge tests, metrics vs hand-computed, charges cent-for-cent,
+      determinism hash, MC routing, + 2 GOLDEN strategies (9:20 ATM short straddle
+      & OTM strangle) on a committed REAL NIFTY 2024-07-25 archive slice.
 - [ ] **BT-05 worker-hook** — `backtest.worker` + `useBacktest` (clone the
       Monte-Carlo worker idiom), BacktestStatus state machine, throttled progress.
 - [ ] **BT-06 builder** — no-code 5-node wizard + always-mounted live-payoff rail
@@ -68,3 +75,8 @@ merged to main.
 - 2026-06-14 — BT-01 + BT-02 + BT-03 (the backtesting foundation), accumulated on
   `acc/backtest` (deploy-conserving). 83 new vitest tests incl. the ≥20-row expiry
   golden table + holiday-roll-back.
+- 2026-06-14 — BT-04 deterministic bar-replay ENGINE, accumulated (deploy-
+  conserving). `src/lib/backtest/engine/*` + `metrics.ts` + `mc-cone.ts` + a
+  committed real-archive golden fixture (`__fixtures__/golden-nifty-2024-07.json`,
+  ~140 KB, via `scripts/gen-backtest-golden.py`). +59 vitest (suite 1275 → 1334).
+  All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, build OK.
