@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   Bookmark,
   Flag,
-  Heart,
   Link2,
   Loader2,
   MessageCircle,
@@ -39,11 +38,13 @@ import {
 } from "../api";
 import { formatCount, formatPostDate } from "../format";
 import type { PostView } from "../types";
+import type { ReactionKind } from "../reactions";
 import { CommunityAvatar } from "./avatar";
 import { TradeCardView } from "./trade-card-view";
 import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
+import { ReactionPicker } from "./reaction-picker";
 
 export function PostCard({
   post,
@@ -77,10 +78,14 @@ export function PostCard({
     pendingAction.current = retry;
     setGateOpen(true);
   };
-  const like = () =>
-    toggleLike.mutate(post.id, {
-      onError: (e) => e instanceof ApiError && e.status === 401 && onUnauthorized(like),
-    });
+  const react = (reaction: ReactionKind) =>
+    toggleLike.mutate(
+      { id: post.id, reaction },
+      {
+        onError: (e) =>
+          e instanceof ApiError && e.status === 401 && onUnauthorized(() => react(reaction)),
+      }
+    );
   const bookmark = () =>
     toggleBookmark.mutate(post.id, {
       onError: (e) => e instanceof ApiError && e.status === 401 && onUnauthorized(bookmark),
@@ -343,18 +348,12 @@ export function PostCard({
       )}
 
       <footer className="mt-3 flex items-center gap-1 border-t pt-2">
-        <button
-          aria-label={post.likedByMe ? "Unlike" : "Like"}
-          aria-pressed={post.likedByMe}
-          onClick={like}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-            post.likedByMe ? "text-loss" : "text-muted hover:bg-surface-2 hover:text-foreground"
-          )}
-        >
-          <Heart className={cn("h-4 w-4", post.likedByMe && "fill-current")} aria-hidden />
-          {post.likeCount > 0 && <span className="font-money">{formatCount(post.likeCount)}</span>}
-        </button>
+        <ReactionPicker
+          current={post.myReaction}
+          total={post.likeCount}
+          counts={post.reactionCounts}
+          onReact={react}
+        />
         <Link
           href={`/community/post/${post.id}`}
           className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
