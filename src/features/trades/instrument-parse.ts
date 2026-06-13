@@ -252,3 +252,123 @@ function parseClock(t: string): string {
   if (ap === "AM" && hh === 12) hh = 0;
   return `${pad2(hh)}:${m[2]}:${m[3] ?? "00"}`;
 }
+
+/**
+ * SEBI Rule-3 agri-commodity classification (SEG-CHG). Commodities on the
+ * notified agricultural list are EXEMPT from CTT (and carry the ₹1/crore SEBI
+ * slab); everything else on the commodity exchanges (bullion, energy, base
+ * metals, and PROCESSED agri products) pays CTT.
+ *
+ * Matched by NORMALISED SYMBOL BASE against an explicit set — NOT a substring —
+ * because the processed derivative of an exempt crop is itself non-exempt:
+ * GUARSEED is agri-exempt but GUARGUM (the processed gum) is NOT; cottonseed
+ * oilcake (COCUDAKL) and refined/processed edible oils are NOT; the AGRIDEX
+ * index is NOT (it pays CTT 0.01%). So a bare `.startsWith("GUAR")` would
+ * wrongly exempt Guar Gum — we require a whole base-token match instead.
+ */
+const AGRI_EXEMPT = new Set<string>([
+  // pulses / grains
+  "CHANA",
+  "WHEAT",
+  "BARLEY",
+  "MAIZE",
+  "MAIZERABI",
+  "MAIZEKHARIF",
+  "BAJRA",
+  "PADDY",
+  "RICE",
+  "MOONG",
+  "TUR",
+  "URAD",
+  "MASUR",
+  // oilseeds (raw seeds — exempt; processed oils/cakes are NOT, see below)
+  "SOYBEAN",
+  "SOYABEAN",
+  "MUSTARDSEED",
+  "RMSEED",
+  "MUSTARD",
+  "CASTORSEED",
+  "CASTOR",
+  "GROUNDNUT",
+  "SESAME",
+  "TIL",
+  "SUNFLOWER",
+  "COTTONSEED",
+  "GUARSEED",
+  "GUAR",
+  // spices
+  "JEERA",
+  "DHANIYA",
+  "CORIANDER",
+  "TURMERIC",
+  "HALDI",
+  "CARDAMOM",
+  "PEPPER",
+  "BLACKPEPPER",
+  "CHILLI",
+  "REDCHILLI",
+  "MENTHAOIL",
+  "MENTHA",
+  // fibres & plantation
+  "COTTON",
+  "KAPAS",
+  "COTTONCNDY",
+  "JUTE",
+  "RUBBER",
+  // sweeteners / others
+  "SUGAR",
+  "SUGARM",
+  "SUGARS",
+  "GUR",
+  "JAGGERY",
+  "CASHEW",
+  "ALMOND",
+  "COCOA",
+  "COFFEE",
+  "POTATO",
+  "ONION",
+  "ISABGUL",
+]);
+
+/**
+ * Processed agri products and indices that LOOK agri but are NON-exempt (CTT
+ * applies). Checked first so e.g. GUARGUM never matches the GUAR seed entry.
+ */
+const AGRI_PROCESSED_EXCEPTIONS = new Set<string>([
+  "GUARGUM", // processed gum — non-agri (CTT applies)
+  "COCUDAKL", // cottonseed oilcake — processed
+  "COCUDAKLA",
+  "SOYAOIL",
+  "SOYOIL",
+  "REFSOYOIL",
+  "CPO", // crude palm oil — processed edible oil
+  "PALMOIL",
+  "PALMOLEIN",
+  "MUSTARDOIL",
+  "CASTOROIL",
+  "AGRIDEX", // NCDEX agri index — pays CTT 0.01%
+]);
+
+/** A commodity symbol's base token (strip exchange prefix + contract suffix, uppercase). */
+function commodityBase(sym: string): string {
+  return (
+    sym
+      .trim()
+      .toUpperCase()
+      .replace(/^(?:MCX|NCDEX|NCO|NSE|BSE):/, "")
+      // drop a trailing yy-mon (24JUN…) / numeric-date / FUT tail used by contract names
+      .replace(/\d.*$/, "")
+  );
+}
+
+/**
+ * True when a commodity (segment === "COMM") is a SEBI Rule-3 agri commodity
+ * exempt from CTT. Processed products (Guar Gum, oilcakes, refined oils) and the
+ * AGRIDEX index are NON-agri even though their base looks agricultural.
+ */
+export function classifyAgriCommodity(symbol: string): boolean {
+  const base = commodityBase(symbol);
+  if (!base) return false;
+  if (AGRI_PROCESSED_EXCEPTIONS.has(base)) return false;
+  return AGRI_EXEMPT.has(base);
+}

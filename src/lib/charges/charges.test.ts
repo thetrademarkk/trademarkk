@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCharges, computeGrossPnl, computeRMultiple } from "./charges";
+import { computeCharges, computeGrossPnl, computeRMultiple, resolveExchange } from "./charges";
 import { getChargeProfile } from "@/config/brokers";
 
 const zerodha = getChargeProfile("zerodha");
@@ -315,5 +315,148 @@ describe("computeRMultiple", () => {
         plannedSl: null,
       })
     ).toBeNull();
+  });
+});
+
+describe("resolveExchange — back-compat segment defaults + free-text normalisation (SEG-CHG)", () => {
+  it("undefined/null/empty exchange falls back to the segment default", () => {
+    expect(resolveExchange("EQ")).toBe("NSE");
+    expect(resolveExchange("FUT", null)).toBe("NSE");
+    expect(resolveExchange("OPT", "")).toBe("NSE");
+    expect(resolveExchange("CDS", undefined)).toBe("NSE");
+    expect(resolveExchange("COMM")).toBe("MCX"); // commodity default is MCX
+  });
+  it("exact union values pass through", () => {
+    expect(resolveExchange("EQ", "BSE")).toBe("BSE");
+    expect(resolveExchange("COMM", "NCDEX")).toBe("NCDEX");
+    expect(resolveExchange("COMM", "MCX")).toBe("MCX");
+  });
+  it("normalises broker free-text exchanges", () => {
+    expect(resolveExchange("EQ", "NSE_EQ")).toBe("NSE");
+    expect(resolveExchange("FUT", "NFO")).toBe("NSE");
+    expect(resolveExchange("EQ", "bse")).toBe("BSE");
+    expect(resolveExchange("FUT", "BFO")).toBe("BSE");
+    expect(resolveExchange("COMM", "MCX-COMM")).toBe("MCX");
+    expect(resolveExchange("COMM", "ncdex agri")).toBe("NCDEX");
+  });
+  it("NCDEX is matched before NSE/BSE (distinct prefix, not swallowed)", () => {
+    expect(resolveExchange("COMM", "NCDEX")).toBe("NCDEX");
+    expect(resolveExchange("COMM", "ncdexabc")).toBe("NCDEX");
+  });
+  it("unknown free-text falls back to the segment default", () => {
+    expect(resolveExchange("EQ", "WHATEVER")).toBe("NSE");
+    expect(resolveExchange("COMM", "???")).toBe("MCX");
+  });
+});
+
+describe("SEG-CHG — fixed/added exchange & segment rates", () => {
+  const eqf = { qty: 100, entryPrice: 500, exitPrice: 510, direction: "long" as const };
+  const commf = { qty: 100, entryPrice: 1000, exitPrice: 1010, direction: "long" as const };
+  const cdsf = { qty: 1000, entryPrice: 83, exitPrice: 83.5, direction: "long" as const };
+  const futf = { qty: 75, entryPrice: 24000, exitPrice: 24100, direction: "long" as const };
+
+  it("MCX commodity FUTURE uses the FIXED 0.0021% rate (was 0.00266% placeholder)", () => {
+    const b = computeCharges(zerodha, { segment: "COMM", product: "NRML", ...commf });
+    // 201,000 × 0.0021% = 4.221 → 4.22
+    expect(b.exchange).toBe(4.22);
+  });
+  it("MCX commodity OPTION uses 0.0418% premium (was ~20x understated by the futures rate)", () => {
+    const fut = computeCharges(zerodha, { segment: "COMM", product: "NRML", ...commf });
+    const optn = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      commodityOption: true,
+      ...commf,
+    });
+    expect(optn.exchange).toBe(84.02); // 201,000 × 0.0418%
+    expect(optn.exchange).toBeGreaterThan(fut.exchange * 15);
+  });
+  it("commodity OPTION uses the option stamp 0.003% (not the futures 0.002%)", () => {
+    const optn = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      commodityOption: true,
+      ...commf,
+    });
+    expect(optn.stampDuty).toBe(3); // 100,000 × 0.003%
+  });
+  it("commodity OPTION brokerage is flat ₹20×2 (no % cap path)", () => {
+    // A large commodity-option turnover where a % cap would otherwise apply.
+    const optn = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      commodityOption: true,
+      qty: 1000,
+      entryPrice: 1000,
+      exitPrice: 1010,
+      direction: "long",
+    });
+    expect(optn.brokerage).toBe(40);
+  });
+  it("agri commodity uses the ₹1/crore SEBI slab (vs ₹10/crore non-agri)", () => {
+    const agri = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      agriCommodity: true,
+      ...commf,
+    });
+    const nonAgri = computeCharges(zerodha, { segment: "COMM", product: "NRML", ...commf });
+    expect(agri.sebi).toBe(0.02); // 201,000/1cr × 1
+    expect(nonAgri.sebi).toBe(0.2); // 201,000/1cr × 10
+    expect(agri.stt).toBe(0); // agri is CTT-exempt
+  });
+  it("CDS FUTURE uses the FIXED 0.00035% rate (was 0.00009% — ~4x too low)", () => {
+    const b = computeCharges(zerodha, { segment: "CDS", product: "NRML", ...cdsf });
+    expect(b.exchange).toBe(0.58); // 166,500 × 0.00035%
+  });
+  it("CDS uses the dedicated 0.0001% stamp (not the futures 0.002% — was ~20x too high)", () => {
+    const b = computeCharges(zerodha, { segment: "CDS", product: "NRML", ...cdsf });
+    expect(b.stampDuty).toBe(0.08); // 83,000 × 0.0001%
+  });
+  it("CDS OPTION carries the 0.0311% premium exchange rate, still zero tax", () => {
+    const b = computeCharges(zerodha, {
+      segment: "CDS",
+      product: "NRML",
+      isOption: true,
+      qty: 1000,
+      entryPrice: 2,
+      exitPrice: 2.5,
+      direction: "long",
+    });
+    expect(b.stt).toBe(0);
+    expect(b.exchange).toBe(1.4); // 4,500 × 0.0311%
+  });
+  it("BSE futures carry NO exchange transaction charge (0)", () => {
+    const b = computeCharges(zerodha, {
+      segment: "FUT",
+      product: "NRML",
+      exchange: "BSE",
+      ...futf,
+    });
+    expect(b.exchange).toBe(0);
+  });
+  it("BSE equity exchange rate (0.00375%) exceeds NSE (0.00307%)", () => {
+    const bse = computeCharges(zerodha, { segment: "EQ", product: "MIS", exchange: "BSE", ...eqf });
+    const nse = computeCharges(zerodha, { segment: "EQ", product: "MIS", exchange: "NSE", ...eqf });
+    expect(bse.exchange).toBeGreaterThan(nse.exchange);
+    expect(bse.exchange).toBe(3.79);
+    expect(nse.exchange).toBe(3.1);
+  });
+  it("NCDEX agri future (0.003%) < NCDEX non-agri future (0.0058%)", () => {
+    const agri = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      agriCommodity: true,
+      exchange: "NCDEX",
+      ...commf,
+    });
+    const nonAgri = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      exchange: "NCDEX",
+      ...commf,
+    });
+    expect(agri.exchange).toBe(6.03); // 201,000 × 0.003%
+    expect(nonAgri.exchange).toBe(11.66); // 201,000 × 0.0058%
   });
 });

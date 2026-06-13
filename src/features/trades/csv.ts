@@ -1,6 +1,6 @@
-import { computeCharges, computeGrossPnl } from "@/lib/charges/charges";
+import { computeCharges, computeGrossPnl, resolveExchange } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
-import { parseContractName } from "./instrument-parse";
+import { classifyAgriCommodity, parseContractName } from "./instrument-parse";
 import type { Product, Segment, TradeRow } from "./types";
 
 export interface RawFill {
@@ -199,6 +199,10 @@ function buildTrade(
       : "NRML";
   const product: TradeRow["product"] = first.product ?? inferredProduct;
 
+  // Exchange (SEG-CHG). New imports record the segment default (COMM → MCX,
+  // CDS/EQ/FUT/OPT → NSE); a broker exchange column may override later. The
+  // charge engine resolves it identically, so legacy rows stay byte-identical.
+  const exchange = resolveExchange(inst.segment);
   let gross = 0;
   let charges = 0;
   if (closed && x) {
@@ -206,11 +210,15 @@ function buildTrade(
     charges = computeCharges(profile, {
       segment: inst.segment,
       product,
+      exchange,
       qty: e.qty,
       entryPrice: e.price,
       exitPrice: x.price,
       direction,
       orders: entries.length + exits.length,
+      commodityOption: inst.segment === "COMM" && inst.optionType != null,
+      agriCommodity: inst.segment === "COMM" && classifyAgriCommodity(inst.symbol),
+      isOption: inst.segment === "CDS" && inst.optionType != null,
     }).total;
   }
   const ts = new Date().toISOString();
@@ -231,7 +239,7 @@ function buildTrade(
     id: stableId(idParts),
     account_id: accountId,
     symbol: inst.symbol,
-    exchange: "NSE",
+    exchange,
     segment: inst.segment,
     product,
     expiry: first.expiry ?? null,

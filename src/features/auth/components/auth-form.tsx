@@ -13,10 +13,28 @@ type Mode = "signup" | "signin" | "forgot";
 export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
   const [mode, setMode] = React.useState<Mode>("signup");
   const [busy, setBusy] = React.useState(false);
+  const [googleBusy, setGoogleBusy] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
   const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1";
+
+  // The heading reflects the current mode so switching to "Sign in" or "Forgot
+  // password" no longer leaves a misleading "Create your free account" title.
+  const heading = {
+    signup: {
+      title: "Create your free account",
+      sub: "You get a dedicated, isolated database — yours to export or take with you anytime.",
+    },
+    signin: {
+      title: "Welcome back",
+      sub: "Sign in to pick up your journal right where you left off.",
+    },
+    forgot: {
+      title: "Reset your password",
+      sub: "Enter your account email and we'll send you a secure reset link.",
+    },
+  }[mode];
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -57,6 +75,27 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
     }
   };
 
+  const handleGoogle = async () => {
+    setError(null);
+    setGoogleBusy(true);
+    try {
+      // signIn.social RESOLVES with { error } on failure (it doesn't throw) and,
+      // on success, redirects the browser to Google — so the spinner stays up
+      // only on the happy path. We surface a returned error AND catch a hard
+      // network failure, so the button can never get stuck on "Redirecting…".
+      const res = await signIn.social({ provider: "google", callbackURL: "/app/onboarding" });
+      if (res?.error) {
+        // Don't leak raw provider/config errors ("Provider not found" etc.) —
+        // show one friendly line and leave email/password as the fallback.
+        setGoogleBusy(false);
+        setError("Couldn't start Google sign-in. Please try again, or use email instead.");
+      }
+    } catch {
+      setGoogleBusy(false);
+      setError("Couldn't reach Google just now. Please try again.");
+    }
+  };
+
   if (notice) {
     return (
       <div className="flex items-start gap-3 rounded-xl border bg-surface-2/50 p-4">
@@ -77,6 +116,10 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
 
   return (
     <div className="space-y-4">
+      <div className="space-y-1">
+        <h2 className="text-xl font-bold">{heading.title}</h2>
+        <p className="text-sm text-muted">{heading.sub}</p>
+      </div>
       <form className="space-y-3" onSubmit={submit}>
         {mode === "signup" && (
           <div className="space-y-1.5">
@@ -165,10 +208,15 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
           <Button
             variant="outline"
             className="w-full"
-            disabled={busy}
-            onClick={() => signIn.social({ provider: "google", callbackURL: "/app/onboarding" })}
+            disabled={busy || googleBusy}
+            onClick={handleGoogle}
           >
-            <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
+            {googleBusy && <Loader2 className="animate-spin" aria-hidden />}
+            <svg
+              className={`h-4 w-4${googleBusy ? " hidden" : ""}`}
+              viewBox="0 0 24 24"
+              aria-hidden
+            >
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
@@ -186,20 +234,26 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
                 d="M12 5.38c1.61 0 3.06.55 4.21 1.64l3.16-3.16A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
               />
             </svg>
-            Continue with Google
+            {googleBusy ? "Redirecting to Google…" : "Continue with Google"}
           </Button>
         </>
       )}
 
       <p className="text-center text-xs text-muted">
-        {mode === "signup" ? (
+        {mode === "signup" && (
           <button type="button" className="hover:text-accent" onClick={() => switchMode("signin")}>
             Already have an account? <span className="font-medium text-accent">Sign in</span>
           </button>
-        ) : (
+        )}
+        {mode === "signin" && (
           <button type="button" className="hover:text-accent" onClick={() => switchMode("signup")}>
             New to TradeMarkk?{" "}
             <span className="font-medium text-accent">Create a free account</span>
+          </button>
+        )}
+        {mode === "forgot" && (
+          <button type="button" className="hover:text-accent" onClick={() => switchMode("signin")}>
+            Remembered it? <span className="font-medium text-accent">Back to sign in</span>
           </button>
         )}
       </p>

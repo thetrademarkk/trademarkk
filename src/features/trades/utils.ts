@@ -1,4 +1,5 @@
 import { computeCharges, computeGrossPnl, computeRMultiple } from "@/lib/charges/charges";
+import { classifyAgriCommodity } from "./instrument-parse";
 import { getChargeProfile } from "@/config/brokers";
 import type { TradeFormValues, TradeLeg } from "./schemas";
 
@@ -54,6 +55,9 @@ export function deriveTradeNumbers(
       entryPrice: leg.avgEntry,
       exitPrice: leg.avgExit!,
       direction: leg.direction,
+      commodityOption: values.segment === "COMM" && leg.optionType != null,
+      agriCommodity: values.segment === "COMM" && classifyAgriCommodity(values.symbol),
+      isOption: values.segment === "CDS" && leg.optionType != null,
     }).total;
   }
   gross = Math.round(gross * 100) / 100;

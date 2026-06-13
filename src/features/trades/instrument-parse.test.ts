@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseContractName, parseDateOnly, parseTimestamp } from "./instrument-parse";
+import {
+  classifyAgriCommodity,
+  parseContractName,
+  parseDateOnly,
+  parseTimestamp,
+} from "./instrument-parse";
 
 describe("parseContractName — compact NSE names", () => {
   it("monthly option: BANKNIFTY24JUN52000CE", () => {
@@ -275,5 +280,49 @@ describe("parseDateOnly / parseTimestamp", () => {
 
   it("date without time defaults to midnight", () => {
     expect(parseTimestamp("12-06-2026")).toBe(new Date("2026-06-12T00:00:00").toISOString());
+  });
+});
+
+describe("classifyAgriCommodity — SEBI Rule-3 exempt list (SEG-CHG)", () => {
+  it("exempts core Rule-3 agri commodities", () => {
+    for (const s of [
+      "CHANA",
+      "GUARSEED",
+      "JEERA",
+      "DHANIYA",
+      "SOYBEAN",
+      "CASTORSEED",
+      "WHEAT",
+      "COTTON",
+      "TURMERIC",
+      "MUSTARDSEED",
+      "MENTHAOIL",
+      "CARDAMOM",
+    ]) {
+      expect(classifyAgriCommodity(s)).toBe(true);
+    }
+  });
+  it("Guar SEED is exempt but Guar GUM (processed) is NOT — not a substring match", () => {
+    expect(classifyAgriCommodity("GUARSEED")).toBe(true);
+    expect(classifyAgriCommodity("GUARGUM")).toBe(false);
+    expect(classifyAgriCommodity("GUAR")).toBe(true); // bare guar seed
+  });
+  it("processed agri products & oilcakes are NON-agri (CTT applies)", () => {
+    for (const s of ["GUARGUM", "COCUDAKL", "SOYAOIL", "REFSOYOIL", "CPO", "MUSTARDOIL"]) {
+      expect(classifyAgriCommodity(s)).toBe(false);
+    }
+  });
+  it("AGRIDEX index is NON-agri (pays CTT 0.01%)", () => {
+    expect(classifyAgriCommodity("AGRIDEX")).toBe(false);
+  });
+  it("non-agri MCX commodities (bullion/energy/base metals) are NOT agri", () => {
+    for (const s of ["GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER", "ZINC"]) {
+      expect(classifyAgriCommodity(s)).toBe(false);
+    }
+  });
+  it("strips exchange prefix and contract-month suffix before matching", () => {
+    expect(classifyAgriCommodity("NCDEX:GUARSEED24JUN")).toBe(true);
+    expect(classifyAgriCommodity("MCX:COTTON24JUN")).toBe(true);
+    expect(classifyAgriCommodity("CRUDEOIL24JUNFUT")).toBe(false);
   });
 });

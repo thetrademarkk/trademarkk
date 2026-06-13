@@ -1,4 +1,5 @@
 import { computeCharges } from "@/lib/charges/charges";
+import { classifyAgriCommodity } from "./instrument-parse";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
 import type { DbStatement, DbValue } from "@/lib/db/types";
 import type { Product, Segment, TradeLegRow, TradeRow } from "./types";
@@ -72,7 +73,7 @@ export function chargeLegsForTrade(trade: TradeRow, legs: TradeLegRow[] | undefi
  */
 export function recomputeTradeCharges(
   profile: ChargeProfile,
-  trade: Pick<TradeRow, "segment" | "product">,
+  trade: Pick<TradeRow, "segment" | "product" | "exchange" | "option_type" | "symbol">,
   legs: ChargeLeg[]
 ): number {
   let charges = 0;
@@ -80,10 +81,14 @@ export function recomputeTradeCharges(
     charges += computeCharges(profile, {
       segment: trade.segment as Segment,
       product: trade.product ?? null,
+      exchange: trade.exchange ?? null,
       qty: leg.qty,
       entryPrice: leg.entryPrice,
       exitPrice: leg.exitPrice,
       direction: leg.direction,
+      commodityOption: trade.segment === "COMM" && trade.option_type != null,
+      agriCommodity: trade.segment === "COMM" && classifyAgriCommodity(trade.symbol),
+      isOption: trade.segment === "CDS" && trade.option_type != null,
     }).total;
   }
   return r2(charges);
