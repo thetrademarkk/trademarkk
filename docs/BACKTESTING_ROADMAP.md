@@ -103,8 +103,34 @@ merged to main.
       nanoid, idempotent re-share). D6: a `backtest_id` column + the
       `backtest_done` / `backtest_failed` notify types (additive). +28 vitest
       (suite 1416 → 1444) + new `scripts/e2e-bt-persistence.mjs` (13/13).
+- [x] **ETL / HF-prep** ✅ (accumulated, pending batch deploy + owner HF token) —
+      the D9 re-sort/normalize pipeline + the real COVERAGE MANIFEST + daily
+      aggregates + dataset card + a ready (NOT executed) HF upload script, all in
+      `scripts/etl/` over the LOCAL archive (read-only). `build_manifest.py` →
+      the full per-`(symbol,expiry,strike,type)` `manifest.parquet` (211,286 rows
+      = 91,773 captured + 119,513 absent-strike markers folded in; staged,
+      gitignored) **and** a committed compact `public/backtest/manifest/coverage-summary.json`
+      (~116 KB, 522 expiry rollups). `resort_normalize.py` collapses each expiry's
+      hundreds of tiny per-strike files into one expiry parquet, normalizing the
+      THREE timestamp dtypes (`string` / `tz=Asia/Kolkata` / `tz=+05:30`) to a
+      canonical `timestamp[ns, tz=+05:30]`, sorted `(trading_day,strike,option_type,timestamp)`,
+      ~1-day row groups, ZSTD, stats ON — measured on a 9-expiry sample: **~206×
+      fewer files, output ≈ 40% of input bytes, single-day reads prune to ~1 of 8
+      row groups (≈12% of the file)**. `build_daily_aggregates.py` = EOD daily/
+      rollups. `upload_hf.py` = owner-gated `upload_large_folder` (REFUSES without
+      `HF_TOKEN` + `--confirm`; never commits a token). `validate_manifest.py` =
+      schema + invariant check. Plus an additive zod loader
+      `src/lib/backtest/manifest/coverage-loader.ts` (+12 vitest, suite 1444 → 1456) so the engine/coverage chips can read real per-expiry numbers when
+      present, falling back to the current default when absent. Coverage:
+      **NIFTY ~51% · BANKNIFTY ~59% · SENSEX ~32% (worst)**. Docs:
+      `docs/backtesting/DATASET_CARD.md` (frozen schema) +
+      `docs/backtesting/ETL_RUNBOOK.md` (the crisp owner-ask + full run sequence).
+      Upload is the ONLY blocker — owner must provide an HF org name, a
+      fine-grained WRITE token scoped to ONE dataset repo, and a public+ungated
+      confirmation.
 - [ ] **BT-08 data-proxy** — `/api/mkt/[...path]` range-proxy + duckdb-wasm data
-      layer (the HF integration seam; needs the owner-provided HF dataset).
+      layer (the HF integration seam; needs the owner-provided HF dataset + the
+      ETL above uploaded).
 - [ ] **BT-10..14** — presets, walk-forward+MC, compare-journal, BYOC (Pyodide),
       server leaderboard.
 
@@ -182,3 +208,21 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   360px, cleanup sweeps only the synthetic user). All LOCAL gates green: tsc,
   ext:typecheck, next lint 0-warn, build (`/backtesting/r/[shareId]` dynamic, 4
   API routes), e2e-smoke 36/36, mobile-audit clean.
+- 2026-06-14 — ETL / HF-dataset prep, accumulated (deploy-conserving; upload
+  owner-gated). `scripts/etl/` (inspect_archive, build_manifest, resort_normalize,
+  build_daily_aggregates, upload_hf, validate_manifest) run read-only over the
+  local 3.65 GB / ~218k-file archive. Confirmed the timestamp-dtype mismatch is
+  THREE physical types mixed across BOTH layers (string / tz=Asia/Kolkata /
+  tz=+05:30) and `open_interest` mixed double/null — normalized to canonical
+  `timestamp[ns, tz=+05:30]` (fixed IST offset; no IANA tz db needed — Windows-safe)
+  - int64 OI. Full coverage manifest = 211,286 rows; committed compact summary
+    `public/backtest/manifest/coverage-summary.json` (~116 KB, 522 expiry rollups);
+    full `manifest.parquet` staged gitignored (~1.1 MB). Sample re-sort win: 1,856
+    tiny files (65.7 MB) → 9 expiry files (26.0 MB) = 206× fewer files, 39.6% size,
+    single-(day,strike) read prunes to ~1 of 8 row groups. Additive zod loader
+    `src/lib/backtest/manifest/coverage-loader.ts` + 12 vitest (suite 1444 → 1456).
+    Docs: `docs/backtesting/DATASET_CARD.md` + `ETL_RUNBOOK.md`. All LOCAL gates
+    green: tsc, ext:typecheck, next lint 0-warn, vitest 1456, next build; python
+    scripts ran successfully against the real archive; manifest schema validated.
+    OWNER-ASK (only blocker): HF org name (e.g. `thetrademarkk`), a fine-grained
+    WRITE token scoped to ONE dataset repo, and a public+ungated confirmation.
