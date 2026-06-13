@@ -27,6 +27,10 @@ const OptionsStats = dynamic(
   () => import("@/features/analytics/components/options-stats").then((m) => m.OptionsStats),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
+const MonteCarlo = dynamic(
+  () => import("@/features/analytics/components/monte-carlo").then((m) => m.MonteCarlo),
+  { ssr: false, loading: () => <Skeleton className="h-64" /> }
+);
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,6 +93,7 @@ export default function AnalyticsPage() {
           <TabsTrigger value="instrument">Instrument</TabsTrigger>
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
           <TabsTrigger value="options">Options</TabsTrigger>
+          <TabsTrigger value="montecarlo">Monte Carlo</TabsTrigger>
           <TabsTrigger value="more">More</TabsTrigger>
         </TabsList>
 
@@ -140,6 +145,10 @@ export default function AnalyticsPage() {
 
         <TabsContent value="options" className="space-y-4">
           <OptionsStats trades={closed} legsByTrade={legsByTrade} />
+        </TabsContent>
+
+        <TabsContent value="montecarlo" className="space-y-4">
+          <MonteCarlo trades={closed} />
         </TabsContent>
 
         <TabsContent value="more" className="space-y-4">
