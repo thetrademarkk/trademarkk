@@ -9,7 +9,14 @@ import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
+import {
+  Composer,
+  Feed,
+  InlineComposer,
+  SUGGESTED_TAGS,
+  TrendingBoard,
+  useMyProfile,
+} from "@/features/community";
 import {
   useFollowedTags,
   useTrendingTags,
@@ -105,6 +112,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             >
               Leaderboard
             </Link>
+            <Link
+              href="/community/trending"
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Trending
+            </Link>
             {me && (
               <Link
                 href={`/community/u/${me.username}`}
@@ -172,6 +185,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
           >
             Leaderboard
           </Link>
+          <Link
+            href="/community/trending"
+            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted"
+          >
+            Trending
+          </Link>
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -222,6 +241,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       {/* ── Right rail ── */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 space-y-4">
+          <TrendingBoard variant="compact" />
           <div className="rounded-xl border bg-surface p-4">
             <h2 className="text-sm font-semibold">Share with the community</h2>
             <p className="mt-1 text-xs leading-5 text-muted">

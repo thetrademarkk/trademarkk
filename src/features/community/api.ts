@@ -173,6 +173,33 @@ export function useTrendingTags() {
   });
 }
 
+/* ── Trending board (tickers & topics) ───────────────────────── */
+
+export interface TrendingBoardItem {
+  key: string;
+  authors: number;
+  posts: number;
+  score: number;
+}
+export interface TrendingBoardResponse {
+  window: "24h" | "7d";
+  tickers: TrendingBoardItem[];
+  topics: TrendingBoardItem[];
+}
+
+/**
+ * Trending tickers & topics for a window. Block-aware on the server for
+ * signed-in viewers; the anonymous board is CDN-cached. Drives the
+ * /community/trending page and the right-rail Trending widget.
+ */
+export function useTrending(window: "24h" | "7d") {
+  return useQuery({
+    queryKey: ["community-trending", window],
+    queryFn: () => request<TrendingBoardResponse>(`/api/community/trending?window=${window}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
 /** The signed-in viewer's followed tags. Drives the tag page's Follow state + the left-rail list. */
 export function useFollowedTags(enabled: boolean) {
   return useQuery({

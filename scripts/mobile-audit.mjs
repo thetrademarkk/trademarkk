@@ -17,6 +17,7 @@ const PUBLIC = [
   "/community/leaderboard",
   "/community/messages",
   "/community/notifications",
+  "/community/trending",
   "/community/s/NIFTY",
   "/community/t/options",
 ];

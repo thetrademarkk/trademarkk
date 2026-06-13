@@ -25,3 +25,4 @@ export type {
   RelatedPostView,
 } from "./types";
 export { CommunitySearch } from "./components/community-search";
+export { TrendingBoard } from "./components/trending-board";

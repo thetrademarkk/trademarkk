@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { newId } from "@/lib/id";
 import { auth } from "./auth";
 import { platformDb } from "./db/platform";
+import { cached } from "./cache";
 import {
   blocks,
   bookmarks,
@@ -29,6 +30,13 @@ import { parseEditHistory, type PostEditSnapshot } from "@/features/community/ed
 import { planSymbolSync } from "@/features/community/cashtags";
 import { MAX_FOLLOWED_TAGS, normalizeTag } from "@/features/community/followed-tags";
 import { normalizeQuoteBody, resolveReshareTarget } from "@/features/community/reshare";
+import {
+  rankTrending,
+  windowHours,
+  type TrendingEvent,
+  type TrendingItem,
+  type TrendingWindow,
+} from "@/features/community/trending";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -759,4 +767,112 @@ export async function createReshare(
   await notify({ userId: rootAuthorId, actorId: resharerId, type: "reshare", postId: rootId });
 
   return { id, rootId, quote: body.length > 0 };
+}
+
+/* ── Trending board (tickers & topics) ─────────────────────────────────────── */
+
+/** A raw post→key engagement row pulled from the DB before scoring. */
+interface TrendingRow {
+  key: string;
+  authorId: string;
+  /** ISO post-creation timestamp. */
+  createdAt: string;
+}
+
+/**
+ * Loads raw $ticker engagement rows (one per post→symbol occurrence) in the
+ * window. Block-aware: a signed-in viewer never sees posts from authors they've
+ * blocked counted toward a trend. The join rides the indexed `post_symbols`.
+ */
+async function loadSymbolRows(since: string, viewerId: string | null): Promise<TrendingRow[]> {
+  const rows = await platformDb.all<{ key: string; authorId: string; createdAt: string }>(
+    sql`SELECT ps.symbol AS key, p.user_id AS authorId, p.created_at AS createdAt
+        FROM post_symbols ps
+        JOIN posts p ON p.id = ps.post_id
+        WHERE p.created_at >= ${since}
+          AND (${viewerId} IS NULL
+               OR p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId}))`
+  );
+  return rows.map((r) => ({
+    key: String(r.key),
+    authorId: String(r.authorId),
+    createdAt: String(r.createdAt),
+  }));
+}
+
+/**
+ * Loads raw #topic engagement rows (one per post→tag occurrence) in the window
+ * by unrolling each post's JSON `tags` array via `json_each`. Same block-aware
+ * filter as the symbol rows.
+ */
+async function loadTagRows(since: string, viewerId: string | null): Promise<TrendingRow[]> {
+  const rows = await platformDb.all<{ key: string; authorId: string; createdAt: string }>(
+    sql`SELECT je.value AS key, p.user_id AS authorId, p.created_at AS createdAt
+        FROM posts p, json_each(p.tags) AS je
+        WHERE p.created_at >= ${since}
+          AND p.tags IS NOT NULL
+          AND (${viewerId} IS NULL
+               OR p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId}))`
+  );
+  return rows.map((r) => ({
+    key: String(r.key),
+    authorId: String(r.authorId),
+    createdAt: String(r.createdAt),
+  }));
+}
+
+/** Turns raw rows into scored TrendingEvents (computing each post's age now). */
+function toEvents(rows: TrendingRow[], now: number): TrendingEvent[] {
+  return rows.map((r) => ({
+    key: r.key,
+    authorId: r.authorId,
+    ageHours: (now - new Date(r.createdAt).getTime()) / 3_600_000,
+  }));
+}
+
+/** The ranked trending board for a window: tickers + topics, side by side. */
+export interface TrendingBoard {
+  window: TrendingWindow;
+  tickers: TrendingItem[];
+  topics: TrendingItem[];
+}
+
+/**
+ * Computes the trending board on-read (no cron, no snapshot table). Tickers come
+ * from the `post_symbols` join, topics from each post's JSON tags; both are
+ * ranked by the spam-resistant `rankTrending` (distinct-author gate + recency
+ * weighting). Block-aware for signed-in viewers.
+ *
+ * The ANONYMOUS board (viewerId === null) is wrapped in the 10-minute in-memory
+ * `cached()` so a community of any size triggers at most one DB scan per window
+ * per 10 minutes globally; the route layers a CDN `s-maxage` on top. A signed-in
+ * viewer's board is personalized (their blocks) so it is computed per request —
+ * cheap (two indexed scans of a short window) and never cached cross-user.
+ */
+export async function queryTrending(
+  window: TrendingWindow,
+  viewerId: string | null
+): Promise<TrendingBoard> {
+  const compute = async (): Promise<TrendingBoard> => {
+    const now = Date.now();
+    const since = new Date(now - windowHours(window) * 3_600_000).toISOString();
+    const [symbolRows, tagRows] = await Promise.all([
+      loadSymbolRows(since, viewerId),
+      loadTagRows(since, viewerId),
+    ]);
+    return {
+      window,
+      tickers: rankTrending(toEvents(symbolRows, now)),
+      topics: rankTrending(toEvents(tagRows, now)),
+    };
+  };
+
+  try {
+    if (viewerId) return await compute();
+    return await cached(`trending:${window}`, 10 * 60_000, compute);
+  } catch {
+    // The board is a non-critical sidebar/landing surface — degrade to empty
+    // rather than error the page (the empty state reads "not enough activity").
+    return { window, tickers: [], topics: [] };
+  }
 }
