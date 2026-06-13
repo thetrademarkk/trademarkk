@@ -4,7 +4,7 @@ import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
   symbol: string;
-  segment: "EQ" | "FUT" | "OPT";
+  segment: "EQ" | "FUT" | "OPT" | "COMM" | "CDS";
   strike?: number | null;
   optionType?: "CE" | "PE" | null;
   expiry?: string | null;

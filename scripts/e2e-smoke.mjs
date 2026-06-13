@@ -234,6 +234,80 @@ await step("reports: weekly + monthly render", async () => {
     .waitFor();
 });
 
+console.log("— Workflow polish —");
+await step("bulk multi-select + batch-tag tags the trade", async () => {
+  await page.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await page.locator("table tbody tr").first().waitFor({ timeout: 20000 });
+  await page.getByRole("button", { name: "Select" }).click();
+  await page.getByLabel("Select all trades").click();
+  const bar = page.getByTestId("bulk-action-bar");
+  await bar.waitFor({ timeout: 10000 });
+  await bar.getByRole("button", { name: "Add tag" }).click();
+  const tagBtn = page.locator("[data-radix-popper-content-wrapper] button").first();
+  await tagBtn.waitFor({ timeout: 8000 });
+  await tagBtn.click();
+  await page
+    .getByText(/Tagged \d+ trade/)
+    .first()
+    .waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Clear" }).click();
+});
+
+await step("plan a trade dialog opens + logs a plan", async () => {
+  await page.getByRole("button", { name: "Plan a trade" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByText("Log plan").waitFor({ timeout: 8000 });
+  await dialog.getByPlaceholder("NIFTY / RELIANCE").fill("SMOKEPLAN");
+  await dialog.getByLabel("Planned entry").fill("100");
+  await dialog.getByRole("button", { name: "Log plan" }).click();
+  await page.getByText("Plan logged").first().waitFor({ timeout: 8000 });
+  await page.keyboard.press("Escape");
+});
+
+await step("note template: save current, then apply on a fresh form", async () => {
+  await page.keyboard.press("Control+q");
+  await page.getByPlaceholder("NIFTY / RELIANCE").waitFor({ timeout: 10000 });
+  await page.getByPlaceholder(/What was the thesis/).fill("Smoke template thesis.");
+  await page.getByRole("button", { name: "Templates" }).click();
+  await page.getByText("Save current as template").click();
+  await page.getByPlaceholder("Template name…").fill("Smoke template");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page
+    .getByText(/Template "Smoke template" saved/)
+    .first()
+    .waitFor({ timeout: 8000 });
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+q");
+  await page.getByPlaceholder("NIFTY / RELIANCE").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Templates" }).click();
+  await page.getByRole("menuitem", { name: "Smoke template" }).click();
+  await page
+    .getByText(/Applied "Smoke template"/)
+    .first()
+    .waitFor({ timeout: 8000 });
+  await page.keyboard.press("Escape");
+});
+
+await step("daily prompts persist across reload", async () => {
+  await page.goto(`${BASE}/app/journal`, { waitUntil: "networkidle" });
+  await page.getByTestId("daily-prompts").waitFor({ timeout: 15000 });
+  await page.locator("#prompt-bestTrade").fill("Smoke best trade.");
+  await page.getByRole("button", { name: "Save journal" }).click();
+  await page.getByText("Journal saved").first().waitFor({ timeout: 10000 });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByTestId("daily-prompts").waitFor({ timeout: 15000 });
+  const v = await page.locator("#prompt-bestTrade").inputValue();
+  if (v !== "Smoke best trade.") throw new Error(`daily prompt did not persist: ${v}`);
+});
+
+await step("? opens the keyboard shortcuts help sheet", async () => {
+  await page.goto(`${BASE}/app/dashboard`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  await page.keyboard.press("Shift+Slash");
+  await page.getByTestId("shortcuts-help").waitFor({ timeout: 8000 });
+  await page.keyboard.press("Escape");
+});
+
 console.log("— Settings —");
 await step("settings sections render", async () => {
   await page.goto(`${BASE}/app/settings`, { waitUntil: "networkidle" });

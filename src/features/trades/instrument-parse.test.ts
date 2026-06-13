@@ -140,6 +140,95 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
   });
 });
 
+describe("parseContractName — commodity (MCX → COMM)", () => {
+  it("MCX: prefixed future → COMM (segment, not FUT)", () => {
+    expect(parseContractName("MCX:CRUDEOIL24JUNFUT")).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      strike: null,
+      optionType: null,
+    });
+  });
+
+  it("MCX: prefixed option keeps strike + CE/PE on COMM", () => {
+    expect(parseContractName("MCX:CRUDEOIL24JUN6500CE")).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      strike: 6500,
+      optionType: "CE",
+    });
+  });
+
+  it("bare commodity contract name (no prefix) → COMM", () => {
+    expect(parseContractName("CRUDEOIL")).toMatchObject({ symbol: "CRUDEOIL", segment: "COMM" });
+    expect(parseContractName("GOLD")).toMatchObject({ symbol: "GOLD", segment: "COMM" });
+    expect(parseContractName("NATURALGAS")).toMatchObject({ segment: "COMM" });
+    expect(parseContractName("SILVER")).toMatchObject({ segment: "COMM" });
+  });
+
+  it("commodity future by name (GOLDM24JUNFUT) → COMM", () => {
+    expect(parseContractName("GOLDM24JUNFUT")).toMatchObject({
+      symbol: "GOLDM",
+      segment: "COMM",
+    });
+  });
+
+  it("commodity option by name → COMM keeps strike", () => {
+    expect(parseContractName("GOLD24JUN72000CE")).toMatchObject({
+      symbol: "GOLD",
+      segment: "COMM",
+      strike: 72000,
+      optionType: "CE",
+    });
+  });
+});
+
+describe("parseContractName — currency (USDINR/EURINR → CDS)", () => {
+  it("bare currency pair → CDS", () => {
+    expect(parseContractName("USDINR")).toMatchObject({ symbol: "USDINR", segment: "CDS" });
+    expect(parseContractName("EURINR")).toMatchObject({ symbol: "EURINR", segment: "CDS" });
+    expect(parseContractName("GBPINR")).toMatchObject({ segment: "CDS" });
+    expect(parseContractName("JPYINR")).toMatchObject({ segment: "CDS" });
+  });
+
+  it("currency future → CDS (not FUT)", () => {
+    expect(parseContractName("USDINR24JUNFUT")).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      strike: null,
+    });
+  });
+
+  it("CDS: exchange prefix → CDS", () => {
+    expect(parseContractName("NSE:USDINR24JUNFUT")).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+    });
+  });
+
+  it("decimal-strike currency option → CDS + decimal strike + CE/PE", () => {
+    expect(parseContractName("USDINR24JUN83.5CE")).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      strike: 83.5,
+      optionType: "CE",
+    });
+  });
+
+  it("JPYINR sub-rupee decimal strike → CDS", () => {
+    expect(parseContractName("JPYINR24JUN0.55PE")).toMatchObject({
+      symbol: "JPYINR",
+      segment: "CDS",
+      strike: 0.55,
+      optionType: "PE",
+    });
+  });
+
+  it("an equity that merely contains INR is not misclassified as CDS", () => {
+    expect(parseContractName("INRBANK")).toMatchObject({ symbol: "INRBANK", segment: "EQ" });
+  });
+});
+
 describe("parseDateOnly / parseTimestamp", () => {
   it("ISO date passes through", () => {
     expect(parseDateOnly("2026-06-12")).toBe("2026-06-12");

@@ -259,14 +259,15 @@ export function useImportTrades() {
   return useMutation({
     mutationFn: async (rows: TradeRow[]) => {
       const stmts: DbStatement[] = rows.map((t) => ({
-        sql: `INSERT OR IGNORE INTO trades (id, account_id, symbol, exchange, segment, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT OR IGNORE INTO trades (id, account_id, symbol, exchange, segment, product, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           t.id,
           t.account_id,
           t.symbol,
           t.exchange,
           t.segment,
+          t.product ?? null,
           t.expiry,
           t.strike,
           t.option_type,

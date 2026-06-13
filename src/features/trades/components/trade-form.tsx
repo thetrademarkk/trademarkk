@@ -18,11 +18,34 @@ import {
 } from "@/components/ui/select";
 import { DatePicker, DateTimePicker } from "@/components/ui/date-time-picker";
 import { PnlText } from "@/components/shared/pnl-text";
-import { cn } from "@/lib/utils";
-import { tradeFormSchema, type TradeFormValues } from "../schemas";
+import { cn, formatHoldTime } from "@/lib/utils";
+import {
+  isDerivativeSegment,
+  productsForSegment,
+  tradeFormSchema,
+  type TradeFormValues,
+} from "../schemas";
 import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
-import { deriveTradeNumbers, nowLocalInput } from "../utils";
+import { deriveTradeNumbers, localInputToIso, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
+import { TemplateMenu } from "@/features/workflow";
+import type { TemplatePatch } from "@/features/workflow";
+
+const SEGMENT_OPTIONS: { value: TradeFormValues["segment"]; label: string }[] = [
+  { value: "OPT", label: "Options" },
+  { value: "FUT", label: "Futures" },
+  { value: "EQ", label: "Equity" },
+  { value: "COMM", label: "Commodity" },
+  { value: "CDS", label: "Currency" },
+];
+
+const PRODUCT_LABELS: Record<NonNullable<TradeFormValues["product"]>, string> = {
+  MIS: "Intraday (MIS)",
+  CNC: "Delivery (CNC)",
+  NRML: "Carry-forward (NRML)",
+  BTST: "BTST",
+  STBT: "STBT",
+};
 
 /**
  * Field order is deliberate (journaling priority): instrument → direction →
@@ -59,7 +82,11 @@ export function TradeForm({
     defaultValues: {
       accountId: accounts[0]?.id ?? "",
       symbol: "",
-      segment: "OPT",
+      // Default EQ + MIS (intraday) — onboarding will set per-user defaults in
+      // SEG-08. OPT stays the default only when editing an existing OPT trade
+      // (its product/segment come through `defaults`).
+      segment: "EQ",
+      product: "MIS",
       direction: "long",
       openedAt: nowLocalInput(),
       tagIds: [],
@@ -86,6 +113,22 @@ export function TradeForm({
     const sub = watch((values) => onDraftChange(values as Partial<TradeFormValues>));
     return () => sub.unsubscribe();
   }, [watch, onDraftChange]);
+
+  // When the segment changes, keep `product` valid for it (EQ products differ
+  // from derivative products). Also clear option/expiry fields the new segment
+  // doesn't use so stale data never persists.
+  const segment = watch("segment");
+  React.useEffect(() => {
+    const allowed = productsForSegment(segment);
+    const current = form.getValues("product");
+    if (!current || !allowed.includes(current)) setValue("product", allowed[0]);
+    if (segment !== "OPT") {
+      setValue("strike", undefined);
+      setValue("optionType", undefined);
+    }
+    if (!isDerivativeSegment(segment)) setValue("expiry", undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment]);
 
   const addLeg = () => {
     extraLegs.append({
@@ -135,10 +178,45 @@ export function TradeForm({
 
   const err = (name: keyof TradeFormValues) =>
     formState.errors[name]?.message as string | undefined;
-  const segment = values.segment;
+
+  // Derived, read-only holding period from opened/closed timestamps.
+  const holdLabel = React.useMemo(() => {
+    if (!values.openedAt) return null;
+    try {
+      const openedIso = localInputToIso(values.openedAt);
+      const closedIso = values.closedAt ? localInputToIso(values.closedAt) : null;
+      return formatHoldTime(openedIso, closedIso);
+    } catch {
+      return null;
+    }
+  }, [values.openedAt, values.closedAt]);
+
+  // Quick-apply a note/journal template — fills setup notes + playbook +
+  // confidence in one click. Marks the form dirty so the draft + save flow run.
+  const applyTemplate = React.useCallback(
+    (patch: TemplatePatch) => {
+      setValue("notes", patch.notes, { shouldDirty: true });
+      if (patch.playbookId !== undefined)
+        setValue("playbookId", patch.playbookId, { shouldDirty: true });
+      if (patch.confidence !== undefined)
+        setValue("confidence", patch.confidence, { shouldDirty: true });
+    },
+    [setValue]
+  );
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <div className="flex justify-end">
+        <TemplateMenu
+          onApply={applyTemplate}
+          current={{
+            notes: values.notes,
+            playbookId: values.playbookId,
+            confidence: values.confidence,
+          }}
+          playbooks={playbooks}
+        />
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2 space-y-1">
           <Label>Symbol</Label>
@@ -156,18 +234,54 @@ export function TradeForm({
             name="segment"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Segment">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="OPT">Options</SelectItem>
-                  <SelectItem value="FUT">Futures</SelectItem>
-                  <SelectItem value="EQ">Equity</SelectItem>
+                  {SEGMENT_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
           />
         </div>
+      </div>
+
+      {/* Product — trader-type intent. EQ offers MIS/CNC/BTST/STBT; derivatives
+          offer MIS/NRML. Drives the per-(segment,product) charge engine. */}
+      <div className="space-y-1">
+        <Label>Product</Label>
+        <Controller
+          control={control}
+          name="product"
+          render={({ field }) => {
+            const allowed = productsForSegment(segment);
+            return (
+              <div className="grid grid-cols-2 gap-2 xs:grid-cols-4">
+                {allowed.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={field.value === p}
+                    onClick={() => field.onChange(p)}
+                    className={cn(
+                      "h-9 rounded-lg border px-2 text-xs font-medium transition-colors",
+                      field.value === p
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "text-muted hover:bg-surface-2"
+                    )}
+                  >
+                    {PRODUCT_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+            );
+          }}
+        />
+        {err("product") && <p className="text-xs text-loss">{err("product")}</p>}
       </div>
 
       {/* ── Leg stepper: each strategy leg (straddle/spread) gets its own page ── */}
@@ -215,42 +329,48 @@ export function TradeForm({
 
       {/* ── Active leg panel — keyed by leg so inputs remount with that leg's values ── */}
       <div key={activeLeg} className="space-y-4 rounded-lg border border-dashed p-3">
-        {segment === "OPT" && (
+        {/* Strike + CE/PE: OPT only. Expiry: every derivative (FUT/OPT/COMM/CDS).
+            Equity (cash) shows neither — it has no strike, type or expiry. */}
+        {(segment === "OPT" || isDerivativeSegment(segment)) && (
           <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <Label>Strike</Label>
-              {activeLeg === 0 ? (
-                <Input type="number" step="any" placeholder="24500" {...register("strike")} />
-              ) : (
-                <Input
-                  type="number"
-                  step="any"
-                  placeholder="24500"
-                  {...register(`extraLegs.${activeLeg - 1}.strike`)}
-                />
-              )}
-              {activeLeg === 0 && err("strike") && (
-                <p className="text-xs text-loss">{err("strike")}</p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label>CE / PE</Label>
-              <Controller
-                control={control}
-                name={activeLeg === 0 ? "optionType" : `extraLegs.${activeLeg - 1}.optionType`}
-                render={({ field }) => (
-                  <Select value={(field.value as string) ?? ""} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="—" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CE">CE</SelectItem>
-                      <SelectItem value="PE">PE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
+            {segment === "OPT" && (
+              <>
+                <div className="space-y-1">
+                  <Label>Strike</Label>
+                  {activeLeg === 0 ? (
+                    <Input type="number" step="any" placeholder="24500" {...register("strike")} />
+                  ) : (
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="24500"
+                      {...register(`extraLegs.${activeLeg - 1}.strike`)}
+                    />
+                  )}
+                  {activeLeg === 0 && err("strike") && (
+                    <p className="text-xs text-loss">{err("strike")}</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label>CE / PE</Label>
+                  <Controller
+                    control={control}
+                    name={activeLeg === 0 ? "optionType" : `extraLegs.${activeLeg - 1}.optionType`}
+                    render={({ field }) => (
+                      <Select value={(field.value as string) ?? ""} onValueChange={field.onChange}>
+                        <SelectTrigger aria-label="Option type">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CE">CE</SelectItem>
+                          <SelectItem value="PE">PE</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label>Expiry{legCount > 1 ? " (all legs)" : ""}</Label>
               <Controller
@@ -466,6 +586,12 @@ export function TradeForm({
             />
           </div>
         </div>
+        {/* Derived, read-only holding period (from opened/closed). */}
+        {holdLabel && (
+          <p className="text-xs text-muted" data-testid="hold-period">
+            Holding period: <span className="font-medium text-foreground">{holdLabel}</span>
+          </p>
+        )}
         <div className="space-y-1">
           <Label>Charges override ₹ (blank = auto-calculated)</Label>
           <Input type="number" step="any" {...register("manualCharges")} />

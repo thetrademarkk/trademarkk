@@ -21,11 +21,27 @@ export const legSchema = z.object({
 
 export type TradeLeg = z.infer<typeof legSchema>;
 
+/** Market segments offered by the form (journal-DB v4 widening). */
+export const SEGMENTS = ["EQ", "FUT", "OPT", "COMM", "CDS"] as const;
+/** Position products. EQ allows MIS/CNC/BTST/STBT; derivatives allow MIS/NRML. */
+export const PRODUCTS = ["MIS", "CNC", "NRML", "BTST", "STBT"] as const;
+
+/** Derivative segments carry an expiry; EQ is cash and never does. */
+export const DERIVATIVE_SEGMENTS = ["FUT", "OPT", "COMM", "CDS"] as const;
+export const isDerivativeSegment = (s: string): boolean =>
+  (DERIVATIVE_SEGMENTS as readonly string[]).includes(s);
+
+/** Products valid for a given segment (drives the form selector + validation). */
+export function productsForSegment(segment: string): readonly (typeof PRODUCTS)[number][] {
+  return segment === "EQ" ? ["MIS", "CNC", "BTST", "STBT"] : ["MIS", "NRML"];
+}
+
 export const tradeFormSchema = z
   .object({
     accountId: z.string().min(1, "Account required"),
     symbol: z.string().min(1, "Symbol required"),
-    segment: z.enum(["EQ", "FUT", "OPT"]),
+    segment: z.enum(SEGMENTS),
+    product: z.enum(PRODUCTS).optional(),
     expiry: z.string().optional(),
     strike: optionalNumber(z.number().positive()),
     optionType: z.enum(["CE", "PE"]).optional(),
@@ -49,6 +65,12 @@ export const tradeFormSchema = z
   .refine((v) => v.segment !== "OPT" || (v.strike && v.optionType), {
     message: "Options need strike & CE/PE",
     path: ["strike"],
+  })
+  // Product must be valid for the chosen segment (EQ: MIS/CNC/BTST/STBT;
+  // derivatives: MIS/NRML). Absent product is allowed (defaults later).
+  .refine((v) => !v.product || productsForSegment(v.segment).includes(v.product), {
+    message: "Product not valid for this segment",
+    path: ["product"],
   })
   // Defense in depth behind the picker: trades can't be logged for the future.
   // (2-minute slack absorbs clock skew between devices.)

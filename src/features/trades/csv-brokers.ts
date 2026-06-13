@@ -1,5 +1,6 @@
 import { detectMapping, rowsToFills, type ColumnMapping, type RawFill } from "./csv";
 import { parseContractName, parseDateOnly, parseTimestamp } from "./instrument-parse";
+import type { Product } from "./types";
 
 /**
  * Broker tradebook auto-detection + per-broker column mappers. All parsing is
@@ -29,6 +30,15 @@ import { parseContractName, parseDateOnly, parseTimestamp } from "./instrument-p
  * Groww — Profile → Reports → Order history (stocks & F&O):
  *   Contract name/Stock name, Type (BUY/SELL), Quantity, Average price,
  *   Order status (only EXECUTED rows import), Execution date and time, Exchange
+ *
+ * Product column (SEG-03): Fyers ("Product") and Angel One ("Product Type")
+ * expose the broker order's product code; Dhan exposes "Product"/"Product Type"
+ * in fuller exports. We map CNC→CNC, MIS/INTRADAY→MIS, NRML/NORMAL/CARRYFORWARD
+ * →NRML, and MARGIN/CO/BO→NRML (a carry/cover/bracket position). Zerodha's
+ * Console tradebook and Upstox's/Groww's trade reports carry NO product column,
+ * so those imports leave product null and buildTrade infers it from the holding
+ * pattern (matching the v4 backfill). Commodity (MCX) and currency (CDS)
+ * segments are classified from the symbol by parseContractName.
  */
 
 type Row = Record<string, string>;
@@ -53,8 +63,44 @@ interface BrokerColumns {
   expiry?: string[];
   strike?: string[];
   optionType?: string[];
+  /** Broker product / order-type column (Fyers "Product", Angel One "Product Type"). */
+  product?: string[];
   /** When present, only rows whose status is in OK_STATUSES import. */
   status?: string[];
+}
+
+/**
+ * Maps a broker product/order-type code to our Product enum (SEG-03):
+ *   CNC / DELIVERY              → CNC   (equity delivery)
+ *   MIS / INTRADAY              → MIS   (intraday)
+ *   NRML / NORMAL / CF / CARRY  → NRML  (carry-forward)
+ *   MARGIN / CO / BO            → NRML  (margin / cover / bracket → carry basis)
+ * Anything unrecognised (or a blank cell) → null, so buildTrade infers product
+ * from the holding pattern rather than guessing wrong.
+ */
+export function mapProduct(raw: string | undefined): Product | null {
+  const v = (raw ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]/g, "");
+  if (!v) return null;
+  if (v === "CNC" || v.startsWith("DELIV")) return "CNC";
+  if (v === "MIS" || v.startsWith("INTRA")) return "MIS";
+  if (v === "BTST") return "BTST";
+  if (v === "STBT") return "STBT";
+  if (
+    v === "NRML" ||
+    v === "NORMAL" ||
+    v === "CF" ||
+    v.startsWith("CARRY") ||
+    v === "MARGIN" ||
+    v === "CO" ||
+    v === "BO" ||
+    v === "COVER" ||
+    v === "BRACKET"
+  )
+    return "NRML";
+  return null;
 }
 
 const OK_STATUSES = new Set([
@@ -92,6 +138,7 @@ function makeFills(rows: Row[], headers: string[], cols: BrokerColumns): RawFill
   const cExpiry = get(cols.expiry);
   const cStrike = get(cols.strike);
   const cOt = get(cols.optionType);
+  const cProduct = get(cols.product);
   const cStatus = get(cols.status);
   if (!cSym || !cSide || !cQty || !cPrice || !cDate) return [];
 
@@ -113,8 +160,10 @@ function makeFills(rows: Row[], headers: string[], cols: BrokerColumns): RawFill
     const expiry = (cExpiry ? parseDateOnly(r[cExpiry] ?? "") : null) ?? inst.expiry;
     const colStrike = cStrike ? parseNum(r[cStrike]) : 0;
     if (colStrike) {
-      // Explicit strike/option-type columns (Angel One, Dhan F&O reports).
-      segment = "OPT";
+      // Explicit strike/option-type columns (Angel One, Dhan F&O reports). The
+      // symbol already classified COMM/CDS — keep that segment for commodity/
+      // currency options; only plain equity F&O rows become OPT.
+      if (segment !== "COMM" && segment !== "CDS") segment = "OPT";
       strike = colStrike;
       const ot = (cOt ? (r[cOt] ?? "") : "").trim().toUpperCase();
       optionType = ot.startsWith("C") ? "CE" : ot.startsWith("P") ? "PE" : optionType;
@@ -131,6 +180,7 @@ function makeFills(rows: Row[], headers: string[], cols: BrokerColumns): RawFill
       segment,
       strike,
       optionType,
+      product: mapProduct(cProduct ? r[cProduct] : undefined),
     });
   }
   return fills.sort((a, b) => (a.time < b.time ? -1 : 1));
@@ -155,6 +205,7 @@ export const BROKER_SPECS: BrokerSpec[] = [
         price: ["traded price", "trade price", "price"],
         date: ["trade date and time", "trade time", "trade date", "date"],
         time: ["time"],
+        product: ["product", "product type", "order type"],
       }),
   },
   {
@@ -197,6 +248,7 @@ export const BROKER_SPECS: BrokerSpec[] = [
         expiry: ["expiry date", "expiry"],
         strike: ["strike price", "strike"],
         optionType: ["option type", "opt type"],
+        product: ["product type", "product", "order type"],
       }),
   },
   {
@@ -218,6 +270,7 @@ export const BROKER_SPECS: BrokerSpec[] = [
         expiry: ["expiry date", "expiry"],
         strike: ["strike price", "strike"],
         optionType: ["option type"],
+        product: ["product", "product type", "order type"],
       }),
   },
   {

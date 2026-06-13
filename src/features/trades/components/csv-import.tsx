@@ -192,8 +192,8 @@ export function CsvImport() {
             </p>
             <div className="max-h-60 overflow-y-auto rounded-lg border divide-y text-sm">
               {preview.slice(0, 50).map((t) => (
-                <div key={t.id} className="flex items-center justify-between px-3 py-2">
-                  <span className="text-xs">
+                <div key={t.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="min-w-0 truncate text-xs">
                     {new Date(t.opened_at).toLocaleDateString("en-IN", {
                       day: "2-digit",
                       month: "short",
@@ -201,11 +201,19 @@ export function CsvImport() {
                     <span className="font-medium">{t.symbol}</span>{" "}
                     {t.strike ? `${t.strike} ${t.option_type}` : t.segment} · {t.qty} qty
                   </span>
-                  {t.status === "closed" ? (
-                    <PnlText value={t.net_pnl} className="text-xs" />
-                  ) : (
-                    <span className="text-xs text-warning">open</span>
-                  )}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span
+                      className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted"
+                      title={`${t.segment} · ${t.product ?? "MIS"}`}
+                    >
+                      {t.segment} {t.product ?? "MIS"}
+                    </span>
+                    {t.status === "closed" ? (
+                      <PnlText value={t.net_pnl} className="text-xs" />
+                    ) : (
+                      <span className="text-xs text-warning">open</span>
+                    )}
+                  </span>
                 </div>
               ))}
               {preview.length > 50 && (

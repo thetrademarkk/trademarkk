@@ -6,8 +6,24 @@ import type { DbClient } from "./types";
  * BYOD DBs (client-side at connect), and local sql.js DBs.
  *
  * Every primary key is a ULID — this makes cross-DB migration copies idempotent.
+ *
+ * A migration is a list of plain `statements` and/or an optional `run(db)` step
+ * for logic that must introspect the schema (e.g. an idempotent ADD COLUMN that
+ * tolerates an already-present column, or a data backfill).
  */
-const MIGRATIONS: { version: number; statements: string[] }[] = [
+interface Migration {
+  version: number;
+  statements?: string[];
+  run?: (db: DbClient) => Promise<void>;
+}
+
+/** True when `table` already has a column named `column` (SQLite introspection). */
+async function hasColumn(db: DbClient, table: string, column: string): Promise<boolean> {
+  const res = await db.execute(`PRAGMA table_info(${table})`);
+  return res.rows.some((r) => String(r.name) === column);
+}
+
+const MIGRATIONS: Migration[] = [
   {
     version: 1,
     statements: [
@@ -155,6 +171,39 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       `CREATE INDEX IF NOT EXISTS idx_trade_legs_trade ON trade_legs (trade_id)`,
     ],
   },
+  {
+    // v4 — Segment × Product model. The `segment` column already exists as TEXT
+    // (no enum change is possible in SQLite anyway), so widening it to
+    // EQ/FUT/OPT/COMM/CDS is purely a TypeScript concern. Here we add a nullable
+    // `product` column and backfill a sensible value for existing rows:
+    //   • same-IST-day equity  → 'MIS' (intraday)
+    //   • other equity (held overnight) → 'CNC' (delivery)
+    //   • derivatives (FUT/OPT/COMM/CDS) → 'NRML' (carry-forward)
+    // Rows that stay NULL (e.g. an open equity trade) are treated as MIS by the
+    // charge engine — exactly the pre-v4 behaviour, so no P&L regression.
+    version: 4,
+    run: async (db) => {
+      if (!(await hasColumn(db, "trades", "product"))) {
+        await db.execute(`ALTER TABLE trades ADD COLUMN product TEXT`);
+      }
+      // Backfill is itself idempotent (only touches rows still NULL).
+      await db.execute(
+        `UPDATE trades SET product = 'MIS'
+           WHERE product IS NULL AND segment = 'EQ'
+             AND closed_at IS NOT NULL AND date(opened_at) = date(closed_at)`
+      );
+      await db.execute(
+        `UPDATE trades SET product = 'CNC'
+           WHERE product IS NULL AND segment = 'EQ'
+             AND closed_at IS NOT NULL AND date(opened_at) <> date(closed_at)`
+      );
+      await db.execute(
+        `UPDATE trades SET product = 'NRML'
+           WHERE product IS NULL AND segment IN ('FUT', 'OPT', 'COMM', 'CDS')`
+      );
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_trades_product ON trades (product)`);
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
@@ -184,9 +233,10 @@ export async function runMigrations(db: DbClient): Promise<void> {
   const current = Number(res.rows[0]?.v ?? 0);
   for (const m of MIGRATIONS) {
     if (m.version <= current) continue;
-    for (const sql of m.statements) {
+    for (const sql of m.statements ?? []) {
       await db.execute(sql);
     }
+    if (m.run) await m.run(db);
     await db.execute(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, [
       m.version,
       new Date().toISOString(),

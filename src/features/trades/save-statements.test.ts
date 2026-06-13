@@ -30,14 +30,15 @@ describe("buildTradeSaveStatements", () => {
     const args = trades[0]!.args!;
     expect(args[0]).toBe(id);
     expect(args[2]).toBe("BANKNIFTY"); // uppercased symbol
-    expect(args[9]).toBe("closed");
-    expect(args[10]).toBe(30);
-    expect(args[11]).toBe(120);
-    expect(args[12]).toBe(150);
+    expect(args[5]).toBe("MIS"); // product defaults to MIS when the form omits it
+    expect(args[10]).toBe("closed");
+    expect(args[11]).toBe(30);
+    expect(args[12]).toBe(120);
+    expect(args[13]).toBe(150);
     // net = gross - charges; gross = (150-120)*30 = 900, charges > 0 → net < 900
-    const gross = Number(args[18]);
-    const charges = Number(args[19]);
-    const net = Number(args[20]);
+    const gross = Number(args[19]);
+    const charges = Number(args[20]);
+    const net = Number(args[21]);
     expect(gross).toBe(900);
     expect(charges).toBeGreaterThan(0);
     expect(net).toBeCloseTo(gross - charges, 2);
@@ -54,11 +55,11 @@ describe("buildTradeSaveStatements", () => {
   it("no exit → open trade with zeroed P&L and a single fill", () => {
     const { statements } = buildTradeSaveStatements({ ...base, avgExit: undefined }, "zerodha");
     const args = insertOf(statements, "trades")[0]!.args!;
-    expect(args[9]).toBe("open");
-    expect(args[12]).toBeNull(); // avg_exit
-    expect(args[17]).toBeNull(); // closed_at
-    expect(args[18]).toBe(0);
-    expect(args[20]).toBe(0);
+    expect(args[10]).toBe("open");
+    expect(args[13]).toBeNull(); // avg_exit
+    expect(args[18]).toBeNull(); // closed_at
+    expect(args[19]).toBe(0);
+    expect(args[21]).toBe(0);
     expect(insertOf(statements, "trade_fills")).toHaveLength(1);
   });
 
@@ -96,6 +97,23 @@ describe("buildTradeSaveStatements", () => {
     );
     expect(insertOf(statements, "trade_legs")).toHaveLength(2);
     expect(insertOf(statements, "trade_fills")).toHaveLength(4);
+  });
+
+  it("persists an explicit product (e.g. EQ delivery CNC) verbatim", () => {
+    const { statements } = buildTradeSaveStatements(
+      {
+        ...base,
+        segment: "EQ",
+        product: "CNC",
+        strike: undefined,
+        optionType: undefined,
+        expiry: undefined,
+      },
+      "zerodha"
+    );
+    const args = insertOf(statements, "trades")[0]!.args!;
+    expect(args[4]).toBe("EQ"); // segment
+    expect(args[5]).toBe("CNC"); // product
   });
 
   it("tags become INSERT OR IGNORE junction rows", () => {

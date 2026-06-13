@@ -1,6 +1,6 @@
 import { formatHoldTime, formatINR, formatNumber } from "@/lib/utils";
 import { rLabel, slugify, type ShareCardBadge, type ShareCardData } from "@/lib/share-card/model";
-import { describeInstrument } from "./types";
+import { describeInstrument, type Segment } from "./types";
 
 /**
  * Builds the share-as-image card data for a single trade. ₹ amounts appear
@@ -11,7 +11,7 @@ import { describeInstrument } from "./types";
 /** The slice of a trade the share card needs (structural match of TradeWithMeta). */
 export interface ShareableTrade {
   symbol: string;
-  segment: "EQ" | "FUT" | "OPT";
+  segment: Segment;
   strike: number | null;
   option_type: "CE" | "PE" | null;
   expiry: string | null;

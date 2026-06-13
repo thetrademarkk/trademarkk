@@ -63,7 +63,6 @@ export default function DashboardPage() {
       <Greeting />
       <RiskGuardrailBanner />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
-      <WeeklyGoalsWidget />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -100,6 +99,8 @@ export default function DashboardPage() {
         <MistakesPanel from={from} to={to} />
         <RecentTrades trades={trades} />
       </div>
+
+      <WeeklyGoalsWidget />
     </div>
   );
 }

@@ -24,12 +24,17 @@ export function buildTradeSaveStatements(
     d.status === "closed" ? localInputToIso(values.closedAt || values.openedAt) : null;
 
   const statements: DbStatement[] = [];
+  // New trades default to MIS when the form leaves product unset (see SEG-08:
+  // onboarding will set a per-user default later). MIS keeps charges identical
+  // to the pre-v4 intraday-equity behaviour.
+  const product = values.product ?? "MIS";
   const row: DbValue[] = [
     id,
     values.accountId,
     values.symbol.trim().toUpperCase(),
     "NSE",
     values.segment,
+    product,
     values.expiry || null,
     values.strike ?? null,
     values.optionType ?? null,
@@ -63,8 +68,8 @@ export function buildTradeSaveStatements(
     );
   }
   statements.push({
-    sql: `INSERT INTO trades (id, account_id, symbol, exchange, segment, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO trades (id, account_id, symbol, exchange, segment, product, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: row,
   });
   // Each strategy leg → entry/exit fills + (for multi-leg trades) a legs row.

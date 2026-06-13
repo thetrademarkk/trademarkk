@@ -220,6 +220,20 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_verification_identifier ON verification (identifier)`,
+  // ── Durable rate-limit store: fixed-window counter keyed by an opaque string ──
+  // Enforces limits on serverless cold starts (an in-memory Map resets per
+  // lambda). Pruned opportunistically; no cron needed.
+  `CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0,
+    window_start INTEGER NOT NULL DEFAULT 0
+  )`,
+  // Hot-path / abuse-sweep indexes on existing community tables.
+  `CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks (blocker_id, blocked_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_likes_user ON likes (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows (follower_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback (created_at)`,
 ];
 
 async function main() {
@@ -260,6 +274,14 @@ async function main() {
     `ALTER TABLE posts ADD COLUMN edit_history TEXT`,
     `ALTER TABLE comments ADD COLUMN edited_at TEXT`,
     `ALTER TABLE comments ADD COLUMN edit_history TEXT`,
+    // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
+    // Counters reset inline when the stored timestamp's date != today (no cron).
+    `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,
+    `ALTER TABLE user ADD COLUMN password_reset_email_count_today INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE user ADD COLUMN last_verification_email_at INTEGER`,
+    `ALTER TABLE user ADD COLUMN verification_email_count_today INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE user ADD COLUMN last_otp_email_at INTEGER`,
+    `ALTER TABLE user ADD COLUMN otp_email_count_today INTEGER NOT NULL DEFAULT 0`,
   ];
   for (const sql of ALTERS) {
     try {

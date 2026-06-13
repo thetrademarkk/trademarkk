@@ -341,7 +341,7 @@ function CriterionEditor({
     case "segments":
       return (
         <MultiList
-          options={(["OPT", "FUT", "EQ"] as Segment[]).map((s) => ({
+          options={(["OPT", "FUT", "EQ", "COMM", "CDS"] as Segment[]).map((s) => ({
             value: s,
             label: SEGMENT_LABELS[s],
           }))}

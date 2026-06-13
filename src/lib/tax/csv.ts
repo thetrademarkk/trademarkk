@@ -40,6 +40,7 @@ export function buildTaxCsv(
     sebi: number;
     gst: number;
     stampDuty: number;
+    dpCharge: number;
     actualTotal: number;
     estimated: boolean;
   }
@@ -100,6 +101,7 @@ export function buildTaxCsv(
   lines.push(row(["SEBI fee (INR)", money(charges.sebi)]));
   lines.push(row(["GST (INR)", money(charges.gst)]));
   lines.push(row(["Stamp duty (INR)", money(charges.stampDuty)]));
+  lines.push(row(["DP charges (INR)", money(charges.dpCharge)]));
   lines.push(row(["Total charges (actual) (INR)", money(charges.actualTotal)]));
   lines.push("");
 

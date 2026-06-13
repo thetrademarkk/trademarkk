@@ -1,7 +1,7 @@
 import { computeCharges, computeGrossPnl } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
 import { parseContractName } from "./instrument-parse";
-import type { TradeRow } from "./types";
+import type { Product, Segment, TradeRow } from "./types";
 
 export interface RawFill {
   symbol: string;
@@ -11,9 +11,16 @@ export interface RawFill {
   time: string; // ISO
   expiry?: string | null;
   /** Pre-parsed instrument fields — set by broker-specific mappers only. */
-  segment?: "EQ" | "FUT" | "OPT" | null;
+  segment?: Segment | null;
   strike?: number | null;
   optionType?: "CE" | "PE" | null;
+  /**
+   * Product / holding intent from the broker's product column (SEG-03), when
+   * the report exposes one. Null/absent → buildTrade infers it from the holding
+   * pattern (same-day EQ = MIS, overnight EQ = CNC, derivatives = NRML), matching
+   * the v4 migration backfill.
+   */
+  product?: Product | null;
 }
 
 export interface ColumnMapping {
@@ -175,12 +182,30 @@ function buildTrade(
   const x = closed ? wavg(exits) : null;
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
+  const openedAt = first.time;
+  const closedAt = closed ? exits[exits.length - 1]!.time : null;
+
+  // Product (SEG-03). Prefer the broker's parsed product column when present;
+  // otherwise infer from the holding pattern, mirroring the v4 migration
+  // backfill: same-day equity = MIS (intraday), overnight equity = CNC
+  // (delivery), derivatives = NRML. An open equity trade has no close → MIS.
+  const inferredProduct: TradeRow["product"] =
+    inst.segment === "EQ"
+      ? closedAt && closedAt.slice(0, 10) === openedAt.slice(0, 10)
+        ? "MIS"
+        : closedAt
+          ? "CNC"
+          : "MIS"
+      : "NRML";
+  const product: TradeRow["product"] = first.product ?? inferredProduct;
+
   let gross = 0;
   let charges = 0;
   if (closed && x) {
     gross = computeGrossPnl({ direction, qty: e.qty, entryPrice: e.price, exitPrice: x.price });
     charges = computeCharges(profile, {
       segment: inst.segment,
+      product,
       qty: e.qty,
       entryPrice: e.price,
       exitPrice: x.price,
@@ -188,8 +213,6 @@ function buildTrade(
       orders: entries.length + exits.length,
     }).total;
   }
-  const openedAt = first.time;
-  const closedAt = closed ? exits[exits.length - 1]!.time : null;
   const ts = new Date().toISOString();
 
   // Legacy id parts stay untouched (re-import dedupe for existing imports);
@@ -210,6 +233,7 @@ function buildTrade(
     symbol: inst.symbol,
     exchange: "NSE",
     segment: inst.segment,
+    product,
     expiry: first.expiry ?? null,
     strike: inst.strike,
     option_type: inst.optionType,

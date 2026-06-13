@@ -13,6 +13,7 @@ import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/
 import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
 import type { FeedResponse } from "@/features/community/types";
 import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
+import { COMMUNITY_DRAFT_KEY, readDraft } from "@/features/community/draft";
 
 /**
  * useSearchParams CSR-bails everything up to the nearest Suspense boundary on
@@ -223,11 +224,17 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       </button>
 
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent>
+        <DialogContent
+          // A stray backdrop click shouldn't discard a post in progress.
+          // (The draft is persisted too, so Escape / close never loses work.)
+          onInteractOutside={(e) => {
+            if (readDraft(COMMUNITY_DRAFT_KEY)) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Write a post</DialogTitle>
           </DialogHeader>
-          <Composer onPosted={() => setComposeOpen(false)} />
+          <Composer draftKey={COMMUNITY_DRAFT_KEY} onPosted={() => setComposeOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>

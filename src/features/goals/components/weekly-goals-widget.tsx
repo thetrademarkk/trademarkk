@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { Target } from "lucide-react";
+import { Target, X } from "lucide-react";
 import { useTrades } from "@/features/trades";
 import { useJournalDates } from "@/features/journal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,11 +23,20 @@ export function WeeklyGoalsWidget() {
   const { data: settings } = useGoalSettings();
   const { data: trades } = useTrades({});
   const { data: journalDates = [] } = useJournalDates();
+  const [hidden, setHidden] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem("tm.goals-nudge-hidden") === "1") setHidden(true);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
   if (!settings) return null;
 
   const hasWeeklyGoals =
     settings.weeklyProfitTargetPaise != null || settings.weeklyJournalDaysTarget != null;
   if (!hasWeeklyGoals) {
+    if (hidden) return null;
     return (
       <Card data-testid="weekly-goals-empty">
         <CardContent className="flex flex-wrap items-center gap-2 py-3 text-sm text-muted">
@@ -37,6 +47,21 @@ export function WeeklyGoalsWidget() {
           <Link href="/app/settings" className="font-medium text-accent hover:underline">
             Set goals →
           </Link>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              try {
+                localStorage.setItem("tm.goals-nudge-hidden", "1");
+              } catch {
+                /* storage blocked */
+              }
+              setHidden(true);
+            }}
+            className="ml-auto shrink-0 text-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </CardContent>
       </Card>
     );
