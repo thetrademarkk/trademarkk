@@ -23,6 +23,7 @@ import type {
   SearchResponse,
 } from "./types";
 import { SEARCH_MIN_CHARS } from "./search";
+import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import type { CreatePostInput, UpdateProfileInput } from "./schemas";
 
 export class ApiError extends Error {
@@ -138,40 +139,63 @@ export function useDeletePost() {
   });
 }
 
-/** Optimistic like toggle — patches every cached copy of the post immediately. */
+/**
+ * Optimistic reaction toggle/switch — patches every cached copy of the post
+ * immediately, then rolls back on error. Passing no kind reacts with `like`
+ * (back-compat). Clicking your current reaction removes it; a different kind
+ * switches in place. Reuses the pure `applyReaction` so the optimistic math
+ * matches the server exactly.
+ */
 export function useToggleLike() {
   const qc = useQueryClient();
 
-  const patchPost = (post: PostView): PostView => ({
-    ...post,
-    likedByMe: !post.likedByMe,
-    likeCount: post.likeCount + (post.likedByMe ? -1 : 1),
-  });
+  const patchPost = (post: PostView, clicked: ReactionKind): PostView => {
+    const { counts, next } = applyReaction(post.reactionCounts, post.myReaction, clicked);
+    return {
+      ...post,
+      myReaction: next,
+      likedByMe: next !== null,
+      reactionCounts: counts,
+      likeCount: totalReactions(counts),
+    };
+  };
 
-  const patchEverywhere = (id: string) => {
+  const patchEverywhere = (id: string, clicked: ReactionKind) => {
     qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
       data
         ? {
             ...data,
             pages: data.pages.map((p) => ({
               ...p,
-              posts: p.posts.map((post) => (post.id === id ? patchPost(post) : post)),
+              posts: p.posts.map((post) => (post.id === id ? patchPost(post, clicked) : post)),
             })),
           }
         : data
     );
     qc.setQueryData<PostDetailResponse>(["community-post", id], (data) =>
-      data ? { ...data, post: patchPost(data.post) } : data
+      data ? { ...data, post: patchPost(data.post, clicked) } : data
     );
   };
 
   return useMutation({
-    mutationFn: (id: string) =>
-      request<{ liked: boolean; likeCount: number }>(`/api/community/posts/${id}/like`, {
-        method: "POST",
-      }),
-    onMutate: (id) => patchEverywhere(id),
-    onError: (_e, id) => patchEverywhere(id), // revert
+    mutationFn: ({ id, reaction = "like" }: { id: string; reaction?: ReactionKind }) =>
+      request<{ liked: boolean; reaction: ReactionKind | null; likeCount: number }>(
+        `/api/community/posts/${id}/like`,
+        { method: "POST", body: JSON.stringify({ reaction }) }
+      ),
+    // Snapshot the affected caches so a failed switch (not its own inverse)
+    // restores exactly, then apply the optimistic patch.
+    onMutate: ({ id, reaction = "like" }) => {
+      const feeds = qc.getQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] });
+      const detail = qc.getQueryData<PostDetailResponse>(["community-post", id]);
+      patchEverywhere(id, reaction);
+      return { feeds, detail, id };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (!ctx) return;
+      for (const [key, data] of ctx.feeds) qc.setQueryData(key, data);
+      qc.setQueryData(["community-post", ctx.id], ctx.detail);
+    },
     // Profile pages cache posts separately — refresh them with the server truth.
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["community-user"] });

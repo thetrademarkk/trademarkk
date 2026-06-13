@@ -21,16 +21,24 @@
 
 ## Backlog (ordered)
 
-- [x] **Direct messages (chat) v1** — 1:1 conversations: `conversations` + `messages` tables, /community/messages inbox + thread view, "Message" button on profiles, unread badge in header bell area, 5s polling (SSE/websockets later). Block-aware (blocked users can't DM). Rate-limited.
-- [x] **Feed composer upgrade** — inline (LinkedIn-style) top-of-feed composer instead of dialog-only; image preview grid; draft persistence. _(2026-06-12, PR #18)_
-- [x] **Post detail polish** — back navigation context, share-count, related posts by tag, sticky comment box on mobile. _(2026-06-12, PR #28 — plus follow chip in author header, absolute dates, OG metadata, structured skeleton, Ctrl+Enter composer)_
-- [x] **Notification grouping** — "X and 3 others liked your post" rollups, mark-one-read, notification page (not just dropdown). _(2026-06-12, PR #36 — avatar stacks, read/unread partition, scoped `{ ids }` mark-read, /community/notifications page with New/Earlier)_
-- [ ] **Profile polish** — pinned post, post/comment count tabs (Posts | Comments | Likes), cover accent color picker.
-- [ ] **Search v2** — unified search across posts/users/tags with keyboard navigation (Twitter-style typeahead).
-- [ ] **Chat v2** — typing indicators, read receipts, image attachments (after DM v1 ships and is stable).
-- [ ] **Feed quality** — "Top" algorithm improvements (decayed engagement score), per-tag follow, muted words.
-- [ ] **Onboarding moments** — first-post nudge, follow-suggestions card for new members, empty-feed starter content.
-- [ ] **Moderation v2** — shadow-hide reported content above a threshold pending review; admin audit log.
+Research-driven ranked queue. Already-shipped foundations (DM v1 PR #12, inline
+composer PR #18, post-detail polish PR #28, notification grouping PR #36,
+profile polish, header search v2) live in the "Shipped by the loop" log below.
+
+1. [x] **Richer reactions** — Like / Insightful / Respect / Celebrate (LinkedIn-style), one per user, hover/long-press picker, stacked summary, reaction-weighted Top-feed. _(2026-06-13, PR — this iteration)_
+2. [ ] **@mention + $cashtag + #hashtag composer autocomplete** — inline typeahead in the composer & comment box; resolves handles/symbols/tags as you type.
+3. [ ] **Edit posts/comments in a 15-min window** with an immutable edit history ("edited" marker + revision log).
+4. [ ] **Decayed, cost-weighted Top-feed hot-score** — comments/reshares weigh more than reactions, recency decay, per-author diversity cap; deterministic, no ML.
+5. [ ] **Link OG unfurl preview cards** — SSRF-safe host allowlist for fetched links + own OG tags on posts.
+6. [ ] **$cashtag tagging + per-symbol stream pages** — NSE/BSE symbol master, `post_symbols` join, per-ticker page, not-advice banner, SEO. _[KILLER]_
+7. [ ] **Quote post / reshare** + reshare-with-thoughts.
+8. [ ] **Topic/tag pages + follow-a-tag** — followed tags flow into the Following feed.
+9. [ ] **Trending tickers & topics board** — cron snapshot; velocity + unique-author; "not a recommendation". _[needs #6]_
+10. [ ] **Optional Bullish/Bearish sentiment tag** — 24h per-symbol gauge; never a BUY verdict. _[needs #6]_
+11. [ ] **Watchlist-driven feed scope** — watched symbol OR followed author. _[needs #6]_
+12. [ ] **For-You interest feed + cold-start starter follows** — engaged tags + 2nd-degree by hot-score; onboarding seeds; no ML.
+
+**Later (13–20):** content-quality gate · admin moderation/report-queue UI · SSE "N new posts" pill · reputation/track-record · follow suggestions · event/earnings threads · notification preferences · awards · then DM v2 (images/typing/read-receipts) · muted words.
 
 ## Shipped by the loop
 
@@ -40,3 +48,4 @@
 - [x] 2026-06-12 — Feed composer upgrade (inline top-of-feed composer, drafts in tm.community-draft) — PR #18
 - [x] 2026-06-12 — Post detail polish (back-nav context, share counts, related rail, docked mobile composer, follow chip) — PR #28
 - [x] 2026-06-12 — Notification grouping (LinkedIn-style rollups, scoped mark-read, /community/notifications page) — PR #36
+- [x] 2026-06-13 — Richer reactions (Like/Insightful/Respect/Celebrate; additive `likes.reaction` + denormalized `posts.reactions`; hover/long-press picker, stacked summary, weighted Top-feed) — PR (this iteration)

@@ -14,6 +14,11 @@ import {
   profiles,
 } from "./db/platform-schema";
 import type { AuthorView, PostView, TradeCard } from "@/features/community/types";
+import {
+  normalizeReaction,
+  resolveReactionCounts,
+  topFeedScore,
+} from "@/features/community/reactions";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -127,6 +132,7 @@ interface PostRow {
   tradeCard: string | null;
   tags: string | null;
   likeCount: number;
+  reactions: string | null;
   commentCount: number;
   shareCount: number;
   createdAt: string;
@@ -156,10 +162,10 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
       .orderBy(postImages.position),
     viewerId
       ? platformDb
-          .select({ postId: likes.postId })
+          .select({ postId: likes.postId, reaction: likes.reaction })
           .from(likes)
           .where(and(eq(likes.userId, viewerId), inArray(likes.postId, postIds)))
-      : Promise.resolve([] as { postId: string }[]),
+      : Promise.resolve([] as { postId: string; reaction: string | null }[]),
     viewerId
       ? platformDb
           .select({ postId: bookmarks.postId })
@@ -176,7 +182,8 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
   );
   // The author's pin rides along with the profile rows we already fetched.
   const pinnedByAuthor = new Map(authors.map((a) => [a.userId, a.pinnedPostId]));
-  const likedSet = new Set(myLikes.map((l) => l.postId));
+  // Map the viewer's reaction per post (NULL → legacy "like").
+  const myReactionMap = new Map(myLikes.map((l) => [l.postId, normalizeReaction(l.reaction)]));
   const bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
   const imageMap = new Map<string, string[]>();
   for (const img of images) {
@@ -185,23 +192,28 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
     imageMap.set(img.postId, arr);
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    body: r.body,
-    tags: parseJson<string[]>(r.tags) ?? [],
-    tradeCard: parseJson<TradeCard>(r.tradeCard),
-    images: imageMap.get(r.id) ?? [],
-    likeCount: r.likeCount,
-    commentCount: r.commentCount,
-    shareCount: r.shareCount,
-    createdAt: r.createdAt,
-    likedByMe: likedSet.has(r.id),
-    bookmarkedByMe: bookmarkedSet.has(r.id),
-    mine: viewerId === r.userId,
-    pinned: pinnedByAuthor.get(r.userId) === r.id,
-    author: authorMap.get(r.userId) ?? { username: "deleted", displayName: "Deleted user" },
-  }));
+  return rows.map((r) => {
+    const myReaction = myReactionMap.get(r.id) ?? null;
+    return {
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      tags: parseJson<string[]>(r.tags) ?? [],
+      tradeCard: parseJson<TradeCard>(r.tradeCard),
+      images: imageMap.get(r.id) ?? [],
+      likeCount: r.likeCount,
+      reactionCounts: resolveReactionCounts(r.reactions, r.likeCount),
+      commentCount: r.commentCount,
+      shareCount: r.shareCount,
+      createdAt: r.createdAt,
+      likedByMe: myReaction !== null,
+      myReaction,
+      bookmarkedByMe: bookmarkedSet.has(r.id),
+      mine: viewerId === r.userId,
+      pinned: pinnedByAuthor.get(r.userId) === r.id,
+      author: authorMap.get(r.userId) ?? { username: "deleted", displayName: "Deleted user" },
+    };
+  });
 }
 
 export interface FeedQuery {
@@ -245,12 +257,28 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   if (q.sort === "top") {
     const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
     conditions.push(sql`${posts.createdAt} >= ${since}`);
-    rows = await platformDb
+    // Pull a wider candidate window cheaply (total reactions + comments give a
+    // sound SQL pre-filter), then re-rank in JS with the kind-weighted,
+    // recency-decayed hot-score so reaction *type* and freshness both count.
+    const candidates = await platformDb
       .select()
       .from(posts)
       .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(desc(posts.likeCount), desc(posts.createdAt))
-      .limit(limit + 1);
+      .orderBy(desc(sql`${posts.likeCount} + ${posts.commentCount}`), desc(posts.createdAt))
+      .limit(Math.min(120, (limit + 1) * 4));
+    const now = Date.now();
+    rows = candidates
+      .map((r) => ({
+        row: r as PostRow,
+        score: topFeedScore(
+          resolveReactionCounts((r as PostRow).reactions, r.likeCount),
+          r.commentCount,
+          (now - new Date(r.createdAt).getTime()) / 3_600_000
+        ),
+      }))
+      .sort((a, b) => b.score - a.score || (a.row.createdAt < b.row.createdAt ? 1 : -1))
+      .slice(0, limit + 1)
+      .map((s) => s.row);
   } else {
     if (q.cursor) conditions.push(lt(posts.createdAt, q.cursor));
     rows = await platformDb
