@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Static fixture replicating the STRUCTURE of Zerodha Kite's web Orders page
+    tradebook (kite.zerodha.com/orders, Executed tab) for the extension's
+    positions/tradebook import e2e — real Kite sits behind a login, so the
+    import adapter (extension/src/brokers/kite-positions.ts, v1) is exercised
+    against this stand-in instead.
+
+    Mirrored idioms (cross-checked against community userscripts + a published
+    Kite Chrome extension — see the research in the PR):
+      - executed section: div.completed-orders > table > tbody > tr
+      - instrument cell: td.instrument > span.tradingsymbol + span.exchange
+      - product cell:     td.product (CNC/MIS/NRML)
+      - qty cell:         td.quantity, rendered filled/total ("10 / 10")
+      - transaction type: td.transaction-type carrying a .buy/.sell class AND
+                          a BUY/SELL text node (encoded redundantly — the exact
+                          class is unverified, so the adapter keys off either)
+      - avg price:        td.average-price
+      - status:           td.order-status (COMPLETE / REJECTED / OPEN)
+      - time:             td.time (HH:MM:SS)
+
+    The executed rows below FIFO-pair into round-trip trades: INFY buy+sell →
+    one closed equity trade; the NIFTY option buy+sell → one closed option
+    trade. The REJECTED and OPEN rows must be silently skipped. Visuals are
+    approximate on purpose; structure is what the adapter reads.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kite fixture — tradebook</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+        background: #f9f9f9;
+        color: #444;
+      }
+      .page-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid #eee;
+        background: #fff;
+        font-weight: 600;
+      }
+      .tabs {
+        display: flex;
+        gap: 16px;
+        padding: 0 16px;
+        border-bottom: 1px solid #eee;
+        background: #fff;
+      }
+      .tabs span {
+        padding: 10px 0;
+        color: #9b9b9b;
+      }
+      .tabs span.active {
+        color: #ff5722;
+        border-bottom: 2px solid #ff5722;
+      }
+      .orders {
+        padding: 12px 16px;
+      }
+      section h3 {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #9b9b9b;
+        margin: 12px 0 6px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border: 1px solid #eee;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid #f2f2f2;
+        font-size: 12.5px;
+      }
+      thead th {
+        color: #9b9b9b;
+        font-weight: 500;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      td.transaction-type .buy {
+        color: #4184f3;
+        font-weight: 600;
+      }
+      td.transaction-type .sell {
+        color: #ff5722;
+        font-weight: 600;
+      }
+      td.instrument .tradingsymbol {
+        font-weight: 600;
+      }
+      td.instrument .exchange {
+        font-size: 10px;
+        color: #9b9b9b;
+        margin-left: 5px;
+      }
+      td.order-status {
+        font-size: 11px;
+        color: #2e7d32;
+      }
+      tr.rejected td.order-status {
+        color: #c62828;
+      }
+      tr.open td.order-status {
+        color: #f9a825;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">Orders</div>
+    <div class="tabs">
+      <span>Open</span>
+      <span class="active">Executed</span>
+      <span>GTT</span>
+    </div>
+
+    <div class="orders">
+      <!-- Pending/open section: rows here must NOT be imported. -->
+      <section class="pending-orders">
+        <h3>Open orders</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Instrument</th>
+              <th>Product</th>
+              <th>Qty.</th>
+              <th>Avg. price</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="order open" data-uid="open-1">
+              <td class="time">11:02:10</td>
+              <td class="transaction-type"><span class="buy">BUY</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">TCS</span>
+                <span class="exchange">NSE</span>
+              </td>
+              <td class="product">CNC</td>
+              <td class="quantity">0 / 5</td>
+              <td class="average-price">0.00</td>
+              <td class="order-status">OPEN</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Executed/completed section: the import reads ONLY these rows. -->
+      <section class="completed-orders">
+        <h3>Executed orders</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Instrument</th>
+              <th>Product</th>
+              <th>Qty.</th>
+              <th>Avg. price</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="order" data-uid="ord-1">
+              <td class="time">09:20:05</td>
+              <td class="transaction-type"><span class="buy">BUY</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">INFY</span>
+                <span class="exchange">NSE</span>
+              </td>
+              <td class="product">MIS</td>
+              <td class="quantity">10 / 10</td>
+              <td class="average-price">1,450.00</td>
+              <td class="order-status">COMPLETE</td>
+            </tr>
+            <tr class="order" data-uid="ord-2">
+              <td class="time">10:45:30</td>
+              <td class="transaction-type"><span class="sell">SELL</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">INFY</span>
+                <span class="exchange">NSE</span>
+              </td>
+              <td class="product">MIS</td>
+              <td class="quantity">10 / 10</td>
+              <td class="average-price">1,470.00</td>
+              <td class="order-status">COMPLETE</td>
+            </tr>
+            <tr class="order" data-uid="ord-3">
+              <td class="time">09:35:12</td>
+              <td class="transaction-type"><span class="buy">BUY</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">NIFTY2661924500CE</span>
+                <span class="exchange">NFO</span>
+              </td>
+              <td class="product">NRML</td>
+              <td class="quantity">75 / 75</td>
+              <td class="average-price">120.50</td>
+              <td class="order-status">COMPLETE</td>
+            </tr>
+            <tr class="order" data-uid="ord-4">
+              <td class="time">12:10:48</td>
+              <td class="transaction-type"><span class="sell">SELL</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">NIFTY2661924500CE</span>
+                <span class="exchange">NFO</span>
+              </td>
+              <td class="product">NRML</td>
+              <td class="quantity">75 / 75</td>
+              <td class="average-price">155.25</td>
+              <td class="order-status">COMPLETE</td>
+            </tr>
+            <!-- Rejected row: must be silently skipped (never imported). -->
+            <tr class="order rejected" data-uid="ord-5">
+              <td class="time">09:18:00</td>
+              <td class="transaction-type"><span class="buy">BUY</span></td>
+              <td class="instrument">
+                <span class="tradingsymbol">SBIN</span>
+                <span class="exchange">NSE</span>
+              </td>
+              <td class="product">MIS</td>
+              <td class="quantity">0 / 50</td>
+              <td class="average-price">0.00</td>
+              <td class="order-status">REJECTED</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </body>
+</html>

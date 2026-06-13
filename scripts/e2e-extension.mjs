@@ -229,13 +229,16 @@ await step("rule check-off is visible on the web dashboard", async () => {
 // code path. localhost is already within the manifest's host permissions.
 const FIXTURE_PORT = 3401;
 const fixtureDir = path.resolve("extension/test-fixtures");
+const fixtureFor = (url) => {
+  if (url?.startsWith("/changed")) return "kite-order-window-changed.html";
+  if (url?.startsWith("/tradebook-changed")) return "kite-tradebook-changed.html";
+  if (url?.startsWith("/tradebook")) return "kite-tradebook.html";
+  return "kite-order-window.html";
+};
 const fixtureServer = createServer((req, res) => {
-  const file = req.url?.startsWith("/changed")
-    ? "kite-order-window-changed.html"
-    : "kite-order-window.html";
   try {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end(readFileSync(path.join(fixtureDir, file)));
+    res.end(readFileSync(path.join(fixtureDir, fixtureFor(req.url))));
   } catch {
     res.writeHead(404);
     res.end();
@@ -337,6 +340,107 @@ await step("capture: changed broker DOM degrades silently", async () => {
   if ((await kitePage.locator("[data-tm-capture]").count()) !== 0)
     throw new Error("capture button injected into an unrecognized DOM");
   await kitePage.close();
+});
+
+// ── Positions/tradebook auto-import (Kite tradebook fixture) ──────────────
+// The import content bundle is the REAL built content-kite-positions.js,
+// registered through the same chrome.scripting API the Settings toggle uses
+// (its registration id `tm-positions-kite` is what isImportEnabled() reads, so
+// the panel's "Import from Kite" launcher appears). The panel discovers the
+// broker tab by message round-trip, so it finds the localhost fixture tab the
+// same way it would find a real kite.zerodha.com tab.
+let tradebookPage;
+await step("import: positions content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-positions-kite",
+        js: ["content-kite-positions.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-positions-kite")) throw new Error(`registration missing: ${ids}`);
+  // Open the tradebook fixture so the content script is live before scraping.
+  tradebookPage = await ctx.newPage();
+  await tradebookPage.goto(`http://localhost:${FIXTURE_PORT}/tradebook`, { waitUntil: "load" });
+  await tradebookPage.locator(".completed-orders").waitFor({ timeout: 5000 });
+});
+
+await step("import: launcher appears once import is enabled", async () => {
+  await panel.bringToFront();
+  await panel.reload({ waitUntil: "load" });
+  await panel.getByText("Quick log").waitFor({ timeout: 45000 });
+  await panel.getByTestId("import-launch").waitFor({ timeout: 15000 });
+});
+
+await step("import: preview shows new trades and hides dedupe", async () => {
+  await panel.getByTestId("import-launch").click();
+  // Scanning → preview: the fixture pairs into 2 closed round-trips (INFY eq +
+  // NIFTY option); the rejected & open rows must be silently skipped.
+  await panel.getByTestId("import-trades").waitFor({ timeout: 20000 });
+  const summary = await panel.locator(".import-summary").first().textContent();
+  if (!/2\s*new/.test(summary)) throw new Error(`expected 2 new trades, got: ${summary}`);
+  const rows = panel.locator(".import-row");
+  if ((await rows.count()) !== 2) throw new Error(`expected 2 preview rows, got ${await rows.count()}`);
+  // The skipped rejected SBIN row never reaches the preview.
+  if ((await panel.locator(".import-row", { hasText: "SBIN" }).count()) !== 0)
+    throw new Error("rejected SBIN order leaked into the preview");
+});
+
+await step("import: importing writes the trades into the journal", async () => {
+  await panel.getByTestId("import-trades").click();
+  await panel.getByTestId("import-done").waitFor({ timeout: 30000 });
+  const done = await panel.getByTestId("import-done").textContent();
+  if (!/2 trades imported/.test(done)) throw new Error(`unexpected import result: ${done}`);
+  await panel.getByRole("button", { name: "Done" }).click();
+});
+
+await step("import: imported trades appear in the web journal", async () => {
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  // Assert the two SPECIFIC imported round-trips. "NIFTY" alone also matches
+  // the earlier BANKNIFTY capture row, so key off the 24500 strike instead.
+  const optionRow = appTab.locator("tr", { hasText: "24500" });
+  await optionRow.first().waitFor({ timeout: 30000 });
+  const optionText = await optionRow.first().textContent();
+  if (!optionText.includes("NIFTY")) throw new Error(`imported option row wrong: ${optionText}`);
+  // The imported INFY round-trip is 10 qty @ 1450 → 1470 (the earlier capture
+  // INFY was 75 qty) — match the row carrying the imported avg entry.
+  const infyRow = appTab.locator("tr", { hasText: "INFY" }).filter({ hasText: "1450" });
+  await infyRow.first().waitFor({ timeout: 30000 });
+});
+
+await step("import: re-import is idempotent (all rows already in journal)", async () => {
+  await panel.bringToFront();
+  await panel.getByTestId("import-launch").click();
+  await panel.getByTestId("import-trades").waitFor({ timeout: 20000 });
+  const summary = await panel.locator(".import-summary").first().textContent();
+  // Same fixture, same deterministic ids → 0 new, 2 already in journal.
+  if (!/0\s*new/.test(summary) || !/2 already in journal/.test(summary))
+    throw new Error(`re-import not deduped: ${summary}`);
+  // Nothing selected → the CTA is disabled.
+  const ctaDisabled = await panel.getByTestId("import-trades").isDisabled();
+  if (!ctaDisabled) throw new Error("import CTA should be disabled when nothing is new");
+  await panel.getByRole("button", { name: "Close import" }).click();
+});
+
+await step("import: redesigned tradebook DOM degrades silently (empty)", async () => {
+  await tradebookPage.bringToFront();
+  await tradebookPage.goto(`http://localhost:${FIXTURE_PORT}/tradebook-changed`, {
+    waitUntil: "load",
+  });
+  await tradebookPage.waitForTimeout(400);
+  await panel.bringToFront();
+  await panel.getByTestId("import-launch").click();
+  // Unrecognized markup → zero importable fills → the empty state, never a guess.
+  await panel.getByText("No executed trades found").waitFor({ timeout: 20000 });
+  await panel.getByRole("button", { name: "Close import" }).click();
+  await tradebookPage.close();
 });
 
 // ── Sign out from the panel ────────────────────────────────────────────────

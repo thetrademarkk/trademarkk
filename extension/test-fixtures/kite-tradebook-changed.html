@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    A deliberately "redesigned" Kite tradebook: a future Kite ships a div-grid
+    with renamed classes and no .completed-orders / td.instrument idioms. The
+    positions-import adapter must DEGRADE SILENTLY — find zero importable rows,
+    never throw, never guess a trade out of unrecognizable markup. The import
+    e2e drives this variant to prove the silent-degradation contract holds.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kite fixture — tradebook (redesigned)</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+        background: #f9f9f9;
+        color: #444;
+        padding: 16px;
+      }
+      .ob-grid {
+        display: grid;
+        gap: 1px;
+        background: #eee;
+        border: 1px solid #eee;
+      }
+      .ob-rowx {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        background: #fff;
+        padding: 8px 10px;
+      }
+      .ob-head {
+        color: #9b9b9b;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      .ob-sym {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Order book</h2>
+    <!-- New structure: no .completed-orders, no table, no td.instrument. -->
+    <div class="ob-grid">
+      <div class="ob-rowx ob-head">
+        <div>When</div>
+        <div>Action</div>
+        <div>Scrip</div>
+        <div>Prod</div>
+        <div>Filled</div>
+        <div>Avg</div>
+      </div>
+      <div class="ob-rowx" data-orderref="x-1">
+        <div class="ob-when">09:20:05</div>
+        <div class="ob-act">Bought</div>
+        <div class="ob-sym">INFY · NSE</div>
+        <div class="ob-prod">MIS</div>
+        <div class="ob-filled">10 / 10</div>
+        <div class="ob-avg">1,450.00</div>
+      </div>
+      <div class="ob-rowx" data-orderref="x-2">
+        <div class="ob-when">10:45:30</div>
+        <div class="ob-act">Sold</div>
+        <div class="ob-sym">INFY · NSE</div>
+        <div class="ob-prod">MIS</div>
+        <div class="ob-filled">10 / 10</div>
+        <div class="ob-avg">1,470.00</div>
+      </div>
+    </div>
+  </body>
+</html>

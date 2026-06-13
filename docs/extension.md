@@ -37,6 +37,50 @@ Manual logging is unchanged; capture is purely a shortcut.
   TradeMark platform server — like every journal write, the saved trade goes
   straight to **your** database.
 
+## Tradebook import (v2)
+
+Turn on **Settings → Tradebook import → Zerodha Kite** and an **"Import from
+Zerodha Kite"** button appears in the panel. Open Kite's **Orders (Executed)**
+or **Positions** page in a tab, click the button, and the extension reads your
+executed orders straight from that page, pairs them into round-trip trades,
+and shows a preview:
+
+- Each trade is tagged **new** or **already in journal** (re-imports are
+  deduped — see below); new trades are pre-checked. Tick/untick any row, then
+  **Import N trades**.
+- Imports are written through the **same statement builder** the web app and
+  quick log use, so every imported row (ids, fills, paise-rounded charges,
+  status, timestamps) is byte-identical to a trade logged anywhere else.
+
+**Idempotent dedupe.** Each trade gets a deterministic id derived from its
+symbol, time, quantity and prices — the **same** convention the CSV import
+uses. Importing the same Kite page twice is a no-op: the preview shows those
+rows as "already in journal" and they aren't written again (already-journaled
+rows are never re-written, so any notes, tags or plan you added to a trade
+after importing it are safe). The id also matches a Zerodha Console CSV import
+of the same fills; a dated-contract CSV from another broker that carries its
+own expiry column may key its id differently. Only fills with a readable
+execution time are imported, and only fully executed orders — pending,
+cancelled and rejected rows are skipped; anything the page renders ambiguously
+is skipped too, never guessed.
+
+### Privacy (tradebook import)
+
+- The import script reads **only the per-trade fields a journal row needs** off
+  the Orders/Positions table: instrument, exchange, buy/sell, quantity, average
+  price, time and order status (to keep only executed orders). It **never**
+  reads account balance, free margin, holdings value, P&L totals or any figure
+  beyond a single order row.
+- It reads **nothing on its own** — only when you click "Import from Zerodha
+  Kite". The scraped fills travel from the broker tab to the side panel inside
+  the extension and are written directly to **your** database; they **never**
+  touch the TradeMark platform server.
+- Opt-in exactly like capture: nothing runs on Kite until you enable it (Chrome
+  prompts for `kite.zerodha.com` once), and turning it off removes both the
+  script and the permission. When Kite's table markup changes, the import
+  finds zero rows and shows an empty state — it never guesses a trade out of
+  markup it no longer understands.
+
 ## What it does (v1)
 
 - **Quick trade log** — type a contract name (`BANKNIFTY24JUN52000CE`,
@@ -93,8 +137,10 @@ hosted app already allowlists it.
   your Turso database directly, exactly like the web client.
 - Minimal permissions: `sidePanel`, `storage`, `scripting`, host permissions
   for the app origin only. Broker-page access is an **optional** permission,
-  requested only when you enable Broker capture and returned when you disable
-  it (see "Broker capture" above). No tabs snooping.
+  requested only when you enable Broker capture **or** Tradebook import and
+  returned when you disable them (see above). No `tabs` permission — tradebook
+  import discovers your broker tab by messaging the content script it injected
+  there, so it can only ever reach a page you granted access to.
 
 ## Self-hosters
 

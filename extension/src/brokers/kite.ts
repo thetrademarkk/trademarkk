@@ -19,7 +19,16 @@ export const KITE_ADAPTER_VERSION = 1;
 
 /* ── Pure text parsing (unit-tested in kite.test.ts) ─────────────────────── */
 
-const EXCHANGE_TOKENS = new Set(["NSE", "BSE", "NFO", "BFO", "MCX", "CDS", "NCD", "BCD"]);
+export const EXCHANGE_TOKENS = new Set([
+  "NSE",
+  "BSE",
+  "NFO",
+  "BFO",
+  "MCX",
+  "CDS",
+  "NCD",
+  "BCD",
+]);
 
 /**
  * Order-window instrument text → something the app's contract-name parser

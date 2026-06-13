@@ -155,14 +155,17 @@ export function useSaveTrade() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (values: TradeFormValues) => {
-      const accountRes = await db.execute(`SELECT charge_profile FROM accounts WHERE id = ?`, [
-        values.accountId,
-      ]);
-      const profileId = String(accountRes.rows[0]?.charge_profile ?? "zerodha");
+      const profileId = await chargeProfileFor(db, values.accountId);
       const { id, statements } = buildTradeSaveStatements(values, profileId);
       await db.batch(statements);
       return id;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["glance"] }),
   });
+}
+
+/** The charge profile configured for an account (defaults to zerodha). */
+export async function chargeProfileFor(db: DbClient, accountId: string): Promise<string> {
+  const res = await db.execute(`SELECT charge_profile FROM accounts WHERE id = ?`, [accountId]);
+  return String(res.rows[0]?.charge_profile ?? "zerodha");
 }
