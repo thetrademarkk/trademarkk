@@ -50,7 +50,7 @@ const MODE_CARDS = [
 export function OnboardingFlow() {
   const router = useRouter();
   const { state, connectHosted, startLocal } = useDbSession();
-  const { data: session } = useSession();
+  const { data: session, isPending: sessionLoading } = useSession();
   const [step, setStep] = React.useState<Step>("choose");
   const [busy, setBusy] = React.useState<string | null>(null);
 
@@ -70,13 +70,30 @@ export function OnboardingFlow() {
   // into hosted storage (returning user OR a fresh Google/email signup) — we
   // show a calm "setting up" state for them instead of ever flashing the picker.
   const [autoConnecting, setAutoConnecting] = React.useState(true);
+
+  // Safety net: never strand a visitor on the loader if the session check hangs
+  // (transient auth/network outage). After a few seconds we stop waiting and let
+  // them through to the picker to choose a storage mode manually.
+  const [sessionCheckTimedOut, setSessionCheckTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    if (!sessionLoading) return;
+    const t = setTimeout(() => setSessionCheckTimedOut(true), 7000);
+    return () => clearTimeout(t);
+  }, [sessionLoading]);
+
   React.useEffect(() => {
     if (state.status !== "none") {
       setAutoConnecting(false);
       return;
     }
-    // No platform session → genuine fresh visitor (or BYOD/demo/local, which
-    // carry no session). Let them pick a storage mode.
+    // The session cookie is still being read. A returning / just-returned-from-
+    // Google user HAS a cookie, so we must wait for it to resolve before
+    // deciding anything — flipping to the picker here is exactly what caused the
+    // mode-picker to flash for a frame after Google sign-in. Keep the loader up
+    // (unless the check has hung past our safety timeout).
+    if (sessionLoading && !sessionCheckTimedOut) return;
+    // Resolved with no platform session → genuine fresh visitor (or BYOD/demo/
+    // local, which carry no session). Let them pick a storage mode.
     if (!session) {
       setAutoConnecting(false);
       return;
@@ -100,7 +117,7 @@ export function OnboardingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [session, state.status, connectHosted]);
+  }, [session, sessionLoading, sessionCheckTimedOut, state.status, connectHosted]);
 
   // Once a DB is connected, decide: already onboarded → dashboard, else setup.
   React.useEffect(() => {
@@ -176,7 +193,15 @@ export function OnboardingFlow() {
   // full-screen "setting up" state instead of ever flashing the mode picker.
   // Brand-new signups (e.g. just returned from Google) see a welcome message;
   // returning users see "opening your journal".
-  if (autoConnecting && session && step === "choose") {
+  if (
+    autoConnecting &&
+    step === "choose" &&
+    (session || (sessionLoading && !sessionCheckTimedOut))
+  ) {
+    // `known` = we've confirmed a signed-in user. While the session cookie is
+    // still resolving we show neutral copy (could still turn out to be a fresh
+    // visitor); once we know they're signed in we warm it up.
+    const known = session != null;
     return (
       <div
         role="status"
@@ -194,12 +219,18 @@ export function OnboardingFlow() {
           </span>
           <div className="space-y-1">
             <p className="text-base font-semibold">
-              {isFreshArrival ? "Setting up your journal…" : "Opening your journal…"}
+              {!known
+                ? "Just a moment…"
+                : isFreshArrival
+                  ? "Setting up your journal…"
+                  : "Opening your journal…"}
             </p>
             <p className="text-sm text-muted">
-              {isFreshArrival
-                ? "Creating your private, isolated database. This only takes a moment."
-                : "Welcome back — reconnecting your data."}
+              {!known
+                ? "Signing you in securely."
+                : isFreshArrival
+                  ? "Creating your private, isolated database. This only takes a moment."
+                  : "Welcome back — reconnecting your data."}
             </p>
           </div>
         </motion.div>
@@ -297,22 +328,29 @@ export function OnboardingFlow() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
-              <div>
-                <h2 className="text-xl font-bold">Create your free account</h2>
-                <p className="mt-1 text-sm text-muted">
-                  You get a dedicated, isolated database — yours to export or take with you anytime.
-                </p>
-              </div>
               {session ? (
-                <div className="space-y-2">
-                  <p className="rounded-lg border bg-surface-2/50 px-3 py-2 text-sm">
-                    Signed in as <span className="font-medium">{session.user.email}</span>
-                  </p>
-                  <Button className="w-full" onClick={handleHostedContinue} disabled={busy != null}>
-                    {busy ? "Setting up your database…" : "Continue"}
-                  </Button>
-                </div>
+                <>
+                  <div>
+                    <h2 className="text-xl font-bold">Finish setting up</h2>
+                    <p className="mt-1 text-sm text-muted">
+                      You&apos;re signed in — one tap to create your private, isolated database.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="rounded-lg border bg-surface-2/50 px-3 py-2 text-sm">
+                      Signed in as <span className="font-medium">{session.user.email}</span>
+                    </p>
+                    <Button
+                      className="w-full"
+                      onClick={handleHostedContinue}
+                      disabled={busy != null}
+                    >
+                      {busy ? "Setting up your database…" : "Continue"}
+                    </Button>
+                  </div>
+                </>
               ) : (
+                // AuthForm renders its own mode-aware heading (sign up / in / reset).
                 <AuthForm onAuthed={handleHostedContinue} />
               )}
             </motion.div>
