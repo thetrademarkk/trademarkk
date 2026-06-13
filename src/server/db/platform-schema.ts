@@ -97,7 +97,10 @@ export const posts = sqliteTable("posts", {
   body: text("body").notNull(),
   tradeCard: text("trade_card"), // JSON snapshot shared from the journal
   tags: text("tags"), // JSON string[]
+  /** TOTAL reaction count (all kinds). Kept rename-free for back-compat. */
   likeCount: integer("like_count").notNull().default(0),
+  /** Denormalized per-kind breakdown JSON, e.g. {"like":3,"insightful":2}; NULL = legacy/all-likes. */
+  reactions: text("reactions"),
   commentCount: integer("comment_count").notNull().default(0),
   shareCount: integer("share_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
@@ -169,6 +172,8 @@ export const likes = sqliteTable(
   {
     postId: text("post_id").notNull(),
     userId: text("user_id").notNull(),
+    /** Reaction kind (like|insightful|respect|celebrate); NULL = legacy plain like. */
+    reaction: text("reaction"),
     createdAt: text("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.postId, t.userId] })]

@@ -1,3 +1,5 @@
+import type { ReactionCounts, ReactionKind } from "./reactions";
+
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
   symbol: string;
@@ -30,11 +32,17 @@ export interface PostView {
   tags: string[];
   tradeCard: TradeCard | null;
   images: string[];
+  /** TOTAL reactions across all kinds (kept named likeCount for back-compat). */
   likeCount: number;
+  /** Per-kind breakdown for the stacked summary (legacy posts resolve to all-likes). */
+  reactionCounts: ReactionCounts;
   commentCount: number;
   shareCount: number;
   createdAt: string;
+  /** True when the viewer has ANY reaction on this post (back-compat with old `likedByMe`). */
   likedByMe: boolean;
+  /** The viewer's specific reaction, or null. `like` for legacy rows. */
+  myReaction: ReactionKind | null;
   bookmarkedByMe: boolean;
   mine: boolean;
   /** True when the author pinned this post to their profile. */
