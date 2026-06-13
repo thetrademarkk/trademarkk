@@ -4,13 +4,18 @@ import * as React from "react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, X } from "lucide-react";
+import { Hash, PenSquare, X } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
-import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
+import {
+  useFollowedTags,
+  useTrendingTags,
+  type FeedScope,
+  type FeedSort,
+} from "@/features/community/api";
 import type { FeedResponse } from "@/features/community/types";
 import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
 import { COMMUNITY_DRAFT_KEY, readDraft } from "@/features/community/draft";
@@ -55,6 +60,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
   const { data: session } = useSession();
   const { data: me } = useMyProfile(Boolean(session));
   const { data: trending } = useTrendingTags();
+  const { data: followedTags } = useFollowedTags(Boolean(session));
   const topics =
     trending?.tags && trending.tags.length > 0
       ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
@@ -116,7 +122,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               {topics.map((t) => (
                 <Link
                   key={t.tag}
-                  href={tag === t.tag ? "/community" : `/community?tag=${t.tag}`}
+                  href={`/community/t/${t.tag}`}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-xs transition-colors",
                     tag === t.tag
@@ -130,6 +136,29 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               ))}
             </div>
           </div>
+          {followedTags?.tags && followedTags.tags.length > 0 && (
+            <div>
+              <p className="micro-label mb-2 flex items-center gap-1 px-3">
+                <Hash className="h-3 w-3" aria-hidden /> Followed tags
+              </p>
+              <div className="flex flex-wrap gap-1.5 px-3">
+                {followedTags.tags.map((t) => (
+                  <Link
+                    key={t}
+                    href={`/community/t/${t}`}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                      tag === t
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "text-muted hover:text-foreground"
+                    )}
+                  >
+                    #{t}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 

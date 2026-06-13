@@ -9,6 +9,7 @@ import {
   bookmarks,
   commentLikes,
   comments,
+  followedTags,
   likes,
   notifications,
   postImages,
@@ -26,6 +27,7 @@ import {
 } from "@/features/community/reactions";
 import { parseEditHistory, type PostEditSnapshot } from "@/features/community/edit-window";
 import { planSymbolSync } from "@/features/community/cashtags";
+import { MAX_FOLLOWED_TAGS, normalizeTag } from "@/features/community/followed-tags";
 import { normalizeQuoteBody, resolveReshareTarget } from "@/features/community/reshare";
 
 /** Creates a notification (no-op when acting on your own content). */
@@ -427,8 +429,20 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
     );
   }
   if (q.scope === "following" && viewerId) {
+    // The Following feed surfaces posts BY followed users OR carrying a followed
+    // tag. The tag side matches the post's JSON tags array against each followed
+    // tag via a correlated EXISTS over json_each — so one query returns each
+    // post once (no JS union/dedupe needed), and the blocked-user filter above
+    // still applies (it is a separate ANDed condition).
     conditions.push(
-      sql`${posts.userId} IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})`
+      sql`(${posts.userId} IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})
+           OR EXISTS (
+             SELECT 1 FROM followed_tags ft
+             WHERE ft.user_id = ${viewerId}
+               AND EXISTS (
+                 SELECT 1 FROM json_each(${posts.tags}) je WHERE je.value = ft.tag
+               )
+           ))`
     );
   }
   if (q.scope === "saved" && viewerId) {
@@ -503,6 +517,100 @@ export async function countPostsForSymbol(symbol: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/* ── Follow a tag ─────────────────────────────────────────────────────────── */
+
+/**
+ * Count of posts carrying a given tag — drives the tag page header. The tag is
+ * matched against the post's JSON tags array (`tags LIKE '%"tag"%'`, LIKE-escaped
+ * so a metacharacter can't broaden the scan). Returns 0 on any error.
+ */
+export async function countPostsForTag(tag: string): Promise<number> {
+  const t = normalizeTag(tag);
+  if (!t) return 0;
+  try {
+    const pattern = `%"${escapeLike(t)}"%`;
+    const row = await platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(posts)
+      .where(sql`${posts.tags} LIKE ${pattern} ESCAPE '\\'`)
+      .get();
+    return row?.n ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** The tags a user follows, sorted. Empty for signed-out viewers / on error. */
+export async function getFollowedTags(viewerId: string | null): Promise<string[]> {
+  if (!viewerId) return [];
+  try {
+    const rows = await platformDb
+      .select({ tag: followedTags.tag })
+      .from(followedTags)
+      .where(eq(followedTags.userId, viewerId))
+      .orderBy(followedTags.tag);
+    return rows.map((r) => r.tag);
+  } catch {
+    return [];
+  }
+}
+
+/** Whether the viewer follows a specific tag. */
+export async function isTagFollowed(viewerId: string | null, tag: string): Promise<boolean> {
+  const t = normalizeTag(tag);
+  if (!viewerId || !t) return false;
+  try {
+    const row = await platformDb
+      .select({ tag: followedTags.tag })
+      .from(followedTags)
+      .where(and(eq(followedTags.userId, viewerId), eq(followedTags.tag, t)))
+      .get();
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Toggles following a tag for the viewer. Idempotent via the (user_id, tag) PK.
+ * Returns the new followed state. Caps the number of tags a user can follow.
+ * Returns null when the tag is invalid (the caller 400s).
+ */
+export async function toggleFollowTag(
+  viewerId: string,
+  rawTag: string
+): Promise<{ following: boolean } | null> {
+  const tag = normalizeTag(rawTag);
+  if (!tag) return null;
+
+  const existing = await platformDb
+    .select({ tag: followedTags.tag })
+    .from(followedTags)
+    .where(and(eq(followedTags.userId, viewerId), eq(followedTags.tag, tag)))
+    .get();
+
+  if (existing) {
+    await platformDb
+      .delete(followedTags)
+      .where(and(eq(followedTags.userId, viewerId), eq(followedTags.tag, tag)));
+    return { following: false };
+  }
+
+  // Enforce the per-user cap before inserting a new follow.
+  const count = await platformDb
+    .select({ n: sql<number>`count(*)` })
+    .from(followedTags)
+    .where(eq(followedTags.userId, viewerId))
+    .get();
+  if ((count?.n ?? 0) >= MAX_FOLLOWED_TAGS) return null;
+
+  await platformDb
+    .insert(followedTags)
+    .values({ userId: viewerId, tag, createdAt: new Date().toISOString() })
+    .onConflictDoNothing();
+  return { following: true };
 }
 
 /**

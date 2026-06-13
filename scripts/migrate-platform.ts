@@ -225,6 +225,15 @@ const STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_post_symbols_symbol ON post_symbols (symbol, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_post_symbols_post ON post_symbols (post_id)`,
+  // ── Follow-a-tag: tags a user follows surface in their Following feed ──
+  `CREATE TABLE IF NOT EXISTS followed_tags (
+    user_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, tag)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_followed_tags_user ON followed_tags (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_followed_tags_tag ON followed_tags (tag)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,

@@ -97,6 +97,7 @@ export async function purgeUserContent(userId: string) {
   await platformDb.run(
     sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`
   );
+  await platformDb.run(sql`DELETE FROM followed_tags WHERE user_id = ${userId}`);
   await platformDb.run(
     sql`DELETE FROM blocks WHERE blocker_id = ${userId} OR blocked_id = ${userId}`
   );

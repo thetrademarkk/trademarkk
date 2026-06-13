@@ -413,7 +413,7 @@ export function PostCard({
           {post.tags.map((t) => (
             <Link
               key={t}
-              href={`/community?tag=${encodeURIComponent(t)}`}
+              href={`/community/t/${encodeURIComponent(t)}`}
               className="rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/20"
             >
               #{t}

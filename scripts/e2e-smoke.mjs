@@ -65,6 +65,16 @@ await step("per-symbol stream renders with the not-advice banner", async () => {
   await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
 });
 
+await step("topic/tag page renders with header + Follow + not-advice banner", async () => {
+  await page.goto(`${BASE}/community/t/options`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "#options" }).first().waitFor({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: /^Follow$/ })
+    .first()
+    .waitFor({ timeout: 15000 });
+  await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
+});
+
 await step("community feed renders; post cards expose the reshare control", async () => {
   await page.goto(`${BASE}/community`, { waitUntil: "domcontentloaded" });
   // Wait for either at least one post card or the empty state to settle.

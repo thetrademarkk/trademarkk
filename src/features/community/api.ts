@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
+import { toggleFollowedTag } from "./followed-tags";
 import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
 import type { PostEditSnapshot } from "./edit-window";
@@ -169,6 +170,49 @@ export function useTrendingTags() {
     queryKey: ["community-trending-tags"],
     queryFn: () => request<{ tags: { tag: string; count: number }[] }>("/api/community/tags"),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** The signed-in viewer's followed tags. Drives the tag page's Follow state + the left-rail list. */
+export function useFollowedTags(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-followed-tags"],
+    queryFn: () => request<{ tags: string[] }>("/api/community/followed-tags"),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Optimistic follow/unfollow of a tag. Patches the cached followed-tags list
+ * instantly (so the tag page button and the left-rail list flip together) and
+ * rolls back on error. Refreshes the Following feed on success so newly-followed
+ * tags' posts appear without a manual reload.
+ */
+export function useToggleFollowTag() {
+  const qc = useQueryClient();
+  const key = ["community-followed-tags"];
+  return useMutation({
+    mutationFn: (tag: string) =>
+      request<{ following: boolean }>(`/api/community/tags/${encodeURIComponent(tag)}/follow`, {
+        method: "POST",
+      }),
+    onMutate: (tag) => {
+      const prev = qc.getQueryData<{ tags: string[] }>(key);
+      qc.setQueryData<{ tags: string[] }>(key, (data) => ({
+        tags: toggleFollowedTag(data?.tags ?? [], tag),
+      }));
+      return { prev };
+    },
+    onError: (_e, _tag, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      // A followed tag's posts flow into the Following feed.
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
   });
 }
 

@@ -197,6 +197,21 @@ export const follows = sqliteTable(
   (t) => [primaryKey({ columns: [t.followerId, t.followingId] })]
 );
 
+/**
+ * Tags a user has chosen to follow. Posts carrying a followed tag surface in the
+ * viewer's Following feed (alongside posts by followed users). PK (user_id, tag)
+ * makes follow idempotent; one row per (user, tag).
+ */
+export const followedTags = sqliteTable(
+  "followed_tags",
+  {
+    userId: text("user_id").notNull(),
+    tag: text("tag").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.tag] })]
+);
+
 /** In-app notifications: like | comment | reply | follow | mention. */
 export const notifications = sqliteTable("notifications", {
   id: text("id").primaryKey(),
