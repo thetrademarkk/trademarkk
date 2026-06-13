@@ -344,3 +344,59 @@ label:has(> input[type="file"].hidden) {
     color 0.35s ease,
     fill 0.35s ease !important;
 }
+
+/* -- Print-to-PDF (tax & reports) ------------------------------------------ */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  /* Print on white with black text regardless of the active theme. */
+  :root {
+    color-scheme: light;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  /* App chrome (sidebar, topbar, mobile nav) is hidden so only the report prints. */
+  body aside,
+  body > div > div > header,
+  body nav[aria-label="Primary"],
+  .print\:hidden {
+    display: none !important;
+  }
+  /* The main column loses its sidebar offset and padding for full-width print. */
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  /* Drop shadows/borders shave ink and avoid grey boxes in the PDF. */
+  .card,
+  [data-print-section] {
+    box-shadow: none !important;
+    border-color: #ddd !important;
+    break-inside: avoid;
+  }
+  table {
+    break-inside: auto;
+  }
+  tr,
+  thead {
+    break-inside: avoid;
+  }
+  /* Keep P&L colours legible in print (profit/loss stay green/red, muted → grey). */
+  .text-profit {
+    color: #15803d !important;
+  }
+  .text-loss {
+    color: #b91c1c !important;
+  }
+  .text-muted {
+    color: #555 !important;
+  }
+  /* Force each top-level print section onto a fresh consideration for page breaks. */
+  [data-print-break] {
+    break-before: page;
+  }
+}
