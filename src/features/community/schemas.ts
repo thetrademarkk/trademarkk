@@ -3,7 +3,7 @@ import { isAccentId } from "./accents";
 
 export const tradeCardSchema = z.object({
   symbol: z.string().min(1).max(20),
-  segment: z.enum(["EQ", "FUT", "OPT"]),
+  segment: z.enum(["EQ", "FUT", "OPT", "COMM", "CDS"]),
   strike: z.number().positive().nullish(),
   optionType: z.enum(["CE", "PE"]).nullish(),
   expiry: z.string().max(10).nullish(),

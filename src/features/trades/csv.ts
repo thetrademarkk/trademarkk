@@ -175,12 +175,29 @@ function buildTrade(
   const x = closed ? wavg(exits) : null;
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
+  const openedAt = first.time;
+  const closedAt = closed ? exits[exits.length - 1]!.time : null;
+
+  // Derive a product (the broker Product column isn't parsed on import yet —
+  // that's SEG-03). Mirror the v4 migration backfill: same-day equity = MIS
+  // (intraday), overnight equity = CNC (delivery), derivatives = NRML.
+  // An open equity trade has no close → leave MIS (intraday assumption).
+  const product: TradeRow["product"] =
+    inst.segment === "EQ"
+      ? closedAt && closedAt.slice(0, 10) === openedAt.slice(0, 10)
+        ? "MIS"
+        : closedAt
+          ? "CNC"
+          : "MIS"
+      : "NRML";
+
   let gross = 0;
   let charges = 0;
   if (closed && x) {
     gross = computeGrossPnl({ direction, qty: e.qty, entryPrice: e.price, exitPrice: x.price });
     charges = computeCharges(profile, {
       segment: inst.segment,
+      product,
       qty: e.qty,
       entryPrice: e.price,
       exitPrice: x.price,
@@ -188,8 +205,6 @@ function buildTrade(
       orders: entries.length + exits.length,
     }).total;
   }
-  const openedAt = first.time;
-  const closedAt = closed ? exits[exits.length - 1]!.time : null;
   const ts = new Date().toISOString();
 
   // Legacy id parts stay untouched (re-import dedupe for existing imports);
@@ -210,6 +225,7 @@ function buildTrade(
     symbol: inst.symbol,
     exchange: "NSE",
     segment: inst.segment,
+    product,
     expiry: first.expiry ?? null,
     strike: inst.strike,
     option_type: inst.optionType,

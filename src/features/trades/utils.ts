@@ -49,6 +49,7 @@ export function deriveTradeNumbers(
     });
     charges += computeCharges(profile, {
       segment: values.segment,
+      product: values.product ?? null,
       qty: leg.qty,
       entryPrice: leg.avgEntry,
       exitPrice: leg.avgExit!,

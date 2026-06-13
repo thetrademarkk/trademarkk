@@ -137,8 +137,22 @@ describe("fnoTurnover (absolute-profit convention)", () => {
 describe("speculativeSplit", () => {
   it("splits intraday EQ from F&O and delivery EQ", () => {
     const trades = [
-      mk({ segment: "EQ", opened_at: "2025-06-10T04:00:00Z", closed_at: "2025-06-10T09:00:00Z", net_pnl: 500, gross_pnl: 550, charges: 50 }),
-      mk({ segment: "EQ", opened_at: "2025-06-10T04:00:00Z", closed_at: "2025-06-12T09:00:00Z", net_pnl: -200, gross_pnl: -150, charges: 50 }),
+      mk({
+        segment: "EQ",
+        opened_at: "2025-06-10T04:00:00Z",
+        closed_at: "2025-06-10T09:00:00Z",
+        net_pnl: 500,
+        gross_pnl: 550,
+        charges: 50,
+      }),
+      mk({
+        segment: "EQ",
+        opened_at: "2025-06-10T04:00:00Z",
+        closed_at: "2025-06-12T09:00:00Z",
+        net_pnl: -200,
+        gross_pnl: -150,
+        charges: 50,
+      }),
       mk({ segment: "OPT", net_pnl: 300, gross_pnl: 350, charges: 50 }),
     ];
     const { speculative, nonSpeculative } = speculativeSplit(trades);
@@ -169,16 +183,29 @@ describe("chargesBreakdown", () => {
     expect(b.estimated).toBe(true);
     expect(b.actualTotal).toBe(90); // honest stored aggregate (50 + 40)
     // Scaled components must sum (within paise) to the stored aggregate.
-    const sum = b.brokerage + b.stt + b.exchange + b.sebi + b.gst + b.stampDuty;
+    const sum = b.brokerage + b.stt + b.exchange + b.sebi + b.gst + b.stampDuty + b.dpCharge;
     expect(Math.abs(sum - b.actualTotal)).toBeLessThan(0.05);
     // Every component is non-negative.
-    for (const v of [b.brokerage, b.stt, b.exchange, b.sebi, b.gst, b.stampDuty]) {
+    for (const v of [b.brokerage, b.stt, b.exchange, b.sebi, b.gst, b.stampDuty, b.dpCharge]) {
       expect(v).toBeGreaterThanOrEqual(0);
     }
   });
 
+  it("surfaces a DP-charge component for equity-delivery (CNC) trades", () => {
+    const trades = [
+      mk({ segment: "EQ", product: "CNC", avg_entry: 500, avg_exit: 510, qty: 100, charges: 130 }),
+    ];
+    const b = chargesBreakdown(trades, profileFor);
+    expect(b.dpCharge).toBeGreaterThan(0);
+    const sum = b.brokerage + b.stt + b.exchange + b.sebi + b.gst + b.stampDuty + b.dpCharge;
+    expect(Math.abs(sum - b.actualTotal)).toBeLessThan(0.05);
+  });
+
   it("handles zero charges without dividing by zero", () => {
-    const b = chargesBreakdown([mk({ charges: 0, avg_entry: 0, avg_exit: 0, qty: 0 })], () => "zero");
+    const b = chargesBreakdown(
+      [mk({ charges: 0, avg_entry: 0, avg_exit: 0, qty: 0 })],
+      () => "zero"
+    );
     expect(b.actualTotal).toBe(0);
     expect(b.brokerage).toBe(0);
   });
@@ -187,9 +214,36 @@ describe("chargesBreakdown", () => {
 describe("realisedPnlByInstrument", () => {
   it("groups by symbol+segment with cost basis and proceeds", () => {
     const rows = realisedPnlByInstrument([
-      mk({ symbol: "NIFTY", segment: "OPT", avg_entry: 100, avg_exit: 120, qty: 50, gross_pnl: 1000, charges: 30, net_pnl: 970 }),
-      mk({ symbol: "NIFTY", segment: "OPT", avg_entry: 100, avg_exit: 90, qty: 50, gross_pnl: -500, charges: 30, net_pnl: -530 }),
-      mk({ symbol: "BANKNIFTY", segment: "FUT", avg_entry: 50000, avg_exit: 50200, qty: 15, gross_pnl: 3000, charges: 60, net_pnl: 2940 }),
+      mk({
+        symbol: "NIFTY",
+        segment: "OPT",
+        avg_entry: 100,
+        avg_exit: 120,
+        qty: 50,
+        gross_pnl: 1000,
+        charges: 30,
+        net_pnl: 970,
+      }),
+      mk({
+        symbol: "NIFTY",
+        segment: "OPT",
+        avg_entry: 100,
+        avg_exit: 90,
+        qty: 50,
+        gross_pnl: -500,
+        charges: 30,
+        net_pnl: -530,
+      }),
+      mk({
+        symbol: "BANKNIFTY",
+        segment: "FUT",
+        avg_entry: 50000,
+        avg_exit: 50200,
+        qty: 15,
+        gross_pnl: 3000,
+        charges: 60,
+        net_pnl: 2940,
+      }),
     ]);
     expect(rows).toHaveLength(2);
     const nifty = rows.find((r) => r.symbol === "NIFTY")!;
@@ -206,7 +260,14 @@ describe("fyTaxSummary", () => {
   it("rolls up totals, drag, turnover, split and instruments", () => {
     const trades = [
       mk({ segment: "OPT", gross_pnl: 1000, charges: 100, net_pnl: 900 }),
-      mk({ segment: "EQ", opened_at: "2025-06-10T04:00:00Z", closed_at: "2025-06-10T09:00:00Z", gross_pnl: 500, charges: 50, net_pnl: 450 }),
+      mk({
+        segment: "EQ",
+        opened_at: "2025-06-10T04:00:00Z",
+        closed_at: "2025-06-10T09:00:00Z",
+        gross_pnl: 500,
+        charges: 50,
+        net_pnl: 450,
+      }),
     ];
     const s = fyTaxSummary(trades);
     expect(s.trades).toBe(2);

@@ -4,9 +4,9 @@
 // filter state shareable; the saved-views store persists named filter sets.
 
 import { toDateKey } from "@/lib/utils";
-import type { TradeWithMeta } from "./types";
+import type { Segment, TradeWithMeta } from "./types";
 
-export type Segment = "EQ" | "FUT" | "OPT";
+export type { Segment };
 
 export interface AdvancedTradeFilters {
   /** Case-insensitive substring match on the base symbol. */
@@ -45,11 +45,13 @@ export const SEGMENT_LABELS: Record<Segment, string> = {
   OPT: "Options",
   FUT: "Futures",
   EQ: "Equity",
+  COMM: "Commodity",
+  CDS: "Currency",
 };
 
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-const SEGMENTS: Segment[] = ["EQ", "FUT", "OPT"];
+const SEGMENTS: Segment[] = ["EQ", "FUT", "OPT", "COMM", "CDS"];
 const MAX_IDS = 50;
 const MAX_TEXT = 64;
 

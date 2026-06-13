@@ -9,7 +9,7 @@
  * guidance conventions. They are NOT tax advice — verify with a CA.
  */
 
-import { computeCharges, type Segment } from "@/lib/charges/charges";
+import { computeCharges, type Product, type Segment } from "@/lib/charges/charges";
 import { getChargeProfile } from "@/config/brokers";
 import { sameIstDate } from "./fy";
 
@@ -19,6 +19,7 @@ export interface TaxTrade {
   account_id: string;
   symbol: string;
   segment: Segment;
+  product?: Product | null;
   direction: "long" | "short";
   qty: number;
   avg_entry: number;
@@ -174,6 +175,8 @@ export interface ChargesBreakdown {
   sebi: number;
   gst: number;
   stampDuty: number;
+  /** Depository (DP) charges on equity-delivery sells, scaled to the aggregate. */
+  dpCharge: number;
   /** Sum of the derived components above. */
   derivedTotal: number;
   /** The authoritative aggregate actually stored on the trades. */
@@ -205,6 +208,7 @@ export function chargesBreakdown(
   let sebi = 0;
   let gst = 0;
   let stampDuty = 0;
+  let dpCharge = 0;
   let actualTotal = 0;
 
   for (const t of trades) {
@@ -213,6 +217,7 @@ export function chargesBreakdown(
     const exit = t.avg_exit ?? t.avg_entry;
     const c = computeCharges(profile, {
       segment: t.segment,
+      product: t.product ?? null,
       qty: t.qty,
       entryPrice: t.avg_entry,
       exitPrice: exit,
@@ -224,9 +229,10 @@ export function chargesBreakdown(
     sebi += c.sebi;
     gst += c.gst;
     stampDuty += c.stampDuty;
+    dpCharge += c.dpCharge;
   }
 
-  const derivedTotal = brokerage + stt + exchange + sebi + gst + stampDuty;
+  const derivedTotal = brokerage + stt + exchange + sebi + gst + stampDuty + dpCharge;
 
   // Scale derived components to the honest stored aggregate so the breakdown
   // sums to what was actually paid (manual-charge overrides, broker rounding).
@@ -238,6 +244,7 @@ export function chargesBreakdown(
     sebi: r2(sebi * scale),
     gst: r2(gst * scale),
     stampDuty: r2(stampDuty * scale),
+    dpCharge: r2(dpCharge * scale),
     derivedTotal: r2(derivedTotal),
     actualTotal: r2(actualTotal),
     estimated: true,
@@ -313,9 +320,7 @@ export interface FyTaxSummary {
 }
 
 /** One-shot summary for a single FY's trades. */
-export function fyTaxSummary(
-  trades: TaxTrade[]
-): FyTaxSummary {
+export function fyTaxSummary(trades: TaxTrade[]): FyTaxSummary {
   let gross = 0;
   let charges = 0;
   let net = 0;

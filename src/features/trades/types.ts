@@ -1,9 +1,27 @@
+/**
+ * Market segment. EQ = cash equity, FUT/OPT = NSE F&O, COMM = MCX commodity
+ * (futures/options), CDS = currency derivatives. Widened in journal-DB v4.
+ */
+export type Segment = "EQ" | "FUT" | "OPT" | "COMM" | "CDS";
+
+/**
+ * Position product / holding intent, mirroring the broker's product column:
+ *  - MIS  intraday (square-off same session)
+ *  - CNC  delivery (equity, held overnight → delivery STT both sides + DP charge)
+ *  - NRML carry-forward (derivatives held overnight)
+ *  - BTST buy-today-sell-tomorrow / STBT sell-today-buy-tomorrow (delivery basis, no DP)
+ * Legacy trades stored before v4 have product = null → treated as MIS for charges
+ * (matching the pre-v4 single intraday-equity branch, so no P&L regression).
+ */
+export type Product = "MIS" | "CNC" | "NRML" | "BTST" | "STBT";
+
 export interface TradeRow {
   id: string;
   account_id: string;
   symbol: string;
   exchange: string;
-  segment: "EQ" | "FUT" | "OPT";
+  segment: Segment;
+  product: Product | null;
   expiry: string | null;
   strike: number | null;
   option_type: "CE" | "PE" | null;
@@ -87,7 +105,8 @@ export interface AttachmentRow {
 
 export interface TradeFilters {
   search?: string;
-  segment?: "EQ" | "FUT" | "OPT";
+  segment?: Segment;
+  product?: Product;
   result?: "win" | "loss";
   direction?: "long" | "short";
   playbookId?: string;
@@ -111,5 +130,7 @@ export function describeInstrument(t: {
     return `${t.symbol} ${t.strike} ${t.option_type ?? ""}${exp}`;
   }
   if (t.segment === "FUT") return `${t.symbol} FUT`;
+  if (t.segment === "COMM") return `${t.symbol} (MCX)`;
+  if (t.segment === "CDS") return `${t.symbol} (CDS)`;
   return t.symbol;
 }

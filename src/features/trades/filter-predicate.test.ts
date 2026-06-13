@@ -28,6 +28,7 @@ function mk(over: Partial<TradeWithMeta> = {}): TradeWithMeta {
     symbol: "NIFTY",
     exchange: "NSE",
     segment: "OPT",
+    product: "NRML",
     expiry: null,
     strike: 24500,
     option_type: "CE",
