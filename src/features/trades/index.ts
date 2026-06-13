@@ -9,6 +9,7 @@ export { TradeDetail } from "./components/trade-detail";
 export {
   useTrades,
   useTrade,
+  useAllLegs,
   useAccounts,
   useTags,
   usePlaybooks,
@@ -17,7 +18,15 @@ export {
   useAddAttachment,
 } from "./queries";
 export { describeInstrument } from "./types";
-export type { TradeRow, TradeWithMeta, Tag, TradeFilters, AccountRow, PlaybookRow } from "./types";
+export type {
+  TradeRow,
+  TradeWithMeta,
+  TradeLegRow,
+  Tag,
+  TradeFilters,
+  AccountRow,
+  PlaybookRow,
+} from "./types";
 export {
   countActiveFilters,
   decodeFiltersFromSearch,

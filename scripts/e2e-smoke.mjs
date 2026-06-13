@@ -170,7 +170,7 @@ await step("calendar heatmap renders", async () => {
 });
 
 console.log("— Analytics —");
-await step("analytics: all five tabs render", async () => {
+await step("analytics: all six tabs render", async () => {
   await page.goto(`${BASE}/app/analytics`, { waitUntil: "networkidle" });
   // One closed trade exists (quick-add above) → hour chart has data.
   await page.getByText("By entry hour").waitFor({ timeout: 20000 });
@@ -178,6 +178,11 @@ await step("analytics: all five tabs render", async () => {
     await page.getByRole("tab", { name: tab }).click();
   }
   await page.getByText("R-multiple distribution").waitFor();
+  // Options tab — the single quick-add trade is EQ, so strategy grouping + DTE
+  // buckets must show their honest empty states (no options trades yet).
+  await page.getByRole("tab", { name: "Options" }).click();
+  await page.getByText("By strategy").waitFor({ timeout: 15000 });
+  await page.getByText("Days to expiry").waitFor();
   // More-statistics pack — one closed trade is below every MIN_SAMPLE gate, so
   // the per-bucket charts must show honest empty states, not fabricated bars.
   await page.getByRole("tab", { name: "More" }).click();

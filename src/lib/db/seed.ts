@@ -317,8 +317,154 @@ export async function seedSampleData(db: DbClient): Promise<void> {
     }
   }
 
+  // ── Multi-leg option strategies ────────────────────────────────────────
+  // A spread of straddles / strangles / verticals so the payoff diagram,
+  // strategy grouping and DTE buckets all have realistic data to render.
+  // Each is closed and carries explicit trade_legs rows; DTE varies so the
+  // expiry buckets populate beyond 0DTE.
+  seedMultiLegTrades(stmts, accountId, profile, rand);
+
   // Insert in chunks to stay within request limits.
   for (let i = 0; i < stmts.length; i += 100) {
     await db.batch(stmts.slice(i, i + 100));
+  }
+}
+
+interface SeedLeg {
+  strike: number;
+  optionType: "CE" | "PE";
+  direction: "long" | "short";
+  qty: number;
+  entry: number;
+  exit: number;
+}
+
+interface MultiLegTemplate {
+  symbol: keyof typeof LOT_SIZES;
+  /** Days from entry to expiry — drives the DTE bucket. */
+  dte: number;
+  /** How many days ago the trade was opened. */
+  daysAgo: number;
+  legs: Omit<SeedLeg, "qty">[];
+  /** Lots per leg (qty = lots × lot size). */
+  lots: number;
+}
+
+/**
+ * Deterministic multi-leg option strategies. Quantities use the real lot size
+ * so notional/payoff are realistic. Several DTE buckets are covered.
+ */
+function seedMultiLegTrades(
+  stmts: DbStatement[],
+  accountId: string,
+  profile: ReturnType<typeof getChargeProfile>,
+  rand: () => number
+): void {
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  // Repeat the catalogue so each structure clears the n>=5 DTE/strategy gate.
+  // Strikes are deliberately outside the random single-leg generator's range
+  // (NIFTY 24000–25500, BANKNIFTY 51000–56000) so each multi-leg trade is
+  // uniquely identifiable in the trades table for e2e + the demo.
+  const catalogue: MultiLegTemplate[] = [
+    // Long straddle (same strike CE+PE), short-dated.
+    { symbol: "NIFTY", dte: 0, daysAgo: 30, lots: 1, legs: [
+      { strike: 26000, optionType: "CE", direction: "long", entry: 90, exit: 140 },
+      { strike: 26000, optionType: "PE", direction: "long", entry: 85, exit: 40 },
+    ] },
+    // Short strangle (sell OTM CE + OTM PE), weekly.
+    { symbol: "BANKNIFTY", dte: 4, daysAgo: 28, lots: 1, legs: [
+      { strike: 58000, optionType: "CE", direction: "short", entry: 120, exit: 60 },
+      { strike: 50000, optionType: "PE", direction: "short", entry: 110, exit: 55 },
+    ] },
+    // Bull call spread (buy lower, sell higher), monthly.
+    { symbol: "NIFTY", dte: 25, daysAgo: 40, lots: 2, legs: [
+      { strike: 26500, optionType: "CE", direction: "long", entry: 220, exit: 320 },
+      { strike: 27000, optionType: "CE", direction: "short", entry: 90, exit: 130 },
+    ] },
+    // Bear put spread, mid-dated.
+    { symbol: "NIFTY", dte: 6, daysAgo: 22, lots: 1, legs: [
+      { strike: 23500, optionType: "PE", direction: "long", entry: 180, exit: 250 },
+      { strike: 23000, optionType: "PE", direction: "short", entry: 70, exit: 95 },
+    ] },
+    // Long strangle, far-dated.
+    { symbol: "BANKNIFTY", dte: 45, daysAgo: 50, lots: 1, legs: [
+      { strike: 58500, optionType: "CE", direction: "long", entry: 300, exit: 210 },
+      { strike: 49000, optionType: "PE", direction: "long", entry: 280, exit: 360 },
+    ] },
+  ];
+
+  // Three passes with small entry/exit jitter → n>=5 per bucket, varied P&L.
+  for (let pass = 0; pass < 3; pass++) {
+    for (const tpl of catalogue) {
+      const lotSize = LOT_SIZES[tpl.symbol] ?? 50;
+      const qty = lotSize * tpl.lots;
+      const opened = new Date();
+      opened.setDate(opened.getDate() - (tpl.daysAgo - pass * 2));
+      opened.setHours(10, 15 + pass * 5, 0, 0);
+      const closed = new Date(opened.getTime() + (40 + pass * 10) * 60000);
+      const expiry = new Date(opened);
+      expiry.setDate(expiry.getDate() + tpl.dte);
+
+      const legs: SeedLeg[] = tpl.legs.map((l) => ({
+        ...l,
+        qty,
+        entry: round2(l.entry * (0.97 + rand() * 0.06)),
+        exit: round2(l.exit * (0.97 + rand() * 0.06)),
+      }));
+
+      let gross = 0;
+      let charges = 0;
+      for (const leg of legs) {
+        gross += computeGrossPnl({
+          direction: leg.direction,
+          qty: leg.qty,
+          entryPrice: leg.entry,
+          exitPrice: leg.exit,
+        });
+        charges += computeCharges(profile, {
+          segment: "OPT",
+          qty: leg.qty,
+          entryPrice: leg.entry,
+          exitPrice: leg.exit,
+          direction: leg.direction,
+        }).total;
+      }
+      gross = round2(gross);
+      charges = round2(charges);
+      const net = round2(gross - charges);
+
+      const tradeId = newId();
+      const ts = now();
+      const leg1 = legs[0]!;
+      // Leg 1 lives in the top-level fields; legs 2..N go in trade_legs.
+      stmts.push({
+        sql: `INSERT INTO trades (id, account_id, symbol, exchange, segment, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
+              VALUES (?, ?, ?, 'NSE', 'OPT', ?, ?, ?, ?, 'closed', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?)`,
+        args: [
+          tradeId, accountId, tpl.symbol,
+          toDateKey(expiry), leg1.strike, leg1.optionType, leg1.direction,
+          leg1.qty, leg1.entry, leg1.exit,
+          opened.toISOString(), closed.toISOString(),
+          gross, charges, net,
+          3 + Math.floor(rand() * 3),
+          ts, ts,
+        ],
+      });
+      legs.forEach((leg, i) => {
+        stmts.push({
+          sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [newId(), tradeId, leg.direction === "long" ? "buy" : "sell", leg.qty, leg.entry, opened.toISOString()],
+        });
+        stmts.push({
+          sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [newId(), tradeId, leg.direction === "long" ? "sell" : "buy", leg.qty, leg.exit, closed.toISOString()],
+        });
+        stmts.push({
+          sql: `INSERT INTO trade_legs (id, trade_id, leg_no, strike, option_type, direction, qty, avg_entry, avg_exit)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          args: [newId(), tradeId, i + 1, leg.strike, leg.optionType, leg.direction, leg.qty, leg.entry, leg.exit],
+        });
+      });
+    }
   }
 }

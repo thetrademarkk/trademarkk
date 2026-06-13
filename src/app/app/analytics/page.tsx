@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
-import { useTrades, usePlaybooks } from "@/features/trades";
+import { useTrades, useAllLegs, usePlaybooks } from "@/features/trades";
+import type { LegShape } from "@/lib/options/payoff";
 
 // recharts stays out of the route bundle — the charts hydrate after first paint.
 const GroupBar = dynamic(
@@ -19,6 +21,10 @@ const MoreStats = dynamic(
 );
 const DayTimeHeatmap = dynamic(
   () => import("@/features/analytics/components/day-time-heatmap").then((m) => m.DayTimeHeatmap),
+  { ssr: false, loading: () => <Skeleton className="h-64" /> }
+);
+const OptionsStats = dynamic(
+  () => import("@/features/analytics/components/options-stats").then((m) => m.OptionsStats),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
 import { PageHeader } from "@/components/shared/page-header";
@@ -43,6 +49,25 @@ export default function AnalyticsPage() {
   const { from, to } = periodToRange(period);
   const { data: trades, isLoading } = useTrades({ from, to });
   const { data: playbooks = [] } = usePlaybooks();
+  const { data: legRows } = useAllLegs();
+
+  // trade id → leg shapes (for multi-leg strategy classification).
+  const legsByTrade = useMemo(() => {
+    const map = new Map<string, LegShape[]>();
+    if (!legRows) return map;
+    for (const [tradeId, legs] of legRows) {
+      const shapes = legs
+        .filter((l) => l.strike != null && l.option_type != null)
+        .map((l) => ({
+          strike: l.strike!,
+          optionType: l.option_type!,
+          direction: l.direction,
+          qty: l.qty,
+        }));
+      if (shapes.length > 0) map.set(tradeId, shapes);
+    }
+    return map;
+  }, [legRows]);
 
   if (isLoading || !trades) return <Skeleton className="h-96" />;
   const closed = closedOnly(trades);
@@ -63,6 +88,7 @@ export default function AnalyticsPage() {
           <TabsTrigger value="setup">Setup</TabsTrigger>
           <TabsTrigger value="instrument">Instrument</TabsTrigger>
           <TabsTrigger value="distribution">Distribution</TabsTrigger>
+          <TabsTrigger value="options">Options</TabsTrigger>
           <TabsTrigger value="more">More</TabsTrigger>
         </TabsList>
 
@@ -110,6 +136,10 @@ export default function AnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="options" className="space-y-4">
+          <OptionsStats trades={closed} legsByTrade={legsByTrade} />
         </TabsContent>
 
         <TabsContent value="more" className="space-y-4">

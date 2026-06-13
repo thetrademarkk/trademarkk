@@ -121,6 +121,28 @@ export function useTrade(id: string) {
   });
 }
 
+/**
+ * All multi-leg `trade_legs` rows in one query, grouped by trade id. The
+ * analytics options tab needs every trade's leg shape to classify strategies;
+ * single-leg trades have no rows here (their shape lives on the trade row).
+ */
+export function useAllLegs() {
+  const { db } = useDb();
+  return useQuery({
+    queryKey: ["all-legs"],
+    queryFn: async (): Promise<Map<string, TradeLegRow[]>> => {
+      const res = await db.execute(`SELECT * FROM trade_legs ORDER BY trade_id, leg_no`);
+      const map = new Map<string, TradeLegRow[]>();
+      for (const leg of cast<TradeLegRow>(res.rows)) {
+        const arr = map.get(leg.trade_id);
+        if (arr) arr.push(leg);
+        else map.set(leg.trade_id, [leg]);
+      }
+      return map;
+    },
+  });
+}
+
 export function useAccounts() {
   const { db } = useDb();
   return useQuery({

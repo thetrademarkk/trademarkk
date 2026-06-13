@@ -24,6 +24,8 @@ import { isoToLocalInput } from "../utils";
 import { TradeForm } from "./trade-form";
 import type { TradeFormValues } from "../schemas";
 import { Composer, type TradeCard } from "@/features/community";
+import { PayoffDiagram } from "@/features/analytics/components/payoff-diagram";
+import type { PayoffLeg } from "@/lib/options/payoff";
 
 export function TradeDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -99,6 +101,33 @@ export function TradeDetail({ id }: { id: string }) {
   };
 
   const journalDate = trade.opened_at.slice(0, 10);
+
+  // Payoff diagram inputs: multi-leg trades carry explicit leg rows; a
+  // single-leg OPT trade lives in the top-level fields (no leg row stored).
+  const payoffLegs: PayoffLeg[] =
+    trade.segment === "OPT"
+      ? trade.legs.length > 0
+        ? trade.legs
+            .filter((l) => l.strike != null && l.option_type != null)
+            .map((l) => ({
+              strike: l.strike!,
+              optionType: l.option_type!,
+              direction: l.direction,
+              qty: l.qty,
+              premium: l.avg_entry,
+            }))
+        : trade.strike != null && trade.option_type != null
+          ? [
+              {
+                strike: trade.strike,
+                optionType: trade.option_type,
+                direction: trade.direction,
+                qty: trade.qty,
+                premium: trade.avg_entry,
+              },
+            ]
+          : []
+      : [];
 
   return (
     <div className="space-y-4">
@@ -207,6 +236,33 @@ export function TradeDetail({ id }: { id: string }) {
           </CardContent>
         </Card>
       </div>
+
+      {payoffLegs.length > 0 && <PayoffDiagram symbol={trade.symbol} legs={payoffLegs} />}
+
+      {trade.legs.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Strategy legs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5 text-sm">
+            {trade.legs.map((l) => (
+              <div key={l.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Badge variant={l.direction === "long" ? "profit" : "loss"}>{l.direction}</Badge>
+                  <span className="font-money">
+                    {l.strike ?? "—"} {l.option_type ?? ""}
+                  </span>
+                  <span className="text-muted">× {l.qty}</span>
+                </span>
+                <span className="text-muted">
+                  entry {l.avg_entry.toFixed(2)}
+                  {l.avg_exit != null ? ` · exit ${l.avg_exit.toFixed(2)}` : ""}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {trade.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
