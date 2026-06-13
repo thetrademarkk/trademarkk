@@ -21,6 +21,43 @@ chrome.runtime.onStartup.addListener(wireActionSurface);
 wireActionSurface();
 
 /**
+ * Keyboard shortcut (manifest `commands` → Ctrl+Shift+J / MacCtrl+Shift+J):
+ * open the TradeMarkk surface without reaching for the mouse. The command name
+ * mirrors OPEN_PANEL_COMMAND in extension/src/lib/commands.ts (this file stays
+ * dependency-free, so the literal is duplicated like the capture/badge ones).
+ *
+ * Consistent with wireActionSurface()'s runtime fallback:
+ *  - sidePanel API present (Chrome 114+): open the panel on the active tab —
+ *    its window so the same side panel the toolbar click uses appears.
+ *  - older Chromium forks: the action is wired as a popup, so best-effort
+ *    chrome.action.openPopup() (Chrome 127+); on builds without it the user
+ *    still has the toolbar click. Either way we never throw.
+ */
+const OPEN_PANEL_COMMAND = "open-trademarkk-panel";
+
+chrome.commands?.onCommand.addListener((command) => {
+  if (command !== OPEN_PANEL_COMMAND) return;
+  if (chrome.sidePanel?.open) {
+    void (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        if (tab?.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
+        else if (tab?.id !== undefined) await chrome.sidePanel.open({ tabId: tab.id });
+      } catch {
+        /* no eligible window / gesture — the toolbar click still opens it */
+      }
+    })();
+    return;
+  }
+  // Popup-fallback build (no sidePanel): try to pop the action's popup open.
+  try {
+    void chrome.action.openPopup?.().catch(() => undefined);
+  } catch {
+    /* openPopup unavailable on this Chromium — toolbar click remains */
+  }
+});
+
+/**
  * Broker capture: a content script (extension/src/content/) read the visible
  * order-entry fields and wants them in the quick log. Stage the capture in
  * storage.session — the panel consumes it whether it is already open (storage

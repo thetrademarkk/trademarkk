@@ -249,6 +249,10 @@ async function main() {
     `ALTER TABLE posts ADD COLUMN share_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE profiles ADD COLUMN pinned_post_id TEXT`,
     `ALTER TABLE profiles ADD COLUMN accent_color TEXT`,
+    // ── Richer reactions: per-user reaction kind + denormalized per-post breakdown ──
+    // Existing rows keep NULL = legacy plain "like"; likeCount stays the TOTAL.
+    `ALTER TABLE likes ADD COLUMN reaction TEXT`,
+    `ALTER TABLE posts ADD COLUMN reactions TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

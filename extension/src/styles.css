@@ -62,7 +62,10 @@ body {
 
 body.popup {
   width: 360px;
+  max-width: 100%;
+  height: 580px;
   max-height: 580px;
+  overflow: hidden;
 }
 
 button {
@@ -110,6 +113,8 @@ textarea::placeholder {
 }
 body.popup .panel {
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -122,6 +127,7 @@ body.popup .panel {
   position: sticky;
   top: 0;
   z-index: 5;
+  overflow: hidden;
 }
 .brand {
   display: flex;
@@ -130,6 +136,7 @@ body.popup .panel {
   font-weight: 650;
   font-size: 14px;
   letter-spacing: -0.01em;
+  flex-shrink: 0;
 }
 .brand svg {
   border-radius: 5px;
@@ -140,6 +147,7 @@ body.popup .panel {
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  min-width: 0;
 }
 .glance-chip {
   display: inline-flex;
@@ -151,6 +159,17 @@ body.popup .panel {
   border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--border);
+  white-space: nowrap;
+}
+/* The P&L figure can run long (lakhs, a minus sign); let it ellipsise so the
+   streak chip and the settings button always stay on the header row. */
+.glance-chip:not(.streak) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.glance-chip.streak {
+  flex-shrink: 0;
 }
 .glance-chip.profit {
   color: var(--profit);
@@ -171,6 +190,7 @@ body.popup .panel {
   justify-content: center;
   width: 28px;
   height: 28px;
+  flex-shrink: 0;
   border-radius: 8px;
   color: var(--text-muted);
 }
@@ -181,11 +201,14 @@ body.popup .panel {
 
 .panel-main {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ── Cards ────────────────────────────────────────────────────── */
