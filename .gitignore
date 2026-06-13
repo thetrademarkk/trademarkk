@@ -1,6 +1,9 @@
 # dependencies
 /node_modules
 
+# market data archive (multi-GB parquet; never commit/push — local data only)
+/market-data/
+
 # next.js
 /.next/
 /.next-e2e/
