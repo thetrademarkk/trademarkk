@@ -21,6 +21,7 @@ import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
 import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
 import { isUserBanned } from "@/server/moderation";
+import { getEventThreadForPost } from "@/server/events";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -111,7 +112,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const [post] = await hydratePosts([row], session?.user.id ?? null);
-  const [{ related, relatedByTag }, followRow] = await Promise.all([
+  const [{ related, relatedByTag }, followRow, eventThread] = await Promise.all([
     queryRelated(id, post?.tags ?? [], session?.user.id ?? null),
     session && session.user.id !== row.userId
       ? platformDb
@@ -120,6 +121,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           .where(and(eq(follows.followerId, session.user.id), eq(follows.followingId, row.userId)))
           .get()
       : Promise.resolve(undefined),
+    // Is this an auto-created event/market-session thread? (drives the header)
+    getEventThreadForPost(id),
   ]);
   let commentRows = await platformDb
     .select()
@@ -183,6 +186,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     related,
     relatedByTag,
     authorFollowedByMe: Boolean(followRow),
+    eventThread: eventThread ?? null,
   });
 }
 

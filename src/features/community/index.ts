@@ -29,3 +29,4 @@ export type {
 } from "./types";
 export { CommunitySearch } from "./components/community-search";
 export { TrendingBoard } from "./components/trending-board";
+export { EventsCard } from "./components/events-card";

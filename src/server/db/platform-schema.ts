@@ -372,6 +372,27 @@ export const linkUnfurls = sqliteTable("link_unfurls", {
   fetchedAt: text("fetched_at").notNull(),
 });
 
+/**
+ * Recurring market-session / event threads (rank-18). One row per
+ * (event_type, event_date) — a UNIQUE natural key that makes lazy, visit-
+ * triggered materialization race-safe (INSERT OR IGNORE): two concurrent first
+ * visits on a day produce exactly ONE thread. `post_id` references the
+ * auto-created post (authored by the house/system account, pinned + tagged).
+ * No cron — threads are materialized on first visit of an active day. Additive,
+ * idempotent.
+ */
+export const eventThreads = sqliteTable(
+  "event_threads",
+  {
+    id: text("id").primaryKey(),
+    eventType: text("event_type").notNull(), // see features/community/events.ts EventType
+    eventDate: text("event_date").notNull(), // IST YYYY-MM-DD
+    postId: text("post_id").notNull(), // the auto-created thread post
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [unique().on(t.eventType, t.eventDate)]
+);
+
 /** User-submitted product feedback (bug reports, ideas). */
 export const feedback = sqliteTable("feedback", {
   id: text("id").primaryKey(),

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Composer,
+  EventsCard,
   Feed,
   ForYouFeed,
   InlineComposer,
@@ -200,6 +201,9 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
         <InlineComposer />
+        {/* Today's session threads — surfaced inline on mobile (the right rail
+            that hosts it on desktop is hidden below lg). */}
+        <EventsCard className="mb-4 lg:hidden" />
         <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
           <Link
             href="/community/leaderboard"
@@ -267,6 +271,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       {/* ── Right rail ── */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 space-y-4">
+          <EventsCard />
           <WhoToFollow enabled={signedIn} />
           <TrendingBoard variant="compact" />
           <div className="rounded-xl border bg-surface p-4">

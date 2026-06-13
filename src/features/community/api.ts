@@ -312,6 +312,37 @@ export function useTrending(window: "24h" | "7d") {
   });
 }
 
+/* ── Event / market-session threads (rank-18) ─────────────────── */
+
+export interface EventThreadView {
+  type: "market-open" | "expiry-day";
+  date: string;
+  title: string;
+  badge: string;
+  postId: string;
+  commentCount: number;
+}
+export interface ActiveEventsResponse {
+  date: string;
+  marketClosed: boolean;
+  threads: EventThreadView[];
+}
+
+/**
+ * Today's active event / market-session threads (auto-materialized server-side
+ * on first visit of a trading/expiry day). Viewer-independent + CDN-cached;
+ * drives the right-rail "Today" card and its graceful "Markets closed" state.
+ */
+export function useActiveEvents() {
+  return useQuery({
+    queryKey: ["community-events"],
+    queryFn: () => request<ActiveEventsResponse>("/api/community/events"),
+    // Day-level focal point — refresh occasionally so the comment counts and a
+    // day rollover (or a freshly-materialized thread) surface without a reload.
+    staleTime: 5 * 60_000,
+  });
+}
+
 /* ── Per-symbol community sentiment gauge ─────────────────────── */
 
 export interface SentimentGaugeView {

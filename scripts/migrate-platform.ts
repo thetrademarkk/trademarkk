@@ -285,6 +285,19 @@ const STATEMENTS = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mod_actions_time ON mod_actions (created_at DESC)`,
+  // ── Event / market-session threads (rank-18): one row per (event_type,
+  // event_date), UNIQUE so lazy visit-triggered materialization is race-safe
+  // (INSERT OR IGNORE → exactly one thread per active day). post_id references
+  // the auto-created house-account thread. No cron. ──
+  `CREATE TABLE IF NOT EXISTS event_threads (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (event_type, event_date)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_event_threads_date ON event_threads (event_date DESC)`,
 ];
 
 async function main() {

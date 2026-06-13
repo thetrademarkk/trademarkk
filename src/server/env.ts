@@ -17,6 +17,13 @@ export const serverEnv = {
   upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
   adminEmails: process.env.ADMIN_EMAILS ?? "",
   /**
+   * When set (to any truthy value), the events surface accepts a `?date=`
+   * YYYY-MM-DD override so e2e can deterministically simulate a trading /
+   * expiry / holiday day without touching the real clock. NEVER set in
+   * production — the override is ignored unless this flag is present.
+   */
+  allowEventsDateOverride: process.env.EVENTS_TEST_DATE_OVERRIDE === "1",
+  /**
    * Origin of the official companion extension — pinned to one extension ID
    * via the manifest "key" (never a wildcard). The ID is public information;
    * every request from it still needs a session and obeys rate limits.

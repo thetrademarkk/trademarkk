@@ -117,6 +117,11 @@ export interface PostDetailResponse {
   relatedByTag: boolean;
   /** Whether the signed-in viewer follows the author (false when signed out / own post). */
   authorFollowedByMe: boolean;
+  /**
+   * Set when this post is an auto-created event/market-session thread (rank-18) —
+   * drives the pinned "automated session thread" header. Absent for ordinary posts.
+   */
+  eventThread?: { type: "market-open" | "expiry-day"; date: string } | null;
 }
 
 export interface CommentView {
