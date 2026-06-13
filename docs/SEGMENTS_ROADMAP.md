@@ -45,13 +45,49 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
 - [x] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m) — Shipped (accumulated, pending batch deploy)
 - [x] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data — Shipped (accumulated, pending batch deploy)
-- [ ] **SEG-09** Filters, table & grouping for segment/product/holding-period
+- [x] **SEG-09** Filters, table & grouping for segment/product/holding-period — Shipped (accumulated, pending batch deploy)
 - [ ] **SEG-10** Lot-size modelling for derivatives (optional)
 - [ ] **SEG-11** Extension capture carries product + exchange (+ MCX/CDS adapters)
 - [ ] **SEG-12** Community surfaces respect new segments/products
 - [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-09** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Filters, trades table & grouping by segment / product / holding-period** —
+  the journal is now first-class for ALL trader types, not just F&O. Extended the
+  existing TradeZella-grade composable filter bar (journal iter 4) with three new
+  multi-select criteria — **Product** (MIS/CNC/NRML/BTST/STBT), **Holding period**
+  (intraday / swing / positional, derived via `classifyHorizon`), and **Exchange**
+  (NSE/BSE/MCX/NCDEX) — each as an editable chip, URL-shareable (compact keys
+  `prod`/`exch`/`hold`), sanitised on decode + saved-view apply, with active-filter
+  chips, a clearable count and the existing zero-match empty state. Legacy
+  null-product trades match **MIS** (charge parity); open trades never match a
+  holding-period filter. New pure `src/features/trades/grouping.ts`: `groupTrades`
+  partitions the fetched list by `segment` / `product` / `horizon` in canonical
+  order (open trades route to an explicit "Open" bucket so nothing disappears),
+  `subtotalFor` computes **paise-correct** per-group subtotals (trade count, net
+  P&L summed over the stored integer-paise `net_pnl` of CLOSED trades only, win
+  rate) — the group nets sum exactly to the ungrouped whole; a dependency-free
+  `normalizeExchange` mirrors `resolveExchange` for filter/display. UI: a Group-by
+  menu in the filter bar (default = ungrouped, no behaviour change), collapsible
+  group headers carrying the subtotals on both the desktop table and the mobile
+  card list, plus a shared `TradeMetaBadges` (segment/product/non-default-exchange/
+  holding-period chips, reusing the semantic Badge tokens) added as a new "Type"
+  column on the table and a meta row on the cards. Existing date/symbol/search
+  filters, multi-select, bulk-select and column sorting (now sorting WITHIN each
+  group) all keep working. lucide icons only, no emoji, 360px clean. +46 vitest
+  (16 new `grouping.test.ts`: legacy-null=MIS, exchange normalisation, closed-only
+  paise-exact subtotals, group ordering + Open bucket, sum-to-whole invariant,
+  label-map sync; +30 in `filter-predicate.test.ts` for the three new predicates +
+  sanitiser + URL roundtrip) → full suite **1323** green; tsc + ext-typecheck +
+  next lint (0 warnings) + build clean; feature e2e `scripts/e2e-seg-filters.mjs`
+  12/12 (mixed EQ/OPT/COMM book → segment-badge per row, filter→Options shows only
+  3 option rows + chip + `seg=OPT` URL, clear resets, Product→CNC shows 2 delivery
+  rows, group-by-holding-period renders intraday+swing headers with 100%-win
+  intraday subtotal + collapse/expand + `group=horizon` URL, Currency filter →
+  zero-match empty state, 360px clean, zero console errors), e2e-smoke 34/34,
+  mobile-audit clean.
 
 - **SEG-08** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
   **Onboarding asks the trader type, sets defaults, seeds matching sample data.**
