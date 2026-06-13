@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Negative fixture: the Upstox order window after a hypothetical redesign that
+    removed every hook the adapter relies on — no buy/sell class fragment, no
+    "Buy"/"Sell" tab or "Confirm to buy/sell" copy (the button just says
+    "Place order"), and the Qty/Price inputs no longer carry any qty/price
+    label, name, id, placeholder or aria-label the adapter can anchor on.
+
+    With no trustworthy SIDE and no qty-labelled input, the capture content
+    script must inject NOTHING here and log NOTHING — "degrade silently, never
+    guess" is part of the adapter contract (ADR v2).
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Upstox fixture — changed DOM</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #0e0f12;
+        color: #e7e7ea;
+      }
+      ._ow2_88aa1 {
+        position: fixed;
+        left: 120px;
+        top: 90px;
+        width: 360px;
+        background: #16181d;
+        border: 1px solid #2c2f36;
+        border-radius: 8px;
+        padding: 16px;
+      }
+      ._ow2_88aa1 input {
+        font: inherit;
+        padding: 6px 8px;
+        background: #0e0f12;
+        border: 1px solid #2c2f36;
+        border-radius: 4px;
+        color: #e7e7ea;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <button type="button" data-fixture="open-changed">Open redesigned order window</button>
+    </div>
+    <script>
+      document.querySelector("[data-fixture='open-changed']").addEventListener("click", () => {
+        const win = document.createElement("div");
+        // Shares the "order-window" fragment so findOrderPanel still considers
+        // it — but with no qty-labelled input and no side marker, the reader
+        // must bail (readOrder → null), so no button is injected.
+        win.className = "_orderWindow_v2_88aa1 _ow2_88aa1";
+        win.innerHTML = `
+          <div class="_head_88aa1"><b>RELIANCE</b> <small>NSE</small> <span>2,979.95</span></div>
+          <div class="_fields_88aa1">
+            <input type="number" value="1" />
+            <input type="number" value="2979.95" />
+          </div>
+          <div class="_foot_88aa1"><button type="button">Place order</button></div>`;
+        document.getElementById("root").appendChild(win);
+      });
+    </script>
+  </body>
+</html>

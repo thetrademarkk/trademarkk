@@ -233,6 +233,8 @@ const fixtureFor = (url) => {
   if (url?.startsWith("/changed")) return "kite-order-window-changed.html";
   if (url?.startsWith("/tradebook-changed")) return "kite-tradebook-changed.html";
   if (url?.startsWith("/tradebook")) return "kite-tradebook.html";
+  if (url?.startsWith("/upstox-changed")) return "upstox-order-window-changed.html";
+  if (url?.startsWith("/upstox")) return "upstox-order-window.html";
   return "kite-order-window.html";
 };
 const fixtureServer = createServer((req, res) => {
@@ -342,6 +344,123 @@ await step("capture: changed broker DOM degrades silently", async () => {
   await kitePage.close();
 });
 
+// ── v2: Upstox order-window capture (registry-driven, second adapter) ─────
+// Same opt-in path as Kite: the REAL built content-upstox.js bundle is
+// registered through chrome.scripting on the localhost fixture origin (real
+// Upstox Pro sits behind a login). Upstox Pro is a React app with hashed
+// CSS-Modules class names, so the adapter anchors on visible "Qty"/"Price"
+// labels, the buy/sell class fragment + "Confirm to buy/sell" copy + active
+// side tab, and [class*='_symbol_']/[class*='ltp'] substring matchers — the
+// fixture mirrors that hashed-class structure.
+let upstoxPage;
+await step("upstox: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-upstox-e2e",
+        js: ["content-upstox.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-upstox-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("upstox: affordance appears on the order window", async () => {
+  upstoxPage = await ctx.newPage();
+  await upstoxPage.goto(`http://localhost:${FIXTURE_PORT}/upstox`, { waitUntil: "load" });
+  await upstoxPage.locator("[data-fixture-row='RELIANCE'] [data-fixture='buy']").click();
+  await upstoxPage.locator("._orderWindow_3c8f2._buy_3c8f2").waitFor({ timeout: 5000 });
+  const btn = upstoxPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMark")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("upstox: click prefills the quick log (buy, limit price)", async () => {
+  await upstoxPage.locator("._orderWindow_3c8f2 ._field_3c8f2:has-text('Qty') input").fill("50");
+  await upstoxPage
+    .locator("._orderWindow_3c8f2 ._field_3c8f2:has-text('Price') input")
+    .first()
+    .fill("2980.4");
+  await upstoxPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Upstox")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "RELIANCE") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "2980.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+});
+
+await step("upstox: captured trade saves into the journal", async () => {
+  await panel.getByLabel("Exit", { exact: true }).fill("2991.2");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("RELIANCE logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "RELIANCE" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("upstox: sell market order → Sell side + last-price fallback", async () => {
+  await upstoxPage.bringToFront();
+  await upstoxPage
+    .locator("[data-fixture-row='NSE_FO|NIFTY2661924500CE'] [data-fixture='sell']")
+    .click();
+  await upstoxPage.locator("._orderWindow_3c8f2._sell_3c8f2").waitFor({ timeout: 5000 });
+  await upstoxPage.locator("._orderWindow_3c8f2 ._field_3c8f2:has-text('Qty') input").fill("75");
+  const btn = upstoxPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "NIFTY2661924500CE")
+    throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "145.3")
+    throw new Error(`expected LTP fallback 145.3, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24500") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("upstox: changed order DOM degrades silently", async () => {
+  await upstoxPage.goto(`http://localhost:${FIXTURE_PORT}/upstox-changed`, { waitUntil: "load" });
+  await upstoxPage.locator("[data-fixture='open-changed']").click();
+  await upstoxPage.locator("._ow2_88aa1").waitFor({ timeout: 5000 });
+  await upstoxPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await upstoxPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await upstoxPage.close();
+  // Unregister so the Upstox script can't fire on the shared fixture origin
+  // during the positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-upstox-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
 // ── Positions/tradebook auto-import (Kite tradebook fixture) ──────────────
 // The import content bundle is the REAL built content-kite-positions.js,
 // registered through the same chrome.scripting API the Settings toggle uses
@@ -386,7 +505,8 @@ await step("import: preview shows new trades and hides dedupe", async () => {
   const summary = await panel.locator(".import-summary").first().textContent();
   if (!/2\s*new/.test(summary)) throw new Error(`expected 2 new trades, got: ${summary}`);
   const rows = panel.locator(".import-row");
-  if ((await rows.count()) !== 2) throw new Error(`expected 2 preview rows, got ${await rows.count()}`);
+  if ((await rows.count()) !== 2)
+    throw new Error(`expected 2 preview rows, got ${await rows.count()}`);
   // The skipped rejected SBIN row never reaches the preview.
   if ((await panel.locator(".import-row", { hasText: "SBIN" }).count()) !== 0)
     throw new Error("rejected SBIN order leaked into the preview");
