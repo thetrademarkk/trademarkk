@@ -83,7 +83,9 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to send messages" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`dm-convo:${session.user.id}`, 30, 3600);
+  // Starting NEW conversations is the spammy surface (cold-DMing strangers), so
+  // hold it to 5/hour; sending within an existing thread has its own limit.
+  const { allowed } = await rateLimit(`dm-convo:${session.user.id}`, 5, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const parsed = startConversationSchema.safeParse(await req.json().catch(() => null));

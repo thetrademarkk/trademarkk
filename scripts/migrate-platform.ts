@@ -216,6 +216,15 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_posts_user ON posts (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id)`,
   `CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images (post_id)`,
+  // ── $cashtag → post join (per-symbol stream pages /community/s/[symbol]) ──
+  `CREATE TABLE IF NOT EXISTS post_symbols (
+    post_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (post_id, symbol)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_post_symbols_symbol ON post_symbols (symbol, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_post_symbols_post ON post_symbols (post_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,
@@ -234,6 +243,17 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows (follower_id)`,
   `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback (created_at)`,
+  // ── Link OG unfurl cache: one sanitized preview per unfurled URL (TTL refresh) ──
+  // url_hash PK = stable hash of the URL; all-empty meta rows are negative caches.
+  `CREATE TABLE IF NOT EXISTS link_unfurls (
+    url_hash TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    image TEXT,
+    site_name TEXT,
+    fetched_at TEXT NOT NULL
+  )`,
 ];
 
 async function main() {

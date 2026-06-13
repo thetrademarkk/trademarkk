@@ -16,6 +16,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const { allowed } = await rateLimit(`comment:${session.user.id}`, 20, 3600);
   if (!allowed) return NextResponse.json({ error: "Commenting too fast" }, { status: 429 });
+  // Burst guard — no more than 3 comments in any 60s window (blunts flooding a
+  // thread even while under the hourly cap).
+  const { allowed: burstOk } = await rateLimit(`comment-burst:${session.user.id}`, 3, 60);
+  if (!burstOk) return NextResponse.json({ error: "Commenting too fast" }, { status: 429 });
 
   const parsed = createCommentSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

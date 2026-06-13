@@ -27,6 +27,15 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Link-unfurl preview images are remote https URLs (extracted from a page's
+  // og:image). They render through next/image, so the BROWSER only ever loads
+  // `/_next/image?url=…` (same-origin — satisfies the strict img-src CSP). The
+  // image URLs we ever pass are https-only by construction (see unfurl.ts).
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    // Cap the optimizer's work; previews are small cards, never hero images.
+    deviceSizes: [640, 750, 828, 1080],
+  },
   // Test/CI builds set NEXT_DIST_DIR (e.g. ".next-e2e") so they never clobber
   // the dev server's .next cache — building while `next dev` runs corrupts it.
   distDir: process.env.NEXT_DIST_DIR || ".next",

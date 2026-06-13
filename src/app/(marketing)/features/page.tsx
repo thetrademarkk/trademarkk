@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description:
     "Trade logging with Indian charges, rules & mistakes engine, daily journal, P&L calendar, analytics, broker CSV imports, and your-own-database privacy.",
   alternates: { canonical: "/features" },
+  openGraph: { url: "/features" },
 };
 
 const SECTIONS = [

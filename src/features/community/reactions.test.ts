@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateReactions,
+  applyDiversityCap,
   applyReaction,
   isReactionKind,
   nextReaction,
@@ -10,6 +11,8 @@ import {
   REACTIONS,
   resolveReactionCounts,
   serializeReactionCounts,
+  topFeedScore,
+  TOP_FEED_AUTHOR_CAP,
   topReactionKinds,
   totalReactions,
   type ReactionCounts,
@@ -167,6 +170,93 @@ describe("serialize / parse round-trip", () => {
     expect(parseReactionCounts(null)).toEqual({});
     expect(parseReactionCounts("{not json")).toEqual({});
     expect(parseReactionCounts('{"like":"x","insightful":-2,"respect":3}')).toEqual({ respect: 3 });
+  });
+});
+
+describe("topFeedScore (decayed, cost-weighted hot-score)", () => {
+  it("counts comments as a stronger signal than reactions", () => {
+    // 1 comment (weight 2) beats 1 like (weight 1) at the same age.
+    const oneComment = topFeedScore({}, 1, 0);
+    const oneLike = topFeedScore({ like: 1 }, 0, 0);
+    expect(oneComment).toBeGreaterThan(oneLike);
+  });
+  it("weights Insightful/Respect above Like at equal volume + age", () => {
+    expect(topFeedScore({ insightful: 1 }, 0, 0)).toBeGreaterThan(topFeedScore({ like: 1 }, 0, 0));
+    expect(topFeedScore({ respect: 1 }, 0, 0)).toBeGreaterThan(topFeedScore({ like: 1 }, 0, 0));
+  });
+  it("decays with age — a fresh post outranks an older one with equal engagement", () => {
+    const fresh = topFeedScore({ like: 5 }, 2, 1);
+    const old = topFeedScore({ like: 5 }, 2, 48);
+    expect(fresh).toBeGreaterThan(old);
+  });
+  it("never divides by zero and clamps negative age", () => {
+    expect(Number.isFinite(topFeedScore({}, 0, 0))).toBe(true);
+    expect(topFeedScore({ like: 1 }, 0, -5)).toBe(topFeedScore({ like: 1 }, 0, 0));
+  });
+  it("an empty, brand-new post still scores positive (the +1 floor)", () => {
+    expect(topFeedScore({}, 0, 0)).toBeGreaterThan(0);
+  });
+});
+
+describe("applyDiversityCap (per-author Top-feed cap)", () => {
+  type Item = { id: string; author: string };
+  const author = (i: Item) => i.author;
+
+  it("limits each author to the cap, appending overflow after the capped set", () => {
+    // a,a,a,b,c sorted best-first; cap 2 → keep a,a,b,c then overflow a.
+    const items: Item[] = [
+      { id: "a1", author: "a" },
+      { id: "a2", author: "a" },
+      { id: "a3", author: "a" },
+      { id: "b1", author: "b" },
+      { id: "c1", author: "c" },
+    ];
+    const out = applyDiversityCap(items, author, 2).map((i) => i.id);
+    expect(out).toEqual(["a1", "a2", "b1", "c1", "a3"]);
+  });
+
+  it("keeps relative order within the capped set and within the overflow", () => {
+    const items: Item[] = [
+      { id: "1", author: "x" },
+      { id: "2", author: "x" },
+      { id: "3", author: "x" },
+      { id: "4", author: "x" },
+    ];
+    const out = applyDiversityCap(items, author, 1).map((i) => i.id);
+    expect(out).toEqual(["1", "2", "3", "4"]); // one kept, rest overflow in order
+  });
+
+  it("is a no-op when every author is already within the cap", () => {
+    const items: Item[] = [
+      { id: "1", author: "a" },
+      { id: "2", author: "b" },
+      { id: "3", author: "c" },
+    ];
+    expect(applyDiversityCap(items, author, 2)).toEqual(items);
+  });
+
+  it("never drops items — output length equals input length", () => {
+    const items: Item[] = Array.from({ length: 10 }, (_, i) => ({ id: `${i}`, author: "solo" }));
+    expect(applyDiversityCap(items, author, 2)).toHaveLength(10);
+  });
+
+  it("cap < 1 disables capping (returns a copy in original order)", () => {
+    const items: Item[] = [
+      { id: "1", author: "a" },
+      { id: "2", author: "a" },
+    ];
+    expect(applyDiversityCap(items, author, 0)).toEqual(items);
+  });
+
+  it("default cap is 2", () => {
+    expect(TOP_FEED_AUTHOR_CAP).toBe(2);
+    const items: Item[] = [
+      { id: "1", author: "a" },
+      { id: "2", author: "a" },
+      { id: "3", author: "a" },
+      { id: "4", author: "b" },
+    ];
+    expect(applyDiversityCap(items, author).map((i) => i.id)).toEqual(["1", "2", "4", "3"]);
   });
 });
 

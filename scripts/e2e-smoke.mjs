@@ -57,6 +57,14 @@ for (const path of [
   });
 }
 
+console.log("— Community —");
+await step("per-symbol stream renders with the not-advice banner", async () => {
+  // Signed-out /community never reaches networkidle (polling) → domcontentloaded.
+  await page.goto(`${BASE}/community/s/NIFTY`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "$NIFTY" }).first().waitFor({ timeout: 30000 });
+  await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });

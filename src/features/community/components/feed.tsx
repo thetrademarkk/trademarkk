@@ -14,6 +14,7 @@ export function Feed({
   search = null,
   scope = "all",
   initialFeed = null,
+  symbol = null,
 }: {
   sort: FeedSort;
   tag: string | null;
@@ -21,13 +22,16 @@ export function Feed({
   scope?: FeedScope;
   /** Server-rendered (anonymous) first page — paints with the document. */
   initialFeed?: FeedResponse | null;
+  /** Per-symbol stream scope — only posts tagged with this $cashtag. */
+  symbol?: string | null;
 }) {
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed(
     sort,
     tag,
     search,
     scope,
-    initialFeed
+    initialFeed,
+    symbol
   );
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
@@ -73,17 +77,22 @@ export function Feed({
               title: "No saved posts yet",
               desc: "Tap the bookmark icon on any post to save it here.",
             }
-          : search
-            ? { title: `No results for “${search}”`, desc: "Try a different search." }
-            : tag
-              ? {
-                  title: `Nothing under #${tag} yet`,
-                  desc: "Be the first — share a trade idea, a lesson, or a question.",
-                }
-              : {
-                  title: "No posts yet",
-                  desc: "Be the first — share a trade idea, a lesson, or a question.",
-                };
+          : symbol
+            ? {
+                title: `No posts about $${symbol} yet`,
+                desc: "Be the first — share an idea, a chart, or a question. Educational only.",
+              }
+            : search
+              ? { title: `No results for “${search}”`, desc: "Try a different search." }
+              : tag
+                ? {
+                    title: `Nothing under #${tag} yet`,
+                    desc: "Be the first — share a trade idea, a lesson, or a question.",
+                  }
+                : {
+                    title: "No posts yet",
+                    desc: "Be the first — share a trade idea, a lesson, or a question.",
+                  };
     return <EmptyState icon={MessagesSquare} title={empty.title} description={empty.desc} />;
   }
 

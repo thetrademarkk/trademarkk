@@ -126,6 +126,22 @@ export const postImages = sqliteTable("post_images", {
   data: text("data").notNull(), // compressed webp data-url ≤ ~280KB
 });
 
+/**
+ * $cashtag -> post join. One row per (post, symbol) so a post surfaces on each
+ * tagged symbol's stream page (/community/s/[symbol]). Symbols are stored
+ * UPPERCASE (curated or free-entered). Indexed both ways: by symbol for the
+ * per-symbol stream query, by post for cheap re-sync on edit.
+ */
+export const postSymbols = sqliteTable(
+  "post_symbols",
+  {
+    postId: text("post_id").notNull(),
+    symbol: text("symbol").notNull(), // uppercase NSE/BSE ticker token
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.symbol] })]
+);
+
 export const comments = sqliteTable("comments", {
   id: text("id").primaryKey(),
   postId: text("post_id").notNull(),
@@ -241,6 +257,24 @@ export const dmMessages = sqliteTable("dm_messages", {
   body: text("body").notNull(), // plain text, ≤ 2000 chars
   createdAt: text("created_at").notNull(),
   read: integer("read").notNull().default(0), // recipient has seen it
+});
+
+/**
+ * Cache of OG/twitter link previews ("unfurls"). One row per unfurled URL,
+ * keyed by a stable hash of the URL so a hot link is fetched once and reused.
+ * All text fields are sanitized (plain text, never HTML). A row with all-empty
+ * meta is a NEGATIVE cache entry (the link had nothing to show / was unsafe) —
+ * still keyed by the URL so we don't re-fetch a dud on every view. `fetchedAt`
+ * drives TTL refresh (see features/community/unfurl.ts). Additive + idempotent.
+ */
+export const linkUnfurls = sqliteTable("link_unfurls", {
+  urlHash: text("url_hash").primaryKey(),
+  url: text("url").notNull(),
+  title: text("title"),
+  description: text("description"),
+  image: text("image"),
+  siteName: text("site_name"),
+  fetchedAt: text("fetched_at").notNull(),
 });
 
 /** User-submitted product feedback (bug reports, ideas). */

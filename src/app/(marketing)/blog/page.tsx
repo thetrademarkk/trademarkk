@@ -6,8 +6,11 @@ import { listBlogPosts } from "@/server/blog-posts";
 
 export const metadata: Metadata = {
   title: "Blog — trading discipline, journaling & FnO insights",
-  description: "Guides on trading journaling, discipline and risk for Indian intraday & FnO traders.",
+  description:
+    "Guides on trading journaling, discipline and risk for Indian intraday & FnO traders.",
   alternates: { canonical: "/blog" },
+  // Without this, the page inherits the homepage og:url from the root layout.
+  openGraph: { url: "/blog" },
 };
 
 // Revalidate hourly; approving a community post revalidates on demand.
@@ -40,13 +43,19 @@ export default async function BlogIndex() {
           >
             <div className="flex items-center gap-2 text-xs text-muted">
               <time dateTime={post.date}>
-                {new Date(post.date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                {new Date(post.date).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
               </time>
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" aria-hidden /> {post.minutes} min
               </span>
               {post.source === "community" && (
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">Community</span>
+                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                  Community
+                </span>
               )}
             </div>
             <h2 className="mt-3 text-lg font-semibold leading-snug transition-colors group-hover:text-accent">
@@ -55,7 +64,10 @@ export default async function BlogIndex() {
             <p className="mt-2 flex-1 text-sm leading-6 text-muted">{post.description}</p>
             <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
               Read article
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+              <ArrowRight
+                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                aria-hidden
+              />
             </span>
           </Link>
         ))}

@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
+import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
 import type { PostEditSnapshot } from "./edit-window";
 
@@ -54,17 +55,18 @@ export function useFeed(
   tag: string | null,
   search: string | null = null,
   scope: FeedScope = "all",
-  initialFeed: FeedResponse | null = null
+  initialFeed: FeedResponse | null = null,
+  symbol: string | null = null
 ) {
   return useInfiniteQuery({
-    queryKey: ["community-feed", sort, tag, search, scope],
+    queryKey: ["community-feed", sort, tag, search, scope, symbol],
     queryFn: ({ pageParam }) =>
       request<FeedResponse>(
         `/api/community/posts?sort=${sort}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}${
           search ? `&q=${encodeURIComponent(search)}` : ""
-        }${scope !== "all" ? `&scope=${scope}` : ""}${
-          pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""
-        }`
+        }${symbol ? `&symbol=${encodeURIComponent(symbol)}` : ""}${
+          scope !== "all" ? `&scope=${scope}` : ""
+        }${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`
       ),
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -139,6 +141,25 @@ export function useTagAutocomplete(q: string, enabled: boolean) {
     enabled,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/**
+ * Lazy link-preview for a post. The server resolves the FIRST link in the
+ * post body and returns its cached/fetched OG unfurl (or null). Fired only when
+ * `enabled` (the post body actually contains a link) so a linkless feed never
+ * touches the network. Cached for an hour client-side — the card is stable.
+ */
+export function useUnfurl(postId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-unfurl", postId],
+    queryFn: () =>
+      request<{ unfurl: LinkUnfurl | null }>(
+        `/api/community/unfurl?postId=${encodeURIComponent(postId)}`
+      ),
+    enabled,
+    staleTime: 60 * 60_000,
     retry: false,
   });
 }

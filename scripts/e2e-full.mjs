@@ -10,6 +10,10 @@
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3100";
+// Admin credentials are env-overridable; the defaults are throwaway localhost
+// values (the test server's ADMIN_EMAILS must include ADMIN_EMAIL).
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "e2e-admin@example.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "e2e-Admin-12345";
 const ts = Date.now();
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1380, height: 900 } });
@@ -224,8 +228,8 @@ await step("admin auth → all 4 sections render", async () => {
   await page.getByLabel("Your post").fill(`Admin sweep ${ts}`);
   await page.getByRole("button", { name: "Post", exact: true }).click();
   await page.getByText("Join the conversation").waitFor({ timeout: 10000 });
-  await page.getByPlaceholder("you@example.com").fill("e2e-admin@example.com");
-  await page.getByPlaceholder("8+ characters").fill("e2e-Admin-12345");
+  await page.getByPlaceholder("you@example.com").fill(ADMIN_EMAIL);
+  await page.getByPlaceholder("8+ characters").fill(ADMIN_PASSWORD);
 
   const nameField = page.getByPlaceholder("Your name");
   if (await nameField.isVisible().catch(() => false)) await nameField.fill("Sweep Admin");
@@ -239,11 +243,11 @@ await step("admin auth → all 4 sections render", async () => {
   if (!ok) {
     // Account exists → switch to sign-in.
     await page.getByRole("button", { name: /Already have an account/ }).click();
-    await page.getByPlaceholder("you@example.com").fill("e2e-admin@example.com");
+    await page.getByPlaceholder("you@example.com").fill(ADMIN_EMAIL);
     await page
       .getByPlaceholder(/characters|password/i)
       .first()
-      .fill("e2e-Admin-12345");
+      .fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForTimeout(3000);
   }

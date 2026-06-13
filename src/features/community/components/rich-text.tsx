@@ -3,8 +3,8 @@ import React from "react";
 
 /**
  * Plain-text-safe rich rendering: linkifies @handles (→ profiles), #hashtags
- * (→ tag feed), $cashtags (→ ticker search) and URLs. No HTML is ever parsed —
- * XSS-free by construction.
+ * (→ tag feed), $cashtags (→ the per-symbol stream page) and URLs. No HTML is
+ * ever parsed — XSS-free by construction.
  */
 const TOKEN = /(@[a-z0-9_]{3,20}|#[a-z0-9-]{2,20}|\$[A-Za-z0-9&-]{1,20}|https?:\/\/[^\s<>"')\]]+)/g;
 
@@ -36,13 +36,14 @@ export function RichText({ text }: { text: string }) {
           );
         }
         if (/^\$[A-Za-z0-9&-]{1,20}$/.test(part)) {
+          const symbol = part.slice(1).toUpperCase();
           return (
             <Link
               key={i}
-              href={`/community?q=${encodeURIComponent(part.slice(1).toUpperCase())}`}
-              className="text-accent hover:underline"
+              href={`/community/s/${encodeURIComponent(symbol)}`}
+              className="rounded bg-accent/10 px-1 py-px font-medium text-accent hover:bg-accent/20"
             >
-              {`$${part.slice(1).toUpperCase()}`}
+              {`$${symbol}`}
             </Link>
           );
         }

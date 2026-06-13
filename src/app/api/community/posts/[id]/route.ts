@@ -9,7 +9,13 @@ import {
   posts,
   profiles,
 } from "@/server/db/platform-schema";
-import { deletePostCascade, getSession, hydratePosts, notifyNewMentions } from "@/server/community";
+import {
+  deletePostCascade,
+  getSession,
+  hydratePosts,
+  notifyNewMentions,
+  syncPostSymbols,
+} from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -241,6 +247,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   // Re-extract @mentions: notify only handles newly introduced by the edit
   // (re-notifying everyone on every edit would spam already-mentioned users).
   await notifyNewMentions(row.body, nextBody, session.user.id, id);
+  // Re-sync $cashtag join rows: a cashtag removed in the edit drops the post
+  // from that symbol's stream; a newly-added one surfaces it on the new stream.
+  await syncPostSymbols(id, nextBody);
   invalidateCached("feed:"); // anonymous cached feed must reflect the edit
 
   return NextResponse.json({ edited: true, editedAt });
