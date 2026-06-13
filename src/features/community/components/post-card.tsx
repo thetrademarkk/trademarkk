@@ -54,6 +54,7 @@ import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
+import { ReputationChip } from "./reputation-chip";
 import { SentimentChip } from "./sentiment-toggle";
 import { EditPostForm } from "./edit-post-form";
 import { EditedMarker } from "./edit-history-dialog";
@@ -216,12 +217,15 @@ export function PostCard({
           />
         </Link>
         <div className="min-w-0 leading-tight">
-          <Link
-            href={`/community/u/${post.author.username}`}
-            className="text-sm font-semibold hover:underline"
-          >
-            {post.author.displayName}
-          </Link>
+          <span className="flex items-center gap-1.5">
+            <Link
+              href={`/community/u/${post.author.username}`}
+              className="truncate text-sm font-semibold hover:underline"
+            >
+              {post.author.displayName}
+            </Link>
+            <ReputationChip tier={post.author.reputationTier} />
+          </span>
           <p className="text-xs text-muted">
             <Link href={`/community/u/${post.author.username}`} className="hover:text-accent">
               @{post.author.username}

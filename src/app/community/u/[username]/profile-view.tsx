@@ -51,6 +51,8 @@ import {
   swatchGradient,
 } from "@/features/community/accents";
 import { formatCount, postContextLabel } from "@/features/community/format";
+import { ReputationBreakdown } from "@/features/community/components/reputation-breakdown";
+import { ReputationChip } from "@/features/community/components/reputation-chip";
 
 export function ProfileView({ username }: { username: string }) {
   const router = useRouter();
@@ -192,7 +194,10 @@ export function ProfileView({ username }: { username: string }) {
             />
           </div>
           <div className="min-w-0 flex-1 pt-3">
-            <h1 className="text-lg font-bold leading-tight">{profile.displayName}</h1>
+            <h1 className="flex flex-wrap items-center gap-2 text-lg font-bold leading-tight">
+              {profile.displayName}
+              {profile.reputation && <ReputationChip tier={profile.reputation.tier} showNew />}
+            </h1>
             <p className="text-sm text-muted">@{profile.username}</p>
             {profile.bio && (
               <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{profile.bio}</p>
@@ -296,6 +301,9 @@ export function ProfileView({ username }: { username: string }) {
           feeds.
         </p>
       )}
+
+      {/* Community-standing panel — participation/credibility, NOT trading skill. */}
+      {profile.reputation && <ReputationBreakdown reputation={profile.reputation} />}
 
       <Tabs value={tab} onValueChange={setTab} className="mt-5">
         <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">

@@ -357,6 +357,14 @@ async function main() {
     `ALTER TABLE user ADD COLUMN verification_email_count_today INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE user ADD COLUMN last_otp_email_at INTEGER`,
     `ALTER TABLE user ADD COLUMN otp_email_count_today INTEGER NOT NULL DEFAULT 0`,
+    // ── Community reputation cache (see features/community/reputation.ts) ──
+    // Denormalized participation/credibility STANDING (NOT trading skill/P&L):
+    // a bounded 0–100 score + discrete tier, computed from earned anti-gaming
+    // signals and refreshed LAZILY on a stale read (no cron). Pure caches —
+    // recomputable from scratch. Existing rows default to NULL (compute on read).
+    `ALTER TABLE profiles ADD COLUMN reputation_score INTEGER`,
+    `ALTER TABLE profiles ADD COLUMN reputation_tier TEXT`,
+    `ALTER TABLE profiles ADD COLUMN reputation_computed_at TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

@@ -48,7 +48,9 @@ const DDL = [
     user_id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL,
     bio TEXT, website TEXT, avatar TEXT, share_streak INTEGER NOT NULL DEFAULT 0,
     streak_current INTEGER NOT NULL DEFAULT 0, streak_best INTEGER NOT NULL DEFAULT 0,
-    streak_updated_at TEXT, pinned_post_id TEXT, accent_color TEXT, created_at TEXT NOT NULL
+    streak_updated_at TEXT, pinned_post_id TEXT, accent_color TEXT,
+    reputation_score INTEGER, reputation_tier TEXT, reputation_computed_at TEXT,
+    created_at TEXT NOT NULL
   )`,
   `CREATE TABLE notifications (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, actor_id TEXT NOT NULL, type TEXT NOT NULL,

@@ -1,6 +1,6 @@
 import "server-only";
 import { headers } from "next/headers";
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { newId } from "@/lib/id";
 import { auth } from "./auth";
 import { platformDb } from "./db/platform";
@@ -13,12 +13,14 @@ import {
   followedTags,
   follows,
   likes,
+  modActions,
   notifications,
   postImages,
   postSymbols,
   posts,
   profiles,
   reports,
+  user,
   watchedSymbols,
 } from "./db/platform-schema";
 import type { AuthorView, PostView, QuotedPostView, TradeCard } from "@/features/community/types";
@@ -60,6 +62,14 @@ import {
   type SentimentGauge,
   type SentimentWindow,
 } from "@/features/community/sentiment";
+import {
+  computeReputation,
+  normalizeTier,
+  tierMeta,
+  type ReactorTally,
+  type ReputationResult,
+  type ReputationSignals,
+} from "@/features/community/reputation";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -406,9 +416,25 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
   const authorMap = new Map<string, AuthorView>(
     authors.map((a) => [
       a.userId,
-      { username: a.username, displayName: a.displayName, avatar: a.avatar },
+      {
+        username: a.username,
+        displayName: a.displayName,
+        avatar: a.avatar,
+        // Denormalized reputation STANDING (participation/credibility — never P&L)
+        // rides along with the profile row we already fetched, so the author chip
+        // adds NO extra query on the hot feed path.
+        reputationTier: normalizeTier(a.reputationTier),
+      },
     ])
   );
+  // Lazily warm any author whose denormalized standing is stale/never-computed —
+  // fire-and-forget so the feed is never blocked on recomputation.
+  const staleAuthors = authors
+    .filter((a) => reputationCacheStale(a.reputationComputedAt))
+    .map((a) => a.userId);
+  if (staleAuthors.length) {
+    void Promise.allSettled(staleAuthors.slice(0, 12).map((id) => getReputation(id)));
+  }
   // The author's pin rides along with the profile rows we already fetched.
   const pinnedByAuthor = new Map(authors.map((a) => [a.userId, a.pinnedPostId]));
   // Map the viewer's reaction per post (NULL → legacy "like").
@@ -1420,4 +1446,173 @@ export async function querySymbolSentiment(
   } catch {
     return computeSentimentGauge([]);
   }
+}
+
+/* ── Community reputation / standing (rank-16) ──────────────────────────────────
+ *
+ * A transparent participation/credibility STANDING — NOT trading skill or P&L.
+ * Computed from earned, anti-gaming signals already in the schema (see
+ * features/community/reputation.ts for the model + the anti-gaming guards), then
+ * denormalized onto the profile row (reputation_score/tier/computed_at) and
+ * refreshed LAZILY on a stale read so hot paths never re-aggregate. The cache is
+ * a pure optimization — the score is always recomputable from scratch.
+ */
+
+/** How long a denormalized reputation cache is considered fresh (ms). */
+const REPUTATION_TTL_MS = 6 * 60 * 60 * 1000; // 6h — standing changes slowly
+
+/** The public shape returned to the profile breakdown + the author-chip lookup. */
+export interface ReputationView extends ReputationResult {
+  tierLabel: string;
+  tierBlurb: string;
+}
+
+/**
+ * Gathers a member's EARNED reputation signals from existing tables, excluding
+ * self-reactions / self-bookmarks / self-comment-likes, and counting only LIVE,
+ * UNFLAGGED posts toward the positive components. One batched round-trip of cheap
+ * indexed aggregates — no per-post scans.
+ */
+export async function collectReputationSignals(userId: string): Promise<ReputationSignals> {
+  const [
+    acct,
+    livePostRow,
+    commentRow,
+    reactorRows,
+    bookmarkRow,
+    helpfulRow,
+    followerRow,
+    activeWeekRow,
+    qualityFlagRow,
+    modActionRow,
+  ] = await Promise.all([
+    // Tenure + ban status come from the account row.
+    platformDb
+      .select({ createdAt: user.createdAt, status: user.status })
+      .from(user)
+      .where(eq(user.id, userId))
+      .get(),
+    // LIVE, UNFLAGGED posts only — flagged content earns nothing (anti-gaming).
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(posts)
+      .where(and(eq(posts.userId, userId), sql`${posts.qualityFlag} IS NULL`))
+      .get(),
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(comments)
+      .where(eq(comments.userId, userId))
+      .get(),
+    // Per-reactor tallies on this member's UNFLAGGED posts, SELF excluded — the
+    // per-reactor cap is applied by the pure model so one fan can't inflate.
+    platformDb.all<{ reactorId: string; count: number }>(
+      sql`SELECT l.user_id AS reactorId, COUNT(*) AS count
+          FROM likes l
+          JOIN posts p ON p.id = l.post_id
+          WHERE p.user_id = ${userId}
+            AND l.user_id <> ${userId}
+            AND p.quality_flag IS NULL
+          GROUP BY l.user_id`
+    ),
+    // Bookmarks of this member's posts BY OTHERS (self excluded).
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(bookmarks)
+      .innerJoin(posts, eq(posts.id, bookmarks.postId))
+      .where(and(eq(posts.userId, userId), sql`${bookmarks.userId} <> ${userId}`))
+      .get(),
+    // Likes on this member's COMMENTS from others (self excluded) — "helpful".
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(commentLikes)
+      .innerJoin(comments, eq(comments.id, commentLikes.commentId))
+      .where(and(eq(comments.userId, userId), sql`${commentLikes.userId} <> ${userId}`))
+      .get(),
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(follows)
+      .where(eq(follows.followingId, userId))
+      .get(),
+    // Distinct ISO-ish weeks the member posted OR commented (consistency).
+    platformDb.get<{ n: number }>(
+      sql`SELECT COUNT(DISTINCT wk) AS n FROM (
+              SELECT strftime('%Y-%W', created_at) AS wk FROM posts WHERE user_id = ${userId}
+              UNION
+              SELECT strftime('%Y-%W', created_at) AS wk FROM comments WHERE user_id = ${userId}
+            )`
+    ),
+    // Penalty inputs: posts currently carrying a moderation quality flag …
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(posts)
+      .where(and(eq(posts.userId, userId), isNotNull(posts.qualityFlag)))
+      .get(),
+    // … and moderator actions on this member's content (rank-14 audit log).
+    platformDb
+      .select({ n: sql<number>`count(*)` })
+      .from(modActions)
+      .where(and(eq(modActions.targetType, "user"), eq(modActions.targetId, userId)))
+      .get(),
+  ]);
+
+  const tenureDays = acct
+    ? Math.max(0, Math.floor((Date.now() - acct.createdAt.getTime()) / 86_400_000))
+    : 0;
+  const reactors: ReactorTally[] = (reactorRows as { reactorId: string; count: number }[]).map(
+    (r) => ({ reactorId: String(r.reactorId), count: Number(r.count) })
+  );
+
+  return {
+    tenureDays,
+    posts: Number(livePostRow?.n ?? 0),
+    comments: Number(commentRow?.n ?? 0),
+    reactionsFromOthers: reactors,
+    bookmarksFromOthers: Number(bookmarkRow?.n ?? 0),
+    helpfulCommentSignals: Number(helpfulRow?.n ?? 0),
+    followers: Number(followerRow?.n ?? 0),
+    activeWeeks: Number(activeWeekRow?.n ?? 0),
+    qualityFlags: Number(qualityFlagRow?.n ?? 0),
+    modActions: Number(modActionRow?.n ?? 0),
+    banned: acct?.status === "banned",
+  };
+}
+
+/** True when a denormalized reputation cache row is missing or older than the TTL. */
+function reputationCacheStale(computedAt: string | null | undefined): boolean {
+  if (!computedAt) return true;
+  const t = Date.parse(computedAt);
+  return Number.isNaN(t) || Date.now() - t > REPUTATION_TTL_MS;
+}
+
+/**
+ * Computes (or returns the cached) reputation for a member and its transparent
+ * breakdown. Recomputes + persists the denormalized cache when stale; on any DB
+ * hiccup it degrades to a freshly-computed value (never throws onto the page).
+ * Pass `userId` so the model strips any stray self-reaction in depth.
+ */
+export async function getReputation(userId: string): Promise<ReputationView> {
+  const signals = await collectReputationSignals(userId);
+  const result = computeReputation(signals, userId);
+  // Best-effort denormalized refresh — never block/throw the read on a write.
+  try {
+    const row = await platformDb
+      .select({ computedAt: profiles.reputationComputedAt })
+      .from(profiles)
+      .where(eq(profiles.userId, userId))
+      .get();
+    if (row && reputationCacheStale(row.computedAt)) {
+      await platformDb
+        .update(profiles)
+        .set({
+          reputationScore: result.score,
+          reputationTier: result.tier,
+          reputationComputedAt: new Date().toISOString(),
+        })
+        .where(eq(profiles.userId, userId));
+    }
+  } catch {
+    /* caching is a pure optimization — ignore write failures */
+  }
+  const meta = tierMeta(result.tier);
+  return { ...result, tierLabel: meta.label, tierBlurb: meta.blurb };
 }

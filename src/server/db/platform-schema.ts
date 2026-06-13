@@ -89,6 +89,17 @@ export const profiles = sqliteTable("profiles", {
   pinnedPostId: text("pinned_post_id"),
   /** Preset cover-accent id (see features/community/accents.ts) — never free hex. */
   accentColor: text("accent_color"),
+  /**
+   * Denormalized community-reputation cache (see features/community/reputation.ts).
+   * NOT trading skill / P&L — a participation/credibility standing computed from
+   * earned, anti-gaming signals (tenure, posts, reactions from OTHERS, followers
+   * with diminishing returns, MINUS moderation penalties). Refreshed LAZILY on a
+   * stale read (no cron); recomputable from scratch any time, so these are pure
+   * caches. NULL = never computed yet (the reader computes on first access).
+   */
+  reputationScore: integer("reputation_score"),
+  reputationTier: text("reputation_tier"),
+  reputationComputedAt: text("reputation_computed_at"),
   createdAt: text("created_at").notNull(),
 });
 

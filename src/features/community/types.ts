@@ -1,6 +1,7 @@
 import type { ReactionCounts, ReactionKind } from "./reactions";
 import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
 import type { Sentiment } from "./sentiment";
+import type { ReputationTier } from "./reputation";
 
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
@@ -25,6 +26,12 @@ export interface AuthorView {
   username: string;
   displayName: string;
   avatar?: string | null;
+  /**
+   * The author's community-reputation tier (rank-16) — a participation /
+   * credibility STANDING, NEVER trading skill or P&L. Drives a small chip next
+   * to the author name. Omitted when unknown/not yet computed (renders nothing).
+   */
+  reputationTier?: ReputationTier;
 }
 
 /**
@@ -145,6 +152,29 @@ export interface ProfileView {
   blockedByMe: boolean;
   /** Present only when the user opted in to publishing their streak. */
   streak: { current: number; best: number } | null;
+  /**
+   * Community-reputation STANDING (rank-16) — participation/credibility, NEVER
+   * trading skill or P&L. Carries the tier + a transparent "why this tier"
+   * breakdown. Null when it couldn't be computed (the UI then renders nothing).
+   */
+  reputation: ProfileReputation | null;
+}
+
+/** The reputation block surfaced on a profile (tier + transparent breakdown). */
+export interface ProfileReputation {
+  score: number;
+  tier: ReputationTier;
+  tierLabel: string;
+  tierBlurb: string;
+  components: ReputationComponentView[];
+}
+
+/** One transparent line of the profile's reputation breakdown. */
+export interface ReputationComponentView {
+  key: string;
+  label: string;
+  points: number;
+  detail: number;
 }
 
 /** One row in a profile's Comments tab — the comment plus its post context. */
@@ -161,6 +191,8 @@ export interface LeaderboardRow {
   username: string;
   displayName: string;
   avatar: string | null;
+  /** Community-standing tier (rank-16) — participation/credibility, not P&L. */
+  reputationTier?: ReputationTier;
   /** Contributors board */
   score?: number;
   posts?: number;
