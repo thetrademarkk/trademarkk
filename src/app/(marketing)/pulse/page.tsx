@@ -71,7 +71,7 @@ export default async function PulsePage() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-profit/60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-profit" />
           </span>
-          Live · refreshed every 10 minutes
+          Live
         </p>
         <h1 className="mt-4 text-3xl font-bold tracking-tight md:text-5xl">
           Platform <span className="text-gradient">Pulse</span>
@@ -184,7 +184,7 @@ export default async function PulsePage() {
                     timeZone: "Asia/Kolkata",
                   })}
                 </time>{" "}
-                IST · refreshed every 10 minutes.
+                IST.
               </li>
             </ul>
           </section>

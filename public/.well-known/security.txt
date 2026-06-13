@@ -1,0 +1,7 @@
+# Security contact for thetrademarkk.com
+# https://securitytxt.org/
+
+Contact: https://thetrademarkk.com/faq
+Contact: https://github.com/thetrademarkk/trademarkk/issues
+Expires: 2027-06-14T00:00:00.000Z
+Preferred-Languages: en

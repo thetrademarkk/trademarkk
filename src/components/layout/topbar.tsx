@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { StreakIndicator } from "@/features/streak";
-import { NAV_ITEMS } from "@/config/nav";
 import { useFilterStore, PERIOD_LABELS, type PeriodPreset } from "@/stores/filter-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useDbSession } from "@/providers/db-session-provider";
@@ -50,7 +49,6 @@ const MODE_META = {
 } as const;
 
 export function Topbar() {
-  const pathname = usePathname();
   const router = useRouter();
   const { period, setPeriod } = useFilterStore();
   const { setCommandOpen } = useUiStore();
@@ -58,7 +56,6 @@ export function Topbar() {
   const { setTheme, theme } = useTheme();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
-  const title = NAV_ITEMS.find((i) => pathname.startsWith(i.href))?.label ?? "TradeMarkk";
   const mode = state.status === "ready" ? state.mode : null;
   const ModeIcon = mode ? MODE_META[mode].icon : Database;
 
@@ -92,7 +89,6 @@ export function Topbar() {
       >
         Trade<span className="text-accent">Mark</span>
       </Link>
-      <h1 className="hidden md:block text-sm font-semibold">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
         <StreakIndicator />
