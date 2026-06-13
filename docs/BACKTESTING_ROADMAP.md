@@ -48,8 +48,21 @@ merged to main.
       hard-invariant edge tests, metrics vs hand-computed, charges cent-for-cent,
       determinism hash, MC routing, + 2 GOLDEN strategies (9:20 ATM short straddle
       & OTM strangle) on a committed REAL NIFTY 2024-07-25 archive slice.
-- [ ] **BT-05 worker-hook** — `backtest.worker` + `useBacktest` (clone the
-      Monte-Carlo worker idiom), BacktestStatus state machine, throttled progress.
+- [x] **BT-05 worker-hook** ✅ (accumulated, pending batch deploy) —
+      `backtest.worker` runs the BT-04 engine off-main-thread (clones the
+      Monte-Carlo worker idiom: `new Worker(new URL(...), {type:"module"})`,
+      request-id supersession, serializable `FixtureSnapshot` data payload behind
+      a discriminated `data` union so the BT-08/HF source is a drop-in);
+      `useBacktest` hook (cancel = terminate + respawn) owned by a
+      `BacktestRunnerProvider` mounted at the backtesting LAYOUT so an in-flight
+      run survives navigation; pure `BacktestStatus` machine
+      (idle → validating → booting → resolving-data → simulating → aggregating →
+      done, + partial/error/empty, guarded transitions); progress throttled
+      ≤1/100ms. A minimal "Run sample backtest" CTA on `/backtesting/build` proves
+      the worker end-to-end. +20 vitest (state-machine valid/guarded-invalid,
+      message-contract round-trip, progress-throttle) + new `e2e-bt-run`
+      (determinism: golden straddle Net P&L +₹1,899.29, zero console errors,
+      360px clean).
 - [ ] **BT-06 builder** — no-code 5-node wizard + always-mounted live-payoff rail
       (reuses `payoff.ts`) + interactive strike ladder + mobile sheet.
 - [ ] **BT-07 results** — verdict → evidence → drill-down, tap-to-derive charges,
@@ -79,4 +92,11 @@ merged to main.
   conserving). `src/lib/backtest/engine/*` + `metrics.ts` + `mc-cone.ts` + a
   committed real-archive golden fixture (`__fixtures__/golden-nifty-2024-07.json`,
   ~140 KB, via `scripts/gen-backtest-golden.py`). +59 vitest (suite 1275 → 1334).
+- 2026-06-14 — BT-05 backtest worker + `useBacktest` hook + `BacktestStatus`
+  state machine, accumulated (deploy-conserving). `src/lib/backtest/worker/*`
+  (worker + message contract + progress throttle), `src/features/backtest/hooks/
+use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
+  `src/components/backtesting/backtest-runner-provider.tsx` (layout-level mount),
+  and a "Run sample backtest" proof on `/backtesting/build`. +20 vitest (suite
+  1334 → 1354) + new `scripts/e2e-bt-run.mjs` (4/4, determinism + zero console).
   All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, build OK.
