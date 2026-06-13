@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { commentLikes, comments, posts } from "@/server/db/platform-schema";
+import { commentLikes, comments, posts, reports } from "@/server/db/platform-schema";
 import { getSession, notifyNewMentions } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
@@ -77,6 +77,11 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     .where(eq(comments.parentId, id));
   const ids = [id, ...replies.map((r) => r.id)];
   await platformDb.delete(commentLikes).where(inArray(commentLikes.commentId, ids));
+  // Purge any abuse reports targeting these comments — a deleted comment must
+  // not leave an unactionable row in the admin moderation queue.
+  await platformDb
+    .delete(reports)
+    .where(and(eq(reports.targetType, "comment"), inArray(reports.targetId, ids)));
   await platformDb.delete(comments).where(inArray(comments.id, ids));
   await platformDb
     .update(posts)

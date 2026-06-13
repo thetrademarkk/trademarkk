@@ -76,8 +76,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to send messages" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`dm:${session.user.id}`, 120, 3600);
+  const { allowed } = await rateLimit(`dm:${session.user.id}`, 60, 3600);
   if (!allowed)
+    return NextResponse.json({ error: "Sending too fast — try again soon" }, { status: 429 });
+  // Burst guard — at most 5 messages in any 10s window (a chat cadence, not a flood).
+  const { allowed: burstOk } = await rateLimit(`dm-burst:${session.user.id}`, 5, 10);
+  if (!burstOk)
     return NextResponse.json({ error: "Sending too fast — try again soon" }, { status: 429 });
 
   const parsed = sendDmSchema.safeParse(await req.json().catch(() => null));

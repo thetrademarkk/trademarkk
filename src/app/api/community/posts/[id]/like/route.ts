@@ -32,6 +32,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   const { allowed } = await rateLimit(`like:${session.user.id}`, 60, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  // Burst guard — at most 10 reaction toggles in any 60s window.
+  const { allowed: burstOk } = await rateLimit(`like-burst:${session.user.id}`, 10, 60);
+  if (!burstOk) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const body = (await req.json().catch(() => ({}))) as { reaction?: unknown };
   const clicked: ReactionKind = isReactionKind(body.reaction) ? body.reaction : "like";

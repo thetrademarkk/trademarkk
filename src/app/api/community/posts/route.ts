@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { newId } from "@/lib/id";
 import { platformDb } from "@/server/db/platform";
 import { posts, postImages } from "@/server/db/platform-schema";
@@ -8,14 +9,21 @@ import { rateLimit } from "@/server/rate-limit";
 import { cached, invalidateCached } from "@/server/cache";
 import { createPostSchema } from "@/features/community/schemas";
 
+/** Tag grammar — same as the post-creation schema (lowercase, digits, dashes). */
+const TAG_RE = /^[a-z0-9-]{2,20}$/;
+
 /** Public feed — readable logged-out. */
 export async function GET(req: Request) {
   const session = await getSession();
   const url = new URL(req.url);
+  // A malformed tag can't reach the feed query (defence-in-depth alongside the
+  // LIKE-escaping in queryFeed); an invalid value is simply ignored.
+  const rawTag = url.searchParams.get("tag");
+  const tag = rawTag && TAG_RE.test(rawTag) ? rawTag : null;
   const query = {
     sort: url.searchParams.get("sort") === "top" ? ("top" as const) : ("latest" as const),
     cursor: url.searchParams.get("cursor"),
-    tag: url.searchParams.get("tag"),
+    tag,
     search: url.searchParams.get("q"),
     scope: url.searchParams.get("scope") as "all" | "following" | "saved" | null,
   };
@@ -38,6 +46,21 @@ export async function POST(req: Request) {
   const { allowed } = await rateLimit(`post:${session.user.id}`, 5, 3600);
   if (!allowed)
     return NextResponse.json({ error: "Posting too fast — try later" }, { status: 429 });
+
+  // Durable daily ceiling backed by the DB (the limiter window is only 1h, so a
+  // patient spammer could otherwise post far more than 5/day). Five posts/day is
+  // generous for genuine use.
+  const since24h = new Date(Date.now() - 86_400_000).toISOString();
+  const dayCount = await platformDb
+    .select({ c: sql<number>`COUNT(*)` })
+    .from(posts)
+    .where(and(eq(posts.userId, session.user.id), gte(posts.createdAt, since24h)))
+    .get();
+  if ((dayCount?.c ?? 0) >= 5)
+    return NextResponse.json(
+      { error: "You've reached today's posting limit — try again tomorrow" },
+      { status: 429 }
+    );
 
   const parsed = createPostSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

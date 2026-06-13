@@ -4,6 +4,7 @@ export const metadata: Metadata = {
   title: "Changelog",
   description: "What's new in TradeMarkk.",
   alternates: { canonical: "/changelog" },
+  openGraph: { url: "/changelog" },
 };
 
 const RELEASES = [

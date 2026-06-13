@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description:
     "How to set up TradeMarkk: hosted mode, bring-your-own Turso database, CSV imports, mode switching, community and self-hosting.",
   alternates: { canonical: "/docs" },
+  openGraph: { url: "/docs" },
 };
 
 const code = "rounded bg-surface-2 px-1";

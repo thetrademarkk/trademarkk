@@ -17,7 +17,9 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
 
-  const { allowed } = await rateLimit(`account-delete:${userId}`, 5, 3600);
+  // Account deletion is terminal — at most once/day is plenty (the second call
+  // would 401 anyway once the session is gone). A tight cap blunts any abuse.
+  const { allowed } = await rateLimit(`account-delete:${userId}`, 1, 86400);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const row = await platformDb
