@@ -28,6 +28,8 @@ import {
 import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
 import { deriveTradeNumbers, localInputToIso, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
+import { LotQtyHelper } from "./lot-qty-helper";
+import { segmentUsesLots } from "@/lib/instruments/lot-sizes";
 import { TemplateMenu } from "@/features/workflow";
 import type { TemplatePatch } from "@/features/workflow";
 
@@ -474,6 +476,27 @@ export function TradeForm({
             )}
           </div>
         </div>
+
+        {/* SEG-10 — lots↔units helper. Derivatives only (EQ is plain units). It
+            writes units (lots × lot size) into the active leg's Qty, which stays
+            the single source of truth, so charges/P&L are byte-identical to
+            typing the unit qty directly. Lot size auto-fills from the reference
+            and is fully overridable; an unknown symbol never blocks entry. */}
+        {segmentUsesLots(segment) && (
+          <LotQtyHelper
+            symbol={values.symbol}
+            segment={segment}
+            units={activeLeg === 0 ? values.qty : values.extraLegs?.[activeLeg - 1]?.qty}
+            onUnits={(u) =>
+              activeLeg === 0
+                ? setValue("qty", u, { shouldDirty: true, shouldValidate: true })
+                : setValue(`extraLegs.${activeLeg - 1}.qty`, u, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+            }
+          />
+        )}
       </div>
 
       <div className="space-y-4">

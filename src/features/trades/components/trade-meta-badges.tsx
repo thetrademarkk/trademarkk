@@ -8,6 +8,7 @@
 import { classifyHorizon } from "@/lib/stats/horizon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { defaultLotSize, exactLotCount, segmentUsesLots } from "@/lib/instruments/lot-sizes";
 import { effectiveProduct, normalizeExchange, PRODUCT_SHORT, SEGMENT_SHORT } from "../grouping";
 import type { TradeWithMeta } from "../types";
 
@@ -38,6 +39,14 @@ export function TradeMetaBadges({
   const defaultExchange = trade.segment === "COMM" ? "MCX" : "NSE";
   const horizon = classifyHorizon(trade);
 
+  // SEG-10 — surface "N lots" for a derivative whose stored qty is an exact
+  // multiple of the reference lot size (never imply a misleading fractional
+  // lot). Purely informational; the stored qty (units) is unchanged.
+  const lotSize = segmentUsesLots(trade.segment)
+    ? defaultLotSize(trade.symbol, trade.segment)
+    : null;
+  const lots = lotSize != null ? exactLotCount(trade.qty, lotSize) : null;
+
   return (
     <div className={cn("flex flex-wrap items-center gap-1", className)}>
       <Badge variant="secondary" className="font-money" data-segment={trade.segment}>
@@ -54,6 +63,11 @@ export function TradeMetaBadges({
       {!compact && horizon && (
         <Badge variant="outline" className="text-muted" data-horizon={horizon}>
           {HORIZON_SHORT[horizon]}
+        </Badge>
+      )}
+      {lots != null && (
+        <Badge variant="outline" className="text-muted" data-lots={lots}>
+          {lots} {lots === 1 ? "lot" : "lots"}
         </Badge>
       )}
     </div>

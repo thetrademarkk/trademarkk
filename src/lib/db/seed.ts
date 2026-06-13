@@ -2,6 +2,7 @@ import { newId } from "@/lib/id";
 import { computeCharges, computeGrossPnl, computeRMultiple } from "@/lib/charges/charges";
 import type { Product, Segment } from "@/lib/charges/charges";
 import { getChargeProfile } from "@/config/brokers";
+import { defaultLotSize } from "@/lib/instruments/lot-sizes";
 import { toDateKey } from "@/lib/utils";
 import {
   DEFAULT_TRADER_TYPE,
@@ -134,18 +135,11 @@ function mulberry32(seed: number) {
   };
 }
 
-const LOT_SIZES: Record<string, number> = {
-  NIFTY: 75,
-  BANKNIFTY: 35,
-  SENSEX: 20,
-  CRUDEOIL: 100,
-  GOLD: 100,
-  SILVER: 30,
-  NATURALGAS: 1250,
-  USDINR: 1000,
-  EURINR: 1000,
-  GBPINR: 1000,
-};
+// Lot sizes come from the SEG-10 single source of truth — the demo seed sizes
+// derivative positions in whole lots exactly like a real broker order, so the
+// stored unit quantities (and therefore charges/P&L) match what the entry form
+// would produce. EQ has no lots (returns null → the seed falls back to a plain
+// unit count).
 
 /**
  * SEG-08 — a per-trader-type recipe for the per-day single-trade generator. The
@@ -279,7 +273,7 @@ export async function seedSampleData(
             ? Math.round(between(51000, 56000) / 100) * 100
             : Math.round(between(80000, 84000) / 100) * 100
         : null;
-      const lot = LOT_SIZES[symbol];
+      const lot = defaultLotSize(symbol, segment);
       const qty = lot ? lot * (1 + Math.floor(rand() * 3)) : Math.round(between(10, 120));
       const entry = between(recipe.price[0], recipe.price[1]);
       const win = rand() < 0.46;
@@ -482,7 +476,7 @@ interface SeedLeg {
 }
 
 interface MultiLegTemplate {
-  symbol: keyof typeof LOT_SIZES;
+  symbol: string;
   /** Days from entry to expiry — drives the DTE bucket. */
   dte: number;
   /** How many days ago the trade was opened. */
@@ -568,7 +562,7 @@ function seedMultiLegTrades(
   // Three passes with small entry/exit jitter → n>=5 per bucket, varied P&L.
   for (let pass = 0; pass < 3; pass++) {
     for (const tpl of catalogue) {
-      const lotSize = LOT_SIZES[tpl.symbol] ?? 50;
+      const lotSize = defaultLotSize(tpl.symbol, "OPT") ?? 50;
       const qty = lotSize * tpl.lots;
       const opened = new Date();
       opened.setDate(opened.getDate() - (tpl.daysAgo - pass * 2));

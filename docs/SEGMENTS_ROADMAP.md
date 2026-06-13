@@ -46,12 +46,50 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m) — Shipped (accumulated, pending batch deploy)
 - [x] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data — Shipped (accumulated, pending batch deploy)
 - [x] **SEG-09** Filters, table & grouping for segment/product/holding-period — Shipped (accumulated, pending batch deploy)
-- [ ] **SEG-10** Lot-size modelling for derivatives (optional)
+- [x] **SEG-10** Lot-size modelling for derivatives — Shipped (accumulated, pending batch deploy)
 - [ ] **SEG-11** Extension capture carries product + exchange (+ MCX/CDS adapters)
 - [ ] **SEG-12** Community surfaces respect new segments/products
 - [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-10** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Lot-size modelling for derivatives**. New pure single-source-of-truth module
+  `src/lib/instruments/lot-sizes.ts`: a typed `LOT_SIZE_REFERENCE` (symbol /
+  segment / exchange / lotSize / optional tickSize / `asOf` 2026-06-01) covering
+  index F&O (NIFTY 75, BANKNIFTY 35, FINNIFTY 65, MIDCPNIFTY 140, NIFTYNXT50 25,
+  SENSEX 20, BANKEX 30, SENSEX50 60), a representative, documented-as-overridable
+  subset of stock-F&O underlyings (RELIANCE 500, HDFCBANK 550, TCS 175, INFY 400,
+  …20 names), MCX commodity lots + ticks (GOLD 100 / GOLDM 10 / SILVER 30 /
+  SILVERM 5 / CRUDEOIL 100 / CRUDEOILM 10 / NATURALGAS 1250 / COPPER 2500 / ZINC /
+  ALUMINIUM / LEAD / NICKEL / COTTON / MENTHAOIL), and CDS currency lots (USD/EUR/
+  GBP-INR = 1000, JPYINR = 100000). Helpers: `lookupLotSize`/`defaultLotSize`
+  (symbol-base normalised like `commodityBase`, FUT answers from the OPT entry,
+  EQ → null, unknown → null so a trade is never blocked), `segmentUsesLots`,
+  `lotsToUnits`/`unitsToLots`/`exactLotCount`. The demo seed's old local
+  `LOT_SIZES` map was REPLACED with `defaultLotSize` imports — no duplication /
+  divergence. Entry UX: a new `LotQtyHelper` (lucide `Layers`) renders beneath
+  Qty for derivative legs only (per active leg), auto-fills the lot size from the
+  reference, shows a live "= N qty" readout and WRITES units (lots × size) into
+  the existing Qty field — Qty stays the single source of truth (units, the
+  unchanged stored schema), so a lot-entered quantity is byte-identical to typing
+  units (manual Qty always wins; an unknown symbol just invites a manual size).
+  EQ never shows the helper. Non-breaking: a "N lots" chip in `TradeMetaBadges`
+  (SEG-09 area) + "(N lots)" in the trade quick-view, shown only when a
+  derivative's stored qty is an EXACT multiple of the reference lot (never a
+  fractional lot). No schema change, no `charges.ts` change. +26 vitest in
+  `lot-sizes.test.ts` (reference integrity / no-duplicates, known index+commodity
+  +currency+stock lots, base normalisation, EQ→null + FUT-from-OPT + unknown
+  passthrough + no cross-segment, lots↔units + exactLotCount round-trips, and
+  CHARGE PARITY: 2-lot NIFTY-OPT (150) / 1-lot CRUDEOIL-MCX (100) / 1-lot
+  USDINR-CDS (1000) all compute charges IDENTICAL to the equivalent unit qty and
+  land on the charges.golden row quantities) → full suite **1348** green; tsc +
+  ext:typecheck + lint (0 warnings) + build clean; feature e2e
+  `scripts/e2e-seg-lots.mjs` 13/13 (2-lot NIFTY option → qty 150 + live readout +
+  saved with a "2 lots" badge + quick-view "150 (2 lots)"; 1-lot CRUDEOIL MCX →
+  qty 100; unknown-symbol lot-size override → units still written + manual qty
+  wins; equity shows no helper; 360px clean, zero console errors), e2e-smoke
+  34/34, mobile-audit clean.
 
 - **SEG-09** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
   **Filters, trades table & grouping by segment / product / holding-period** —
