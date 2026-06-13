@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Static fixture replicating the STRUCTURE of the Fyers Web "New Order Window"
+    (login.fyers.in / app.fyers.in / fyers.in/web) for extension e2e tests —
+    real Fyers sits behind a login, so the capture adapter is exercised against
+    this stand-in instead.
+
+    Public DOM research (see docs/EXTENSION_ROADMAP.md ADR v2) established that
+    Fyers Web is a React app with UTILITY / HASHED class names that change every
+    deploy — so this fixture deliberately uses hashed-looking class names and the
+    adapter must NOT rely on them literally. What it relies on (and what this
+    fixture provides):
+      - the order window mounts DYNAMICALLY (Buy/Sell quick buttons on a
+        watchlist row), so the content script's MutationObserver path is tested;
+      - visible field LABELS "Qty" / "Price" walked to the adjacent <input>;
+      - a buy/sell class FRAGMENT on the window + the "Buy …/Place sell order"
+        button copy + active side-tab text for the side;
+      - `[class*='symbolName']` / `[class*='ltp']` substring matchers as a last
+        resort;
+      - Fyers symbols as EXCHANGE-PREFIXED, series-suffixed tickers ("NSE:SBIN-EQ",
+        "NSE:NIFTY24JUN24500CE") which parseContractName understands directly.
+
+    Visuals are approximate on purpose; structure is what the adapter reads.
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fyers fixture — order window</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #0c111d;
+        color: #cdd3e2;
+      }
+      ._watchlist_4af21 {
+        width: 460px;
+        border-right: 1px solid #1a2030;
+        min-height: 100vh;
+      }
+      ._row_4af21 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid #141a28;
+      }
+      ._symbolName_4af21 {
+        font-weight: 600;
+      }
+      ._exchange_4af21 {
+        font-size: 10px;
+        color: #7c83a0;
+      }
+      ._ltp_4af21 {
+        margin-left: auto;
+      }
+      ._quick_4af21 button {
+        font: inherit;
+        font-size: 12px;
+        width: 30px;
+        height: 26px;
+        border: 1px solid #283050;
+        border-radius: 4px;
+        background: #121828;
+        color: #cdd3e2;
+        cursor: pointer;
+      }
+      ._buy_4af21 {
+        color: #1fb87a;
+      }
+      ._sell_4af21 {
+        color: #ee5c46;
+      }
+      ._orderWindow_7bd09 {
+        position: fixed;
+        right: 24px;
+        top: 80px;
+        width: 380px;
+        background: #101626;
+        border: 1px solid #283050;
+        border-radius: 10px;
+        box-shadow: 0 10px 32px rgb(0 0 0 / 0.45);
+      }
+      ._owHeader_7bd09 {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #1a2030;
+      }
+      ._symbolName_7bd09 {
+        font-weight: 600;
+      }
+      ._exchange_7bd09 {
+        font-size: 11px;
+        color: #7c83a0;
+        margin-left: 4px;
+      }
+      ._ltp_7bd09 {
+        margin-left: auto;
+        font-size: 12px;
+        color: #9aa0c4;
+      }
+      ._sideTabs_7bd09 {
+        display: flex;
+        padding: 12px 16px 0;
+        gap: 8px;
+      }
+      ._sideTab_7bd09 {
+        flex: 1;
+        text-align: center;
+        padding: 7px 0;
+        border-radius: 6px 6px 0 0;
+        font-size: 12px;
+        background: #121828;
+        cursor: pointer;
+      }
+      ._sideTab_7bd09._activeTab_7bd09 {
+        font-weight: 600;
+      }
+      ._orderWindow_7bd09._buy_7bd09 ._sideTab_7bd09._activeTab_7bd09 {
+        background: #0e3829;
+        color: #1fb87a;
+      }
+      ._orderWindow_7bd09._sell_7bd09 ._sideTab_7bd09._activeTab_7bd09 {
+        background: #381512;
+        color: #ee5c46;
+      }
+      ._owBody_7bd09 {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+      }
+      ._field_7bd09 {
+        flex: 1;
+      }
+      ._field_7bd09 label {
+        display: block;
+        font-size: 11px;
+        color: #7c83a0;
+        margin-bottom: 4px;
+      }
+      ._field_7bd09 input {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        padding: 7px 9px;
+        background: #0c111d;
+        border: 1px solid #283050;
+        border-radius: 4px;
+        color: #cdd3e2;
+      }
+      ._field_7bd09 input:disabled {
+        opacity: 0.5;
+      }
+      ._owFooter_7bd09 {
+        display: flex;
+        align-items: center;
+        padding: 14px 16px;
+        border-top: 1px solid #1a2030;
+      }
+      ._margin_7bd09 {
+        font-size: 12px;
+        color: #7c83a0;
+      }
+      ._owFooter_7bd09 ._placeOrder_7bd09 {
+        margin-left: auto;
+        font: inherit;
+        padding: 9px 18px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #fff;
+      }
+      ._orderWindow_7bd09._buy_7bd09 ._placeOrder_7bd09 {
+        background: #1fb87a;
+      }
+      ._orderWindow_7bd09._sell_7bd09 ._placeOrder_7bd09 {
+        background: #ee5c46;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="_watchlist_4af21" id="watchlistTestId">
+        <div class="_row_4af21" data-fixture-row="NSE:SBIN-EQ">
+          <span class="_symbolName_4af21">NSE:SBIN-EQ</span>
+          <span class="_exchange_4af21">NSE</span>
+          <span class="_ltp_4af21">611.95</span>
+          <span class="_quick_4af21">
+            <button type="button" class="_buy_4af21" data-fixture="buy" aria-label="Buy SBIN">
+              B
+            </button>
+            <button type="button" class="_sell_4af21" data-fixture="sell" aria-label="Sell SBIN">
+              S
+            </button>
+          </span>
+        </div>
+        <div class="_row_4af21" data-fixture-row="NSE:NIFTY24JUN24500CE">
+          <span class="_symbolName_4af21">NSE:NIFTY24JUN24500CE</span>
+          <span class="_exchange_4af21">NFO</span>
+          <span class="_ltp_4af21">182.50</span>
+          <span class="_quick_4af21">
+            <button type="button" class="_buy_4af21" data-fixture="buy" aria-label="Buy NIFTY">
+              B
+            </button>
+            <button type="button" class="_sell_4af21" data-fixture="sell" aria-label="Sell NIFTY">
+              S
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Fyers mounts its New Order Window on demand — the fixture does the same
+      // so the content script's MutationObserver path is what's exercised.
+      function openOrderWindow(row, side) {
+        document.querySelector("._orderWindow_7bd09")?.remove();
+        const symbol = row.querySelector("._symbolName_4af21").textContent.trim();
+        const exchange = row.querySelector("._exchange_4af21").textContent.trim();
+        const ltp = row.querySelector("._ltp_4af21").textContent.trim();
+        // The NIFTY option row mimics a MARKET order: price input disabled at 0,
+        // exercising the adapter's last-price fallback. SBIN is a limit order.
+        const market = exchange === "NFO";
+
+        const win = document.createElement("form");
+        win.className = "_orderWindow_7bd09 _" + side + "_7bd09";
+        win.innerHTML = `
+          <div class="_owHeader_7bd09">
+            <span>
+              <span class="_symbolName_7bd09">${symbol}</span>
+              <span class="_exchange_7bd09">${exchange}</span>
+            </span>
+            <span class="_ltp_7bd09">LTP ₹${ltp}</span>
+          </div>
+          <div class="_sideTabs_7bd09">
+            <div class="_sideTab_7bd09 ${side === "buy" ? "_activeTab_7bd09" : ""}">Buy</div>
+            <div class="_sideTab_7bd09 ${side === "sell" ? "_activeTab_7bd09" : ""}">Sell</div>
+          </div>
+          <div class="_owBody_7bd09">
+            <div class="_field_7bd09">
+              <label>Qty</label>
+              <input type="number" inputmode="numeric" value="1" />
+            </div>
+            <div class="_field_7bd09">
+              <label>Price</label>
+              <input type="number" inputmode="decimal" step="0.05"
+                value="${market ? "0" : ltp.replace(/,/g, "")}" ${market ? "disabled" : ""} />
+            </div>
+            <div class="_field_7bd09">
+              <label>Trigger price</label>
+              <input type="number" value="0" disabled />
+            </div>
+          </div>
+          <div class="_owFooter_7bd09">
+            <span class="_margin_7bd09">Margin ₹1,407.95</span>
+            <button type="submit" class="_placeOrder_7bd09">
+              ${side === "buy" ? "Buy" : "Place sell order"}
+            </button>
+          </div>`;
+        win.addEventListener("submit", (e) => e.preventDefault());
+        document.getElementById("root").appendChild(win);
+      }
+
+      document.querySelectorAll("[data-fixture]").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          openOrderWindow(btn.closest("[data-fixture-row]"), btn.dataset.fixture)
+        );
+      });
+    </script>
+  </body>
+</html>

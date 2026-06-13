@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <!--
+    Negative fixture: the Fyers order window after a hypothetical redesign that
+    removed every hook the adapter relies on — no buy/sell class fragment, no
+    "Buy"/"Sell" tab or "Place buy/sell order" copy (the button just says
+    "Continue"), and the Qty/Price inputs no longer carry any qty/price label,
+    name, id, placeholder or aria-label the adapter can anchor on.
+
+    With no trustworthy SIDE and no qty-labelled input, the capture content
+    script must inject NOTHING here and log NOTHING — "degrade silently, never
+    guess" is part of the adapter contract (ADR v2).
+  -->
+  <head>
+    <meta charset="utf-8" />
+    <title>Fyers fixture — changed DOM</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+        background: #0c111d;
+        color: #cdd3e2;
+      }
+      ._ow2_5dc18 {
+        position: fixed;
+        right: 24px;
+        top: 80px;
+        width: 380px;
+        background: #101626;
+        border: 1px solid #283050;
+        border-radius: 10px;
+        padding: 18px;
+      }
+      ._ow2_5dc18 input {
+        font: inherit;
+        padding: 7px 9px;
+        background: #0c111d;
+        border: 1px solid #283050;
+        border-radius: 4px;
+        color: #cdd3e2;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <button type="button" data-fixture="open-changed">Open redesigned order window</button>
+    </div>
+    <script>
+      document.querySelector("[data-fixture='open-changed']").addEventListener("click", () => {
+        const win = document.createElement("div");
+        // Shares the "orderWindow" fragment so findOrderPanel still considers it —
+        // but with no qty-labelled input and no side marker, the reader must
+        // bail (readOrder → null), so no button is injected.
+        win.className = "_orderWindow_v2_5dc18 _ow2_5dc18";
+        win.innerHTML = `
+          <div class="_head_5dc18"><b>NSE:SBIN-EQ</b> <small>NSE</small> <span>611.95</span></div>
+          <div class="_fields_5dc18">
+            <input type="number" value="1" />
+            <input type="number" value="611.95" />
+          </div>
+          <div class="_foot_5dc18"><button type="button">Continue</button></div>`;
+        document.getElementById("root").appendChild(win);
+      });
+    </script>
+  </body>
+</html>

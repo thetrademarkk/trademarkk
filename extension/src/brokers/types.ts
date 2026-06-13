@@ -10,7 +10,7 @@
  *    capture, so breakage reports can name the adapter generation.
  */
 
-export type BrokerId = "kite" | "upstox" | "groww" | "dhan";
+export type BrokerId = "kite" | "upstox" | "groww" | "dhan" | "fyers";
 
 /** What a capture adapter is allowed to hand to the panel — nothing more. */
 export interface CapturedOrder {

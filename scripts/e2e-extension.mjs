@@ -239,6 +239,8 @@ const fixtureFor = (url) => {
   if (url?.startsWith("/groww")) return "groww-order-window.html";
   if (url?.startsWith("/dhan-changed")) return "dhan-order-window-changed.html";
   if (url?.startsWith("/dhan")) return "dhan-order-window.html";
+  if (url?.startsWith("/fyers-changed")) return "fyers-order-window-changed.html";
+  if (url?.startsWith("/fyers")) return "fyers-order-window.html";
   return "kite-order-window.html";
 };
 const fixtureServer = createServer((req, res) => {
@@ -701,10 +703,138 @@ await step("dhan: changed order DOM degrades silently", async () => {
     throw new Error("capture button injected into an unrecognized DOM");
   await dhanPage.close();
   // Unregister so the Dhan script can't fire on the shared fixture origin
-  // during the positions-import steps below.
+  // during the Fyers + positions-import steps below.
   await panel.evaluate(async () => {
     await chrome.scripting
       .unregisterContentScripts({ ids: ["tm-capture-dhan-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
+// ── v2: Fyers order-window capture (registry-driven, fifth adapter) ───────
+// Same opt-in path as Kite/Upstox/Groww/Dhan: the REAL built content-fyers.js
+// bundle is registered through chrome.scripting on the localhost fixture origin
+// (real Fyers sits behind a login). Fyers Web (login.fyers.in / app.fyers.in /
+// fyers.in/web) is a React terminal with hashed/utility CSS classes, so the
+// adapter anchors on visible "Qty"/"Price" labels, the buy/sell class fragment
+// + "Buy …/Place sell order" copy + active side tab, and
+// [class*='symbolName']/[class*='ltp'] substring matchers — the fixture mirrors
+// that hashed-class structure, and Fyers renders symbols as EXCHANGE-PREFIXED,
+// series-suffixed tickers ("NSE:SBIN-EQ", "NSE:NIFTY24JUN24500CE") that
+// parseContractName understands directly.
+let fyersPage;
+await step("fyers: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-fyers-e2e",
+        js: ["content-fyers.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-fyers-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("fyers: affordance appears on the order window", async () => {
+  fyersPage = await ctx.newPage();
+  await fyersPage.goto(`http://localhost:${FIXTURE_PORT}/fyers`, { waitUntil: "load" });
+  await fyersPage.locator("[data-fixture-row='NSE:SBIN-EQ'] [data-fixture='buy']").click();
+  await fyersPage.locator("._orderWindow_7bd09._buy_7bd09").waitFor({ timeout: 5000 });
+  const btn = fyersPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("fyers: click prefills the quick log (buy, limit price)", async () => {
+  await fyersPage.locator("._orderWindow_7bd09 ._field_7bd09:has-text('Qty') input").fill("50");
+  await fyersPage
+    .locator("._orderWindow_7bd09 ._field_7bd09:has-text('Price') input")
+    .first()
+    .fill("612.4");
+  await fyersPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Fyers")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Fyers forwards its native exchange-prefixed symbol verbatim; the panel's
+  // parser strips "NSE:" + "-EQ" itself, so the chip resolves to SBIN equity.
+  if ((await value("Instrument")) !== "NSE:SBIN-EQ") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "612.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("SBIN")) throw new Error(`Fyers equity symbol did not parse: ${parsed}`);
+});
+
+await step("fyers: captured trade saves into the journal", async () => {
+  // SBIN is unique to this Fyers round-trip (other adapters used RELIANCE), so
+  // the journal-row assertion keys off this Fyers trade.
+  await panel.getByLabel("Exit", { exact: true }).fill("625.75");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("SBIN logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "SBIN" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("fyers: sell market order → Sell side + last-price fallback", async () => {
+  await fyersPage.bringToFront();
+  await fyersPage
+    .locator("[data-fixture-row='NSE:NIFTY24JUN24500CE'] [data-fixture='sell']")
+    .click();
+  await fyersPage.locator("._orderWindow_7bd09._sell_7bd09").waitFor({ timeout: 5000 });
+  await fyersPage.locator("._orderWindow_7bd09 ._field_7bd09:has-text('Qty') input").fill("75");
+  const btn = fyersPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Fyers renders the native exchange-prefixed option key; the adapter forwards
+  // it verbatim and the panel's parser turns it into NIFTY 24500 CE.
+  if ((await value("Instrument")) !== "NSE:NIFTY24JUN24500CE")
+    throw new Error(`instrument not prefilled: ${await value("Instrument")}`);
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "182.5")
+    throw new Error(`expected LTP fallback 182.5, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24500") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("fyers: changed order DOM degrades silently", async () => {
+  await fyersPage.goto(`http://localhost:${FIXTURE_PORT}/fyers-changed`, { waitUntil: "load" });
+  await fyersPage.locator("[data-fixture='open-changed']").click();
+  await fyersPage.locator("._ow2_5dc18").waitFor({ timeout: 5000 });
+  await fyersPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await fyersPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await fyersPage.close();
+  // Unregister so the Fyers script can't fire on the shared fixture origin
+  // during the positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-fyers-e2e"] })
       .catch(() => undefined);
   });
 });
