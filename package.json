@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "ext:build": "vite build --config extension/vite.config.ts && vite build --config extension/vite.content.config.ts && vite build --config extension/vite.content-positions.config.ts && vite build --config extension/vite.content-upstox.config.ts && vite build --config extension/vite.content-groww.config.ts && vite build --config extension/vite.content-dhan.config.ts && vite build --config extension/vite.content-fyers.config.ts",
     "ext:typecheck": "tsc -p extension --noEmit",
+    "ext:package": "node scripts/ext-package.mjs",
     "e2e": "node scripts/e2e-smoke.mjs",
     "migrate:platform": "tsx scripts/migrate-platform.ts",
     "postinstall": "node scripts/copy-assets.mjs",
