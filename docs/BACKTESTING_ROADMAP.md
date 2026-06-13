@@ -63,8 +63,17 @@ merged to main.
       message-contract round-trip, progress-throttle) + new `e2e-bt-run`
       (determinism: golden straddle Net P&L +₹1,899.29, zero console errors,
       360px clean).
-- [ ] **BT-06 builder** — no-code 5-node wizard + always-mounted live-payoff rail
-      (reuses `payoff.ts`) + interactive strike ladder + mobile sheet.
+- [x] **BT-06 builder** ✅ (accumulated, pending batch deploy) — no-code 5-node
+      wizard (Setup · Legs · Timing · Risk · Review) with validate-on-Continue zod
+      gates + zustand draft autosaved to `tmk.bt.draft.nocode`; an ALWAYS-MOUNTED
+      live-payoff rail (reuses `payoff.ts` `buildPayoffCurve`/`classifyStrategy`)
+      that updates as legs change (max P/L, breakevens, auto strategy name); a real
+      interactive strike LADDER (`role=listbox`, keyboard-navigable, ATM ring,
+      per-rung estimated premium + coverage pip, dimmed thin rungs, ATM±/Premium/
+      Exact modes — Delta deferred D7); mobile sticky mini-payoff PEER bar + vaul
+      bottom-sheet. Review's Run drives the BT-05 worker against the committed
+      golden slice and shows the RunResult headline inline. +48 vitest + new
+      `e2e-bt-builder`. New dep: `@radix-ui/react-slider`.
 - [ ] **BT-07 results** — verdict → evidence → drill-down, tap-to-derive charges,
       coverage chips everywhere, virtualized blotter → trade-quick-view modal.
 - [ ] **BT-09 persistence** — `backtest_strategies` + `backtest_runs` platform
@@ -100,3 +109,14 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   and a "Run sample backtest" proof on `/backtesting/build`. +20 vitest (suite
   1334 → 1354) + new `scripts/e2e-bt-run.mjs` (4/4, determinism + zero console).
   All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, build OK.
+- 2026-06-14 — BT-06 no-code BUILDER (5-node wizard + always-mounted live-payoff
+  rail + interactive strike ladder), accumulated (deploy-conserving). Pure logic
+  in `src/features/backtest/builder/*` (estimate-chain, payoff-rail, validation,
+  templates, draft, builder-store) + UI in `src/components/backtesting/builder/*`
+  (shell, stepper, live-payoff-rail, payoff-chart, strike-ladder, mobile-payoff,
+  5 step panels) replacing the BT-05 placeholder on `/backtesting/build`. +48
+  vitest (suite 1354 → 1402) + new `scripts/e2e-bt-builder.mjs` (7/7) + the
+  retargeted `e2e-bt-run` (4/4, golden +₹1,899.29 through the builder). New dep:
+  `@radix-ui/react-slider`. All LOCAL gates green: tsc, ext:typecheck, next lint
+  0-warn, build (build page 67.9 kB static, worker bundled), e2e-smoke 36/36,
+  mobile-audit clean incl. `/backtesting/build`.

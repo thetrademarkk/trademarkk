@@ -1,13 +1,14 @@
 /**
- * Feature e2e (BT-05): the backtest WORKER + useBacktest hook + BacktestStatus
- * machine, end-to-end in a real Chromium against a prod build.
+ * Feature e2e (BT-05 worker proof, driven through the BT-06 builder): the
+ * backtest WORKER + useBacktest hook + BacktestStatus machine, end-to-end in a
+ * real Chromium against a prod build.
  *
- * Verifies on /backtesting/build:
- *   - the "Run sample backtest" button drives the engine in a Web Worker;
- *   - status reaches `done` and the headline stats render (real engine output,
- *     not the pre-baked sample);
+ * The builder's default draft is a NIFTY 9:20 ATM short straddle; "Run backtest"
+ * on the Review step adapts it onto the committed golden NIFTY 2024-07 slice and
+ * drives the layout-owned worker. Verifies:
+ *   - status reaches `done` and the headline stats render (real engine output);
  *   - DETERMINISM: running twice yields the SAME Net P&L (same fixture + seed);
- *   - the golden NIFTY straddle's known Net P&L (₹+1,899.29) is surfaced;
+ *   - the golden NIFTY straddle's known Net P&L (+₹1,899.29) is surfaced;
  *   - zero console errors / page errors / failed requests;
  *   - the runner fits a 360px viewport with zero horizontal overflow.
  *
@@ -54,10 +55,25 @@ const noOverflow = async (page) => {
   if (o.sw > o.cw) throw new Error(`horizontal overflow ${o.sw} > ${o.cw}`);
 };
 
-// Run the sample backtest and return the rendered Net P&L string.
-const runSampleAndReadPnl = async (page) => {
-  await page.getByTestId("bt-run-sample").click();
-  // Worker → done. The result card appears with the Net P&L stat.
+// Reset any persisted draft so we always start from the default straddle.
+const freshBuild = async (page) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.removeItem("tmk.bt.draft.nocode");
+    } catch {}
+  });
+  await page.goto(`${BASE}/backtesting/build`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("bt-stepper").first().waitFor({ timeout: 20000 });
+};
+
+// Walk Setup → Legs → Timing → Risk → Review, then Run, returning the Net P&L.
+const buildAndRun = async (page) => {
+  // Default draft already has 2 legs, so each Continue is valid.
+  for (let i = 0; i < 4; i++) {
+    await page.getByTestId("bt-continue").click();
+  }
+  await page.getByTestId("bt-step-review").waitFor({ timeout: 10000 });
+  await page.getByTestId("bt-run").click();
   await page.getByTestId("bt-result").waitFor({ timeout: 30000 });
   await page.locator('[data-status="done"]').waitFor({ timeout: 30000 });
   const label = page
@@ -73,44 +89,34 @@ const ctx = await browser.newContext({ viewport: { width: 1380, height: 900 } })
 const page = await ctx.newPage();
 wireListeners(page);
 
-console.log("— Worker run end-to-end —");
+console.log("— Worker run end-to-end (via builder) —");
 let firstPnl = "";
-await step("Run sample backtest → status reaches done, headline stats render", async () => {
-  await page.goto(`${BASE}/backtesting/build`, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("bt-sample-runner").waitFor({ timeout: 20000 });
-  // Before a run, the status reads idle/Ready.
-  const initial = await page.getByTestId("bt-status").getAttribute("data-status");
-  if (initial !== "idle") throw new Error(`expected idle before run, got ${initial}`);
-  firstPnl = await runSampleAndReadPnl(page);
+await step("Run the built straddle → status reaches done, headline stats render", async () => {
+  await freshBuild(page);
+  firstPnl = await buildAndRun(page);
   if (!/[\d]/.test(firstPnl)) throw new Error(`Net P&L did not render a number: "${firstPnl}"`);
 });
 
 await step("the engine surfaces the golden straddle's known Net P&L (+₹1,899.29)", async () => {
-  // The committed golden NIFTY 2024-07 slice + a 9:20 ATM short straddle nets
-  // +1899.29 (pinned in the engine golden test). formatINR renders it grouped.
   if (!firstPnl.includes("1,899")) {
     throw new Error(`expected golden net ₹1,899.29, got "${firstPnl}"`);
   }
 });
 
 await step("DETERMINISM: a second run yields the SAME Net P&L", async () => {
-  // Re-navigate (the runner lives at the layout level, but a fresh page is the
-  // strictest determinism check — same fixture + seed must reproduce).
-  await page.goto(`${BASE}/backtesting/build`, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("bt-sample-runner").waitFor({ timeout: 20000 });
-  const secondPnl = await runSampleAndReadPnl(page);
+  await freshBuild(page);
+  const secondPnl = await buildAndRun(page);
   if (secondPnl !== firstPnl) {
     throw new Error(`non-deterministic: "${firstPnl}" vs "${secondPnl}"`);
   }
 });
 
 console.log("— 360px —");
-await step("the sample runner fits 360px with zero horizontal overflow", async () => {
+await step("the builder + run fit 360px with zero horizontal overflow", async () => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto(`${BASE}/backtesting/build`, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("bt-sample-runner").waitFor({ timeout: 20000 });
-  await page.getByTestId("bt-run-sample").click();
-  await page.getByTestId("bt-result").waitFor({ timeout: 30000 });
+  await freshBuild(page);
+  await noOverflow(page);
+  await buildAndRun(page);
   await noOverflow(page);
 });
 

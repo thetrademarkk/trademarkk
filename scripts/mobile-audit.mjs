@@ -19,6 +19,7 @@ const PUBLIC = [
   "/community/notifications",
   "/community/s/NIFTY",
   "/backtesting",
+  "/backtesting/build",
 ];
 const APP = [
   "/app/dashboard",
