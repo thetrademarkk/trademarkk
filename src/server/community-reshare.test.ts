@@ -41,6 +41,7 @@ const DDL = [
     trade_card TEXT, tags TEXT, like_count INTEGER NOT NULL DEFAULT 0, reactions TEXT,
     comment_count INTEGER NOT NULL DEFAULT 0, share_count INTEGER NOT NULL DEFAULT 0,
     reshare_count INTEGER NOT NULL DEFAULT 0, quote_post_id TEXT, sentiment TEXT,
+    quality_flag TEXT,
     created_at TEXT NOT NULL, edited_at TEXT, edit_history TEXT
   )`,
   `CREATE TABLE profiles (

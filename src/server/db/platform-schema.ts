@@ -128,6 +128,15 @@ export const posts = sqliteTable("posts", {
    * meaningful when the post carries >= 1 $cashtag. NULL = the default (none).
    */
   sentiment: text("sentiment"),
+  /**
+   * Content-quality moderation flag, set by the create/edit quality gate when a
+   * post matches a soft tip/all-caps heuristic (see features/community/quality.ts):
+   * 'tip' | 'all-caps' | NULL (clean). NEVER hard-rejects genuine analysis — it
+   * tags borderline posts for later moderation review (the admin report queue
+   * surfaces flagged posts). Egregious solicitation / low-effort / near-duplicate
+   * posts are blocked outright and never reach this column. NULL = the default.
+   */
+  qualityFlag: text("quality_flag"),
   createdAt: text("created_at").notNull(),
   /** Set the first time the post is edited; null = never edited. */
   editedAt: text("edited_at"),

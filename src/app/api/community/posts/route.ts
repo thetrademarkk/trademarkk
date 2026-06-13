@@ -8,6 +8,7 @@ import {
   getSession,
   notifyMentions,
   queryFeed,
+  recentPostBodiesByUser,
   syncPostSymbols,
 } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
@@ -16,6 +17,7 @@ import { cached, invalidateCached } from "@/server/cache";
 import { createPostSchema } from "@/features/community/schemas";
 import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
+import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
 
 /** Tag grammar — same as the post-creation schema (lowercase, digits, dashes). */
 const TAG_RE = /^[a-z0-9-]{2,20}$/;
@@ -83,6 +85,17 @@ export async function POST(req: Request) {
   await ensureProfile(session.user.id, session.user.name);
 
   const body = input.body.trim();
+
+  // Content-quality gate (SEBI-sane, conservative — see features/community/quality.ts).
+  // Egregious tip/solicitation, low-effort and near-duplicate reposts are BLOCKED
+  // with a clear message; borderline tip/all-caps posts are allowed but tagged
+  // with a `quality_flag` for the moderation queue. Genuine analysis passes clean.
+  const recentBodies = await recentPostBodiesByUser(session.user.id, NEAR_DUP_WINDOW_MS);
+  const verdict = evaluatePostQuality({ body, recentBodies });
+  if (verdict.decision === "block") {
+    return NextResponse.json({ error: verdict.message }, { status: 400 });
+  }
+
   // Sentiment is only meaningful when the post mentions >= 1 $cashtag — it's a
   // lean on those tickers. Persist it only then; otherwise store NULL so a
   // sentiment can never be set on a post that tags no symbol.
@@ -97,6 +110,7 @@ export async function POST(req: Request) {
     tradeCard: input.tradeCard ? JSON.stringify(input.tradeCard) : null,
     tags: input.tags.length ? JSON.stringify(input.tags) : null,
     sentiment,
+    qualityFlag: verdict.flag,
     createdAt: new Date().toISOString(),
   });
   if (input.images.length) {

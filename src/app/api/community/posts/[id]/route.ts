@@ -14,10 +14,12 @@ import {
   getSession,
   hydratePosts,
   notifyNewMentions,
+  recentPostBodiesByUser,
   syncPostSymbols,
 } from "@/server/community";
 import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
+import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -224,6 +226,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const nextTitle = input.title?.trim() || null;
   const nextBody = input.body.trim();
   const nextTags = input.tags;
+
+  // Re-run the content-quality gate on the edited body — an edit can never bypass
+  // the rules a fresh post must pass (mirrors the schema re-validation). The
+  // near-dup corpus excludes THIS post so an edit isn't a duplicate of itself.
+  const recentBodies = await recentPostBodiesByUser(session.user.id, NEAR_DUP_WINDOW_MS, id);
+  const verdict = evaluatePostQuality({ body: nextBody, recentBodies });
+  if (verdict.decision === "block") {
+    return NextResponse.json({ error: verdict.message }, { status: 400 });
+  }
   // Sentiment edit: when the field is sent, set it (gated on the NEW body still
   // mentioning >= 1 $cashtag — removing every ticker also clears the lean);
   // when omitted, leave the stored value untouched. Re-gate against the new body
@@ -255,6 +266,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       body: nextBody,
       tags: nextTags.length ? JSON.stringify(nextTags) : null,
       sentiment: nextSentiment,
+      // Re-evaluate the flag: an edit that fixes tip language clears a stale flag;
+      // one that introduces it sets a fresh flag.
+      qualityFlag: verdict.flag,
       editedAt,
       editHistory: history,
     })

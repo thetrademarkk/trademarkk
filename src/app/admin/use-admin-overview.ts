@@ -41,6 +41,15 @@ export interface ReportRow {
   postId: string | null;
 }
 
+/** A post auto-flagged by the content-quality gate (not yet user-reported). */
+export interface FlaggedPostRow {
+  id: string;
+  flag: string | null;
+  createdAt: string;
+  author: string;
+  preview: string;
+}
+
 export function useAdminOverview() {
   return useQuery({
     queryKey: ["admin-overview"],
@@ -58,7 +67,7 @@ export function useAdminReports() {
     queryFn: async () => {
       const res = await fetch("/api/admin/reports");
       if (!res.ok) throw new Error("Failed to load reports");
-      return (await res.json()) as { reports: ReportRow[] };
+      return (await res.json()) as { reports: ReportRow[]; flagged?: FlaggedPostRow[] };
     },
   });
 }

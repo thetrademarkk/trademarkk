@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, Flag, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,19 +36,55 @@ export function ReportsSection() {
 
   if (isLoading) return <Skeleton className="h-60 rounded-xl" />;
   const reports = data?.reports ?? [];
+  const flagged = data?.flagged ?? [];
 
-  if (reports.length === 0) {
+  if (reports.length === 0 && flagged.length === 0) {
     return (
       <EmptyState
         icon={ShieldCheck}
         title="Moderation queue is clear"
-        description="No open reports. New reports from the community land here."
+        description="No open reports and nothing auto-flagged. New reports from the community land here."
       />
     );
   }
 
   return (
     <div className="space-y-3">
+      {flagged.length > 0 && (
+        <section className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Flag className="h-4 w-4 text-warning" aria-hidden />
+            Auto-flagged by the quality gate
+            <Badge variant="secondary">{flagged.length}</Badge>
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            Posts the content-quality gate flagged for review (tip/all-caps language). Not yet
+            reported by the community — open in context to review or remove.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {flagged.map((p) => (
+              <li key={p.id} className="rounded-lg border bg-surface px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  <Badge variant="warning">{p.flag}</Badge>
+                  <span>by @{p.author}</span>
+                  <time dateTime={p.createdAt} className="ml-auto">
+                    {timeAgo(p.createdAt)} ago
+                  </time>
+                </div>
+                <p className="mt-1.5 line-clamp-2">{p.preview}</p>
+                <a
+                  href={`/community/post/${p.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="mt-1.5 inline-block text-xs text-accent hover:underline"
+                >
+                  View in context
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {reports.map((r) => (
         <article key={r.id} className="rounded-xl border bg-surface p-4">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">

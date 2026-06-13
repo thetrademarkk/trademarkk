@@ -321,6 +321,11 @@ async function main() {
     // NEVER a recommendation — feeds an aggregate per-symbol gauge. Existing
     // rows default to NULL (no lean) — additive, idempotent. ──
     `ALTER TABLE posts ADD COLUMN sentiment TEXT`,
+    // ── Content-quality moderation flag: 'tip' | 'all-caps' | NULL (clean).
+    // Set by the create/edit quality gate for borderline posts (genuine analysis
+    // is never flagged; egregious spam is blocked outright, never stored).
+    // Existing rows default to NULL — additive, idempotent. ──
+    `ALTER TABLE posts ADD COLUMN quality_flag TEXT`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,
@@ -338,6 +343,19 @@ async function main() {
       console.log("skip (exists):", sql);
     }
   }
+
+  // Indexes that reference columns added in ALTERS must run AFTER them (on a
+  // fresh DB the column wouldn't exist when STATEMENTS run). Idempotent.
+  const POST_ALTER_INDEXES = [
+    // Moderation: cheap "show me flagged posts, newest first" scan for the admin
+    // queue. The vast majority of rows have a NULL quality_flag (cheap to skip).
+    `CREATE INDEX IF NOT EXISTS idx_posts_quality_flag ON posts (quality_flag, created_at DESC)`,
+  ];
+  for (const sql of POST_ALTER_INDEXES) {
+    await client.execute(sql);
+    console.log("OK:", sql);
+  }
+
   const tables = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
   );

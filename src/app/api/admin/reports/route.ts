@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { commentLikes, comments, posts, profiles, reports } from "@/server/db/platform-schema";
 import { deletePostCascade, getSession } from "@/server/community";
@@ -37,7 +37,41 @@ export async function GET() {
   const commentMap = new Map(targetComments.map((c) => [c.id, c]));
   const reporterMap = new Map(reporters.map((p) => [p.userId, p.username]));
 
+  // Auto-flagged posts (the content-quality gate's soft `quality_flag`) the
+  // community hasn't reported yet — surfaced so the moderation queue can review
+  // borderline tip/all-caps posts proactively (rank-14 consumes this). Newest
+  // first, capped; the author handle rides along for context. Posts ALSO present
+  // in the report list above are excluded (no double entry).
+  const reportedPostIds = new Set(postIds);
+  const flaggedRows = await platformDb
+    .select({
+      id: posts.id,
+      userId: posts.userId,
+      title: posts.title,
+      body: posts.body,
+      qualityFlag: posts.qualityFlag,
+      createdAt: posts.createdAt,
+    })
+    .from(posts)
+    .where(isNotNull(posts.qualityFlag))
+    .orderBy(desc(posts.createdAt))
+    .limit(50);
+  const flaggedAuthorIds = [...new Set(flaggedRows.map((p) => p.userId))];
+  const flaggedAuthors = flaggedAuthorIds.length
+    ? await platformDb.select().from(profiles).where(inArray(profiles.userId, flaggedAuthorIds))
+    : [];
+  const flaggedAuthorMap = new Map(flaggedAuthors.map((p) => [p.userId, p.username]));
+
   return NextResponse.json({
+    flagged: flaggedRows
+      .filter((p) => !reportedPostIds.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        flag: p.qualityFlag,
+        createdAt: p.createdAt,
+        author: flaggedAuthorMap.get(p.userId) ?? "unknown",
+        preview: (p.title ? `${p.title} — ` : "") + p.body.slice(0, 160),
+      })),
     reports: rows.map((r) => {
       const target = r.targetType === "post" ? postMap.get(r.targetId) : commentMap.get(r.targetId);
       return {

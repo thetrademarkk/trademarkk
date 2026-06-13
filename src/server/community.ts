@@ -161,6 +161,33 @@ export async function syncPostSymbols(postId: string, body: string): Promise<voi
 }
 
 /**
+ * Recent post bodies by a single user within `windowMs` (newest first, capped) —
+ * the corpus the quality gate's near-duplicate check compares a new post against.
+ * Excludes one post id when re-checking an edit (so a post never duplicates
+ * itself). Cheap indexed scan on (user_id, created_at). Returns [] on any error
+ * so the gate degrades open (a near-dup hiccup must never block a genuine post).
+ */
+export async function recentPostBodiesByUser(
+  userId: string,
+  windowMs: number,
+  excludePostId?: string,
+  limit = 20
+): Promise<string[]> {
+  try {
+    const since = new Date(Date.now() - windowMs).toISOString();
+    const rows = await platformDb
+      .select({ id: posts.id, body: posts.body })
+      .from(posts)
+      .where(and(eq(posts.userId, userId), sql`${posts.createdAt} >= ${since}`))
+      .orderBy(desc(posts.createdAt))
+      .limit(limit);
+    return rows.filter((r) => r.id !== excludePostId).map((r) => r.body);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Escapes LIKE-pattern metacharacters so user input matches literally. Pair
  * with `ESCAPE '\\'` on the SQL side. Matches the form used by the search and
  * autocomplete routes (escape char is a single backslash). Exported for tests.
