@@ -116,6 +116,23 @@ await step("For-You + starter-suggestions endpoints respond", async () => {
   if (typeof sgData.show !== "boolean") throw new Error("/suggestions missing show flag");
 });
 
+await step("new-posts count endpoint responds (cheap, safe) — rank-15 pill", async () => {
+  // The "N new posts" pill polls this count-only endpoint. With a far-past
+  // `since` it returns a non-negative integer; with no `since` it safely 0s.
+  const ok = await page.request.get(
+    `${BASE}/api/community/posts/new-count?since=2020-01-01T00:00:00.000Z`,
+    { headers: { origin: BASE } }
+  );
+  if (ok.status() !== 200) throw new Error(`/new-count status ${ok.status()}`);
+  const okData = await ok.json();
+  if (typeof okData.count !== "number" || okData.count < 0)
+    throw new Error(`/new-count bad shape: ${JSON.stringify(okData)}`);
+  const bad = await page.request.get(`${BASE}/api/community/posts/new-count`, {
+    headers: { origin: BASE },
+  });
+  if ((await bad.json()).count !== 0) throw new Error("/new-count without since should be 0");
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });

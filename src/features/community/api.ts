@@ -86,6 +86,38 @@ export function useFeed(
   });
 }
 
+/* ── "N new posts" live pill (rank-15) ──────────────────────── */
+
+/**
+ * Polls the cheap, count-only `new-count` endpoint for how many posts are newer
+ * than `since` (the createdAt of the post currently at the top of the feed).
+ * TRANSPORT: a poll, not SSE — see `features/community/new-posts.ts` for why
+ * (Vercel serverless + the codebase already polls for notifications/DMs).
+ *
+ * Cheap: only an integer is fetched; no post bodies cross the wire until the
+ * user clicks the pill. Gentle 25s interval. `refetchIntervalInBackground:
+ * false` makes TanStack Query PAUSE the interval whenever the tab is hidden
+ * (it listens to visibilitychange internally) and `refetchOnWindowFocus` fires
+ * one immediate fetch when the trader returns — no hammering, no thundering
+ * herd. Disabled (and the count forced to 0) unless `enabled` and a `since`
+ * exists; the caller only enables it on the live Latest scope.
+ */
+export function useNewPostsCount(since: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-new-count", since],
+    queryFn: () =>
+      request<{ count: number }>(
+        `/api/community/posts/new-count?since=${encodeURIComponent(since ?? "")}`
+      ),
+    enabled: enabled && Boolean(since),
+    refetchInterval: 25_000,
+    refetchIntervalInBackground: false, // pause the poll while the tab is hidden
+    refetchOnWindowFocus: true, // one fresh check the moment focus returns
+    staleTime: 0,
+    retry: false,
+  });
+}
+
 /* ── For You (interest feed + cold-start starter follows) ──────────────────── */
 
 /**

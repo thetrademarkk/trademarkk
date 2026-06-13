@@ -464,8 +464,15 @@ export interface FeedQuery {
   limit?: number;
 }
 
-export async function queryFeed(q: FeedQuery, viewerId: string | null) {
-  const limit = q.limit ?? 15;
+/**
+ * Builds the shared feed WHERE conditions — blocked-author exclusion, optional
+ * single-author scope, tag/symbol filters, the following/watchlist/saved graph
+ * scopes, and a free-text search — WITHOUT the sort-specific recency window or
+ * pagination cursor. Lifted out of `queryFeed` so the "N new posts" count
+ * endpoint (rank-15) applies the EXACT same visibility rules as the feed it
+ * sits above; the only thing the count adds on top is `createdAt > since`.
+ */
+export function buildFeedConditions(q: FeedQuery, viewerId: string | null) {
   const conditions = [];
   if (viewerId) {
     // Blocked users vanish from the viewer's feeds entirely.
@@ -532,6 +539,12 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
     const like = `%${q.search.slice(0, 60)}%`;
     conditions.push(sql`(${posts.body} LIKE ${like} OR ${posts.title} LIKE ${like})`);
   }
+  return conditions;
+}
+
+export async function queryFeed(q: FeedQuery, viewerId: string | null) {
+  const limit = q.limit ?? 15;
+  const conditions = buildFeedConditions(q, viewerId);
 
   let rows: PostRow[];
   if (q.sort === "top") {
@@ -577,6 +590,37 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   const nextCursor =
     q.sort === "latest" && rows.length > limit ? (page[page.length - 1]?.createdAt ?? null) : null;
   return { posts: await hydratePosts(page, viewerId), nextCursor };
+}
+
+/**
+ * Counts posts strictly NEWER than `since` for the given feed query — the cheap
+ * (count-only, no payload) backbone of the "N new posts" live pill (rank-15).
+ * Reuses `buildFeedConditions` so the same visibility rules as the live feed
+ * apply: blocked authors are excluded, the viewer's OWN brand-new posts are
+ * excluded (they already prepend via the feed-list invalidation, so they must
+ * never inflate the pill), and any active tag/symbol/scope filter is honored.
+ * The pill is only ever shown on the recency-ordered Latest view, but the count
+ * itself is correct for any query passed in. The result is clamped to `cap`.
+ */
+export async function countNewerPosts(
+  q: FeedQuery,
+  viewerId: string | null,
+  since: string,
+  cap = 50
+): Promise<number> {
+  const conditions = buildFeedConditions(q, viewerId);
+  conditions.push(sql`${posts.createdAt} > ${since}`);
+  // The viewer's own fresh posts already slide in via the feed cache
+  // invalidation on create, so they must never be counted as "new".
+  if (viewerId) conditions.push(sql`${posts.userId} <> ${viewerId}`);
+  // A single cheap COUNT over the bounded `createdAt > since` window. We clamp
+  // in JS rather than in SQL — the result is naturally tiny in steady state.
+  const row = await platformDb
+    .select({ c: sql<number>`COUNT(*)` })
+    .from(posts)
+    .where(and(...conditions))
+    .get();
+  return Math.min(Number(row?.c ?? 0), cap);
 }
 
 /* ── For You (interest feed + cold start) ──────────────────────────────────── */
