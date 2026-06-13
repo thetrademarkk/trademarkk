@@ -100,6 +100,13 @@ export const profiles = sqliteTable("profiles", {
   reputationScore: integer("reputation_score"),
   reputationTier: text("reputation_tier"),
   reputationComputedAt: text("reputation_computed_at"),
+  /**
+   * Per-type in-app notification preferences (see
+   * features/community/notification-prefs.ts). A compact JSON map of ONLY the
+   * types the user has switched OFF (e.g. `{"follow":false}`); NULL/absent means
+   * every type is enabled (the default — no behaviour change for existing users).
+   */
+  notificationPrefs: text("notification_prefs"),
   createdAt: text("created_at").notNull(),
 });
 

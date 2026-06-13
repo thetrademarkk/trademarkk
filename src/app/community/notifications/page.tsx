@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, CheckCheck, Inbox } from "lucide-react";
+import { ArrowLeft, Bell, CheckCheck, Inbox, Settings2 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,13 @@ import { SignInGate } from "@/features/community";
 import { useMarkNotificationsRead, useNotifications } from "@/features/community/api";
 import { groupNotifications, type NotificationGroup } from "@/features/community/notifications";
 import { NotificationGroupRow } from "@/features/community/components/notification-row";
+import { NotificationPreferences } from "@/features/community/components/notification-preferences";
 
 /** Full notification history (grouped) — everything the bell shows and more. */
 export default function NotificationsPage() {
   const { data: session, isPending } = useSession();
   const [gateOpen, setGateOpen] = React.useState(false);
+  const [showPrefs, setShowPrefs] = React.useState(false);
   const { data, isLoading } = useNotifications(Boolean(session), 100);
   const markRead = useMarkNotificationsRead();
 
@@ -67,12 +69,30 @@ export default function NotificationsPage() {
         <h1 className="flex items-center gap-2 text-xl font-bold">
           <Bell className="h-5 w-5 text-accent" aria-hidden /> Notifications
         </h1>
-        {unread > 0 && (
-          <Button variant="outline" size="sm" onClick={() => markRead.mutate(undefined)}>
-            <CheckCheck className="h-3.5 w-3.5" aria-hidden /> Mark all read
+        <div className="flex items-center gap-2">
+          {unread > 0 && (
+            <Button variant="outline" size="sm" onClick={() => markRead.mutate(undefined)}>
+              <CheckCheck className="h-3.5 w-3.5" aria-hidden /> Mark all read
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showPrefs}
+            aria-label="Notification preferences"
+            onClick={() => setShowPrefs((v) => !v)}
+          >
+            <Settings2 className="h-3.5 w-3.5" aria-hidden />
+            <span className="hidden sm:inline">Preferences</span>
           </Button>
-        )}
+        </div>
       </div>
+
+      {showPrefs && (
+        <div className="mb-4">
+          <NotificationPreferences />
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border bg-surface">
         {isLoading ? (

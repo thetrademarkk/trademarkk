@@ -972,6 +972,62 @@ export function useMarkNotificationsRead() {
   });
 }
 
+/* ── Notification preferences ────────────────────────────────────────────── */
+
+export interface NotificationPrefToggle {
+  type: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+interface NotificationPrefsResponse {
+  toggles: NotificationPrefToggle[];
+}
+
+/** The signed-in user's per-type notification toggles. */
+export function useNotificationPrefs(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-notification-prefs"],
+    queryFn: () => request<NotificationPrefsResponse>("/api/community/notification-prefs"),
+    enabled,
+    retry: false,
+  });
+}
+
+/**
+ * Toggles one notification type. Optimistic: the switch flips instantly and
+ * rolls back on error; the server response (authoritative full list) replaces
+ * the cache on success.
+ */
+export function useUpdateNotificationPref() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { type: string; enabled: boolean }) =>
+      request<NotificationPrefsResponse>("/api/community/notification-prefs", {
+        method: "PUT",
+        body: JSON.stringify(vars),
+      }),
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ["community-notification-prefs"] });
+      const prev = qc.getQueryData<NotificationPrefsResponse>(["community-notification-prefs"]);
+      qc.setQueryData<NotificationPrefsResponse>(["community-notification-prefs"], (data) =>
+        data
+          ? {
+              toggles: data.toggles.map((t) =>
+                t.type === vars.type ? { ...t, enabled: vars.enabled } : t
+              ),
+            }
+          : data
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-notification-prefs"], ctx.prev);
+    },
+    onSuccess: (data) => qc.setQueryData(["community-notification-prefs"], data),
+  });
+}
+
 /* ── Direct messages ─────────────────────────────────────────────────────── */
 
 export interface ConversationsResponse {

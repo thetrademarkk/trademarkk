@@ -77,16 +77,63 @@ import {
   type FollowCandidate,
   type FollowSuggestion,
 } from "@/features/community/follow-suggestions";
+import {
+  BYPASS_PREF_TYPES,
+  isNotificationAllowed,
+  parseNotificationPrefs,
+  serializeNotificationPrefs,
+  applyPrefToggle,
+  type NotificationPrefs,
+} from "@/features/community/notification-prefs";
 
-/** Creates a notification (no-op when acting on your own content). */
+/**
+ * The in-app notification types this server emits. Kept as a NAMED union (not an
+ * inline literal) so it can grow additively — a parallel lane adding e.g.
+ * `backtest_done` extends this in ONE place and `notify()`'s preference check
+ * tolerates unknown types (default-on). `(string & {})` keeps autocomplete on the
+ * known members while still accepting any future type without a breaking edit.
+ */
+export type NotifyType =
+  | "like"
+  | "comment"
+  | "reply"
+  | "follow"
+  | "mention"
+  | "reshare"
+  | (string & {});
+
+/**
+ * Creates a notification (no-op when acting on your own content).
+ *
+ * Respects the recipient's per-type notification preferences: a single
+ * PK-indexed read of `profiles.notification_prefs` (one column on the row we'd
+ * touch anyway) is consulted, and a type the user has opted OUT of is SKIPPED.
+ * The default is ON (absent column / unknown type always delivers), so existing
+ * users and any newly-added type are unaffected. Moderation/security types in
+ * BYPASS_PREF_TYPES always deliver. Cheap: one lightweight select, no extra
+ * write, and prefs lookups never throw into the caller.
+ */
 export async function notify(input: {
   userId: string;
   actorId: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare";
+  type: NotifyType;
   postId?: string | null;
   commentId?: string | null;
 }) {
   if (input.userId === input.actorId) return;
+
+  if (!BYPASS_PREF_TYPES.has(input.type)) {
+    const pref = await platformDb
+      .select({ notificationPrefs: profiles.notificationPrefs })
+      .from(profiles)
+      .where(eq(profiles.userId, input.userId))
+      .get()
+      .catch(() => undefined);
+    if (!isNotificationAllowed(parseNotificationPrefs(pref?.notificationPrefs), input.type)) {
+      return; // recipient opted out of this type — never create the row
+    }
+  }
+
   await platformDb
     .insert(notifications)
     .values({
@@ -140,6 +187,40 @@ export async function notifyNewMentions(
   await Promise.all(
     rows.map((r) => notify({ userId: r.userId, actorId, type: "mention", postId }))
   );
+}
+
+/**
+ * Reads the signed-in user's notification preferences (creating the profile row
+ * lazily first, so the settings page works even before any community activity).
+ * Returns the parsed sparse map — `{}` means "all defaults / everything on".
+ */
+export async function getNotificationPrefs(
+  userId: string,
+  name: string
+): Promise<NotificationPrefs> {
+  const profile = await ensureProfile(userId, name);
+  return parseNotificationPrefs(profile?.notificationPrefs);
+}
+
+/**
+ * Toggles ONE notification type on/off for a user and persists the compact
+ * (only-disabled-types) JSON back to `profiles.notification_prefs`. Idempotent
+ * and additive — turning a type back on removes its entry; turning everything
+ * back on stores NULL. Returns the new full toggle map for an optimistic UI.
+ */
+export async function setNotificationPref(
+  userId: string,
+  name: string,
+  type: string,
+  enabled: boolean
+): Promise<NotificationPrefs> {
+  const current = await getNotificationPrefs(userId, name);
+  const next = applyPrefToggle(current, type, enabled);
+  await platformDb
+    .update(profiles)
+    .set({ notificationPrefs: serializeNotificationPrefs(next) })
+    .where(eq(profiles.userId, userId));
+  return next;
 }
 
 /**

@@ -378,6 +378,11 @@ async function main() {
     `ALTER TABLE profiles ADD COLUMN reputation_score INTEGER`,
     `ALTER TABLE profiles ADD COLUMN reputation_tier TEXT`,
     `ALTER TABLE profiles ADD COLUMN reputation_computed_at TEXT`,
+    // ── Per-type in-app notification preferences (notification-prefs.ts) ──
+    // A compact JSON map of ONLY the types the user has switched OFF; NULL means
+    // every type is enabled (the default — existing users see no behaviour
+    // change). `notify()` consults this at emit time and skips opted-out types.
+    `ALTER TABLE profiles ADD COLUMN notification_prefs TEXT`,
   ];
   for (const sql of ALTERS) {
     try {
