@@ -60,7 +60,8 @@ describe("buildTaxCsv", () => {
   it("emits every section header", () => {
     for (const section of [
       "Summary",
-      "Speculative vs non-speculative split",
+      "Income classification (three-way)",
+      "Capital gains — STCG / LTCG (delivery equity)",
       "F&O turnover statement",
       "Charges breakdown",
       "Realised P&L by instrument",

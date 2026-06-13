@@ -9,8 +9,30 @@
  * units stored on TradeRow. We never round money away here.
  */
 
+import { capitalGainsTerm } from "@/lib/stats/horizon";
 import { fyLabel } from "./fy";
-import { classifyTrade, fyTaxSummary, tradeTurnover, type TaxTrade } from "./turnover";
+import {
+  CG_LTCG_RATE_PCT,
+  CG_RATE_EFFECTIVE_FROM,
+  CG_STCG_RATE_PCT,
+  classifyTaxBucket,
+  fyTaxSummary,
+  tradeTurnover,
+  type TaxBucketKind,
+  type TaxTrade,
+} from "./turnover";
+
+/** Human label for a trade's income head, with STCG/LTCG term for capital gains. */
+function ledgerCategory(t: TaxTrade): string {
+  const kind: TaxBucketKind = classifyTaxBucket(t);
+  if (kind === "speculative") return "Speculative";
+  if (kind === "non-speculative-business") return "Non-speculative business";
+  // Capital gains — annotate the holding term.
+  if (!t.closed_at) return "Capital gains";
+  return capitalGainsTerm(t.opened_at, t.closed_at) === "long"
+    ? "Capital gains (LTCG)"
+    : "Capital gains (STCG)";
+}
 
 /** RFC-4180 escape: quote a field that holds a comma, quote or newline. */
 export function csvCell(v: string | number | null | undefined): string {
@@ -60,24 +82,66 @@ export function buildTaxCsv(
   lines.push(row(["Charge drag (% of gross)", (s.chargeDragPct * 100).toFixed(2)]));
   lines.push("");
 
-  lines.push(row(["Speculative vs non-speculative split", ""]));
+  lines.push(row(["Income classification (three-way)", ""]));
+  lines.push(row(["Head of income", "Trades", "Gross P&L", "Charges", "Net P&L"]));
+  const { speculative, nonSpeculativeBusiness, capitalGains, cg } = s.buckets;
   lines.push(
-    row(["Category", "Trades", "Gross P&L", "Charges", "Net P&L", "Turnover (abs profit)"])
+    row([
+      "Speculative business (intraday equity)",
+      speculative.trades,
+      money(speculative.grossPnl),
+      money(speculative.charges),
+      money(speculative.netPnl),
+    ])
   );
-  for (const b of [s.split.speculative, s.split.nonSpeculative]) {
-    lines.push(
-      row([
-        b.category === "speculative"
-          ? "Speculative (intraday equity)"
-          : "Non-speculative (F&O + delivery)",
-        b.trades,
-        money(b.grossPnl),
-        money(b.charges),
-        money(b.netPnl),
-        money(b.turnover),
-      ])
-    );
-  }
+  lines.push(
+    row([
+      "Non-speculative business (F&O / commodity / currency)",
+      nonSpeculativeBusiness.trades,
+      money(nonSpeculativeBusiness.grossPnl),
+      money(nonSpeculativeBusiness.charges),
+      money(nonSpeculativeBusiness.netPnl),
+    ])
+  );
+  lines.push(
+    row([
+      "Capital gains (delivery equity)",
+      capitalGains.trades,
+      money(capitalGains.grossPnl),
+      money(capitalGains.charges),
+      money(capitalGains.netPnl),
+    ])
+  );
+  lines.push("");
+
+  // Capital-gains STCG/LTCG statement (delivery equity only).
+  lines.push(row(["Capital gains — STCG / LTCG (delivery equity)", ""]));
+  lines.push(row(["Term", "Trades", "Gross P&L", "Net P&L (realised)"]));
+  lines.push(
+    row([
+      "STCG (held ≤ 12 months)",
+      cg.shortTerm.trades,
+      money(cg.shortTerm.grossPnl),
+      money(cg.shortTerm.netPnl),
+    ])
+  );
+  lines.push(
+    row([
+      "LTCG (held > 12 months)",
+      cg.longTerm.trades,
+      money(cg.longTerm.grossPnl),
+      money(cg.longTerm.netPnl),
+    ])
+  );
+  lines.push(row([`LTCG yearly exemption (INR)`, money(cg.ltcgExemption)]));
+  lines.push(row(["LTCG net after exemption (INR)", money(cg.ltcgTaxableAfterExemption)]));
+  lines.push(
+    row([
+      `Statutory rate labels (informational, ${CG_RATE_EFFECTIVE_FROM})`,
+      `STCG ${CG_STCG_RATE_PCT}% · LTCG ${CG_LTCG_RATE_PCT}% on listed equity`,
+    ])
+  );
+  lines.push(row(["This is a classification + realised statement, not a tax computation.", ""]));
   lines.push("");
 
   lines.push(row(["F&O turnover statement", ""]));
@@ -164,7 +228,7 @@ export function buildTaxCsv(
         t.symbol,
         t.segment,
         t.direction,
-        classifyTrade(t) === "speculative" ? "Speculative" : "Non-speculative",
+        ledgerCategory(t),
         t.qty,
         money(t.avg_entry),
         t.avg_exit == null ? "" : money(t.avg_exit),

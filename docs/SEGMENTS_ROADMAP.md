@@ -43,7 +43,7 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-04** Backfill product for existing trades + recompute-charges action
 - [x] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
 - [x] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
-- [ ] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m)
+- [x] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m) — Shipped (accumulated, pending batch deploy)
 - [ ] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data
 - [ ] **SEG-09** Filters, table & grouping for segment/product/holding-period
 - [ ] **SEG-10** Lot-size modelling for derivatives (optional)
@@ -52,6 +52,36 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-07** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Tax pack v2**: a correct THREE-WAY income classification for Indian traders,
+  layered onto the existing FY tax pack on `/app/reports` → **Tax & charges**.
+  Pure additions in `src/lib/stats/horizon.ts` (`heldOverTwelveMonths` /
+  `capitalGainsTerm` — a calendar-month, IST-correct 12-month boundary: exactly
+  12 months is short-term, strictly more is long-term) and `src/lib/tax/turnover.ts`
+  (`classifyTaxBucket` → **speculative** = intraday equity (MIS / same-IST-day),
+  **non-speculative business** = F&O + commodity (COMM/MCX/NCDEX) + currency (CDS),
+  **capital gains** = delivery equity (CNC, EQ held overnight, incl. BTST/STBT);
+  `capitalGainsSplit` → realised **STCG** (held ≤ 12 months) vs **LTCG** (held > 12
+  months) net P&L with the **₹1,25,000** yearly LTCG exemption applied for display;
+  `taxBucketSplit` rolls all three buckets, exposed via `fyTaxSummary.buckets`).
+  Open positions are excluded (unrealised). The Tax tab renders an **Income
+  classification** card (all three heads, per FY) + a **Capital gains — STCG / LTCG**
+  card showing the exemption note and the **STCG 20% / LTCG 12.5%** statutory rate
+  labels (23 Jul 2024 onward) — clearly DISPLAY-ONLY: this is a classification +
+  realised-gains statement, NOT a tax-liability computation, with the
+  "informational, not tax advice — verify with a CA" disclaimer. CSV / Excel export
+  carries the three-way split + the STCG/LTCG section + rate labels; the trade
+  ledger's category column now annotates Capital gains (STCG)/(LTCG). Money in
+  paise, rounded only at display, IST throughout, all 3 storage modes, no market
+  data, no LLM. +21 vitest in `capital-gains.test.ts` (three-way classification,
+  STCG/LTCG at the 12-month IST boundary incl. exactly-12-months, exemption,
+  open-trade exclusion, BTST→STCG, FY exposure) → full suite **1277** green; tsc +
+  ext-typecheck + lint (0 warnings) + build clean; feature e2e
+  `scripts/e2e-seg-tax-v2.mjs` 8/8 (mixed book → 3 speculative / 1 non-spec
+  business / 6 capital gains = 3 STCG + 3 LTCG, open position excluded, exemption +
+  rate labels + disclaimer, CSV carries the split, 360px clean, zero console
+  errors), e2e-smoke 34/34, mobile-audit clean.
 
 - **SEG-CHG** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
   money-critical exchange/segment charge coverage. Added an **Exchange** dimension

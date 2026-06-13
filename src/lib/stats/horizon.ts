@@ -41,6 +41,45 @@ export function istCalendarDaysOpen(openedAt: string, now: Date = new Date()): n
   return istCalendarDaysHeld(openedAt, now.toISOString());
 }
 
+/**
+ * Capital-gains holding term for listed-equity DELIVERY (CNC) trades. Indian
+ * income-tax treats listed equity held for **more than 12 months** as
+ * long-term; 12 months or less is short-term. The boundary is measured on the
+ * IST *calendar dates* (acquisition → transfer), not on a 365-day count, so the
+ * leap-year/month-length quirks of a day count never shift a trade across the
+ * line. Exactly twelve calendar months (same day-of-month one year on) is
+ * **short-term** — long-term requires the period to *exceed* 12 months.
+ *
+ *   buy 2024-01-15, sell 2025-01-15 → 12 months exactly      → short
+ *   buy 2024-01-15, sell 2025-01-16 → more than 12 months    → long
+ *
+ * Reused by the tax pack (SEG-07) to split realised delivery-equity gains into
+ * STCG vs LTCG. Pure, IST-correct, no market data.
+ */
+export type CapitalGainsTerm = "short" | "long";
+
+/** True when the IST holding period strictly exceeds 12 calendar months. */
+export function heldOverTwelveMonths(openedAt: string, closedAt: string): boolean {
+  const open = istDateKey(openedAt); // YYYY-MM-DD (IST)
+  const close = istDateKey(closedAt);
+  const [oy, om, od] = open.split("-").map(Number) as [number, number, number];
+  const [cy, cm, cd] = close.split("-").map(Number) as [number, number, number];
+  if ([oy, om, od, cy, cm, cd].some((n) => Number.isNaN(n))) return false;
+  // The "12 months after acquisition" anchor: same day-of-month, one year on.
+  // The period exceeds 12 months once the close date is strictly past it.
+  if (cy !== oy + 1) return cy > oy + 1;
+  if (cm !== om) return cm > om;
+  return cd > od;
+}
+
+/**
+ * Short- vs long-term capital-gains term for a delivery-equity round trip.
+ * Held > 12 IST calendar months ⇒ long-term, else short-term.
+ */
+export function capitalGainsTerm(openedAt: string, closedAt: string): CapitalGainsTerm {
+  return heldOverTwelveMonths(openedAt, closedAt) ? "long" : "short";
+}
+
 /** Swing tops out at this many calendar days held; beyond it is positional. */
 export const SWING_MAX_DAYS = 7;
 
