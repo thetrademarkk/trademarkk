@@ -40,7 +40,7 @@ const DDL = [
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT, body TEXT NOT NULL,
     trade_card TEXT, tags TEXT, like_count INTEGER NOT NULL DEFAULT 0, reactions TEXT,
     comment_count INTEGER NOT NULL DEFAULT 0, share_count INTEGER NOT NULL DEFAULT 0,
-    reshare_count INTEGER NOT NULL DEFAULT 0, quote_post_id TEXT,
+    reshare_count INTEGER NOT NULL DEFAULT 0, quote_post_id TEXT, sentiment TEXT,
     created_at TEXT NOT NULL, edited_at TEXT, edit_history TEXT
   )`,
   `CREATE TABLE profiles (
@@ -243,6 +243,7 @@ describe("hydratePosts embeds the quoted original", () => {
       shareCount: r!.share_count as number,
       reshareCount: r!.reshare_count as number,
       quotePostId: (r!.quote_post_id as string) ?? null,
+      sentiment: (r!.sentiment as string) ?? null,
       createdAt: r!.created_at as string,
       editedAt: (r!.edited_at as string) ?? null,
       editHistory: (r!.edit_history as string) ?? null,

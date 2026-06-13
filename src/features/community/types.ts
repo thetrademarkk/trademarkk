@@ -1,5 +1,6 @@
 import type { ReactionCounts, ReactionKind } from "./reactions";
 import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
+import type { Sentiment } from "./sentiment";
 
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
@@ -62,6 +63,11 @@ export interface PostView {
   reshareCount: number;
   /** Set when this post is itself a reshare/quote — points at the ROOT original. */
   quotePostId: string | null;
+  /**
+   * Optional bullish/bearish lean on the tickers this post mentions, or null.
+   * NEVER a recommendation — drives a small chip and the per-symbol gauge.
+   */
+  sentiment: Sentiment | null;
   /**
    * The embedded original when this post is a reshare/quote. `undefined` for a
    * normal post; an object (possibly `unavailable`) when it reshares something;

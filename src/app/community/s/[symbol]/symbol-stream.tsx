@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Composer, Feed } from "@/features/community";
+import { SentimentGauge } from "@/features/community/components/sentiment-gauge";
 import { COMMUNITY_DRAFT_KEY, readDraft } from "@/features/community/draft";
 import type { FeedSort } from "@/features/community/api";
 import type { Exchange } from "@/features/community/symbols";
@@ -83,6 +84,9 @@ export function SymbolStream({
           </span>
         </p>
       </header>
+
+      {/* ── 24h/7d community sentiment gauge (never a buy/sell signal) ── */}
+      <SentimentGauge symbol={symbol} />
 
       {/* ── Tabs ── */}
       <div

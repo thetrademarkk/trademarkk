@@ -14,6 +14,8 @@ import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { cached, invalidateCached } from "@/server/cache";
 import { createPostSchema } from "@/features/community/schemas";
+import { extractCashtags } from "@/features/community/cashtags";
+import { normalizeSentiment } from "@/features/community/sentiment";
 
 /** Tag grammar — same as the post-creation schema (lowercase, digits, dashes). */
 const TAG_RE = /^[a-z0-9-]{2,20}$/;
@@ -80,14 +82,21 @@ export async function POST(req: Request) {
   const input = parsed.data;
   await ensureProfile(session.user.id, session.user.name);
 
+  const body = input.body.trim();
+  // Sentiment is only meaningful when the post mentions >= 1 $cashtag — it's a
+  // lean on those tickers. Persist it only then; otherwise store NULL so a
+  // sentiment can never be set on a post that tags no symbol.
+  const sentiment = extractCashtags(body).length > 0 ? normalizeSentiment(input.sentiment) : null;
+
   const id = newId();
   await platformDb.insert(posts).values({
     id,
     userId: session.user.id,
     title: input.title?.trim() || null,
-    body: input.body.trim(),
+    body,
     tradeCard: input.tradeCard ? JSON.stringify(input.tradeCard) : null,
     tags: input.tags.length ? JSON.stringify(input.tags) : null,
+    sentiment,
     createdAt: new Date().toISOString(),
   });
   if (input.images.length) {

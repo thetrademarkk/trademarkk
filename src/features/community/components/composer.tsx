@@ -13,6 +13,9 @@ import { ComposerTextarea } from "./composer-textarea";
 import { ApiError, useCreatePost } from "../api";
 import { clearDraft, readDraft, writeDraft } from "../draft";
 import { SUGGESTED_TAGS, type TradeCard } from "../types";
+import { extractCashtags } from "../cashtags";
+import type { Sentiment } from "../sentiment";
+import { SentimentToggle } from "./sentiment-toggle";
 import { TradeCardView } from "./trade-card-view";
 import { SignInGate } from "./sign-in-gate";
 
@@ -38,6 +41,7 @@ export function Composer({
   const [tags, setTags] = React.useState<string[]>([]);
   const [images, setImages] = React.useState<string[]>([]);
   const [includePnl, setIncludePnl] = React.useState(false);
+  const [sentiment, setSentiment] = React.useState<Sentiment | null>(null);
   const [gateOpen, setGateOpen] = React.useState(false);
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   // Drafts restore after hydration (localStorage doesn't exist server-side, and
@@ -74,6 +78,10 @@ export function Composer({
     ? { ...initialCard, netPnl: includePnl ? initialCard.netPnl : null }
     : null;
 
+  // Sentiment is only meaningful with a $cashtag in the body (it's a lean on
+  // those tickers). The toggle disables itself otherwise, mirroring the server.
+  const hasCashtag = React.useMemo(() => extractCashtags(body).length > 0, [body]);
+
   const toggleTag = (t: string) =>
     setTags((prev) =>
       prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 4 ? [...prev, t] : prev
@@ -102,12 +110,15 @@ export function Composer({
         tags,
         tradeCard: card,
         images: images.filter(Boolean),
+        // Only send a lean when the body actually tags a ticker (server re-gates).
+        sentiment: hasCashtag ? sentiment : null,
       });
       toast.success("Posted to the community");
       setTitle("");
       setBody("");
       setTags([]);
       setImages([]);
+      setSentiment(null);
       if (draftKey) clearDraft(draftKey);
       onPosted?.(id);
     } catch (e) {
@@ -185,6 +196,13 @@ export function Composer({
           ))}
         </div>
       </fieldset>
+
+      <SentimentToggle
+        value={sentiment}
+        onChange={setSentiment}
+        disabled={!hasCashtag}
+        idPrefix="composer-sentiment"
+      />
 
       {images.filter(Boolean).length > 0 && (
         <div className="grid grid-cols-2 gap-2">

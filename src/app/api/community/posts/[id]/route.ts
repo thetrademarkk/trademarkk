@@ -16,6 +16,8 @@ import {
   notifyNewMentions,
   syncPostSymbols,
 } from "@/server/community";
+import { extractCashtags } from "@/features/community/cashtags";
+import { normalizeSentiment } from "@/features/community/sentiment";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -222,6 +224,19 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const nextTitle = input.title?.trim() || null;
   const nextBody = input.body.trim();
   const nextTags = input.tags;
+  // Sentiment edit: when the field is sent, set it (gated on the NEW body still
+  // mentioning >= 1 $cashtag — removing every ticker also clears the lean);
+  // when omitted, leave the stored value untouched. Re-gate against the new body
+  // either way so an edit that drops all tickers never keeps a stale lean.
+  const bodyHasCashtag = extractCashtags(nextBody).length > 0;
+  const nextSentiment =
+    input.sentiment === undefined
+      ? bodyHasCashtag
+        ? row.sentiment
+        : null
+      : bodyHasCashtag
+        ? normalizeSentiment(input.sentiment)
+        : null;
 
   // Snapshot the PRE-edit content into the append-only history before writing.
   const snapshot: PostEditSnapshot = {
@@ -239,6 +254,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       title: nextTitle,
       body: nextBody,
       tags: nextTags.length ? JSON.stringify(nextTags) : null,
+      sentiment: nextSentiment,
       editedAt,
       editHistory: history,
     })

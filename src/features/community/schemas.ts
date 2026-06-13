@@ -26,12 +26,20 @@ const imageSchema = z
   .regex(/^data:image\/(webp|jpeg|png);base64,/)
   .max(400_000, "Image too large");
 
+/**
+ * Optional bullish/bearish lean on the tickers a post mentions. `null`/omitted =
+ * no sentiment (the default). NEVER a recommendation — feeds an aggregate gauge.
+ * Only `"bull"` or `"bear"` are accepted; the empty string clears it on edit.
+ */
+const sentimentSchema = z.enum(["bull", "bear"]).nullish();
+
 export const createPostSchema = z.object({
   title: z.string().max(120).optional(),
   body: z.string().min(2, "Say something!").max(5000),
   tags: z.array(tagSchema).max(4).default([]),
   tradeCard: tradeCardSchema.nullish(),
   images: z.array(imageSchema).max(2).default([]),
+  sentiment: sentimentSchema,
 });
 
 /**
@@ -58,6 +66,8 @@ export const editPostSchema = z.object({
   title: z.string().max(120).optional(),
   body: z.string().min(2, "Say something!").max(5000),
   tags: z.array(tagSchema).max(4).default([]),
+  /** Sentiment is editable within the window; omit to leave it unchanged. */
+  sentiment: sentimentSchema,
 });
 
 /** Editing a comment re-runs the create-comment body validation. */

@@ -121,6 +121,13 @@ export const posts = sqliteTable("posts", {
    * reshare collapses to the root). NULL = an ordinary post.
    */
   quotePostId: text("quote_post_id"),
+  /**
+   * Optional, honest community sentiment on the tickers this post mentions:
+   * 'bull' | 'bear' | NULL (no lean). NEVER a buy/sell recommendation — it
+   * feeds an aggregate per-symbol gauge with a not-advice disclaimer. Only
+   * meaningful when the post carries >= 1 $cashtag. NULL = the default (none).
+   */
+  sentiment: text("sentiment"),
   createdAt: text("created_at").notNull(),
   /** Set the first time the post is edited; null = never edited. */
   editedAt: text("edited_at"),

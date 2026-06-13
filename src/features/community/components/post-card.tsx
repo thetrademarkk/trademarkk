@@ -54,6 +54,7 @@ import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
+import { SentimentChip } from "./sentiment-toggle";
 import { EditPostForm } from "./edit-post-form";
 import { EditedMarker } from "./edit-history-dialog";
 import { useEditWindow } from "../use-edit-window";
@@ -405,6 +406,8 @@ export function PostCard({
               ${s}
             </Link>
           ))}
+          {/* The author's optional lean on those tickers — never advice. */}
+          <SentimentChip sentiment={post.sentiment} />
         </div>
       )}
 

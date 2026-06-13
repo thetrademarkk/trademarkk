@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPostSchema,
+  editPostSchema,
   createCommentSchema,
   updateProfileSchema,
   startConversationSchema,
@@ -28,6 +29,34 @@ describe("createPostSchema", () => {
   });
   it("caps body length", () => {
     expect(createPostSchema.safeParse({ body: "x".repeat(5001) }).success).toBe(false);
+  });
+  it("accepts an optional bull/bear/null sentiment and omitting it", () => {
+    expect(createPostSchema.safeParse({ body: "long $NIFTY", sentiment: "bull" }).success).toBe(
+      true
+    );
+    expect(createPostSchema.safeParse({ body: "short $NIFTY", sentiment: "bear" }).success).toBe(
+      true
+    );
+    expect(createPostSchema.safeParse({ body: "neutral $NIFTY", sentiment: null }).success).toBe(
+      true
+    );
+    expect(createPostSchema.safeParse({ body: "no sentiment field" }).success).toBe(true);
+  });
+  it("rejects an unknown sentiment value", () => {
+    expect(createPostSchema.safeParse({ body: "hi", sentiment: "neutral" }).success).toBe(false);
+    expect(createPostSchema.safeParse({ body: "hi", sentiment: "BULL" }).success).toBe(false);
+  });
+});
+
+describe("editPostSchema", () => {
+  it("re-runs body/tag validation and accepts an optional sentiment", () => {
+    expect(editPostSchema.safeParse({ body: "edited $NIFTY", sentiment: "bull" }).success).toBe(
+      true
+    );
+    expect(editPostSchema.safeParse({ body: "edited", sentiment: null }).success).toBe(true);
+    expect(editPostSchema.safeParse({ body: "edited" }).success).toBe(true); // omitted = unchanged
+    expect(editPostSchema.safeParse({ body: "" }).success).toBe(false);
+    expect(editPostSchema.safeParse({ body: "edited", sentiment: "x" }).success).toBe(false);
   });
 });
 

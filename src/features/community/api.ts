@@ -25,6 +25,7 @@ import type {
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import { toggleFollowedTag } from "./followed-tags";
+import { extractCashtags } from "./cashtags";
 import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
 import type { PostEditSnapshot } from "./edit-window";
@@ -200,6 +201,39 @@ export function useTrending(window: "24h" | "7d") {
   });
 }
 
+/* ── Per-symbol community sentiment gauge ─────────────────────── */
+
+export interface SentimentGaugeView {
+  bull: number;
+  bear: number;
+  total: number;
+  bullPct: number;
+  bearPct: number;
+  hasSignal: boolean;
+}
+export interface SentimentResponse {
+  symbol: string;
+  window: "24h" | "7d";
+  gauge: SentimentGaugeView;
+}
+
+/**
+ * Community sentiment gauge for a symbol over a window. Block-aware on the
+ * server for signed-in viewers; the anonymous gauge is CDN-cached. Drives the
+ * per-symbol stream page's bull/bear gauge — NOT a recommendation.
+ */
+export function useSymbolSentiment(symbol: string, window: "24h" | "7d") {
+  return useQuery({
+    queryKey: ["community-sentiment", symbol, window],
+    queryFn: () =>
+      request<SentimentResponse>(
+        `/api/community/sentiment?symbol=${encodeURIComponent(symbol)}&window=${window}`
+      ),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 /** The signed-in viewer's followed tags. Drives the tag page's Follow state + the left-rail list. */
 export function useFollowedTags(enabled: boolean) {
   return useQuery({
@@ -334,6 +368,16 @@ export function useEditPost(id: string) {
       title: input.title?.trim() || null,
       body: input.body.trim(),
       tags: input.tags,
+      // Sentiment is only kept when the new body still tags a ticker (mirrors the
+      // server re-gate); `undefined` leaves the existing lean untouched.
+      sentiment:
+        input.sentiment === undefined
+          ? input.body.trim().length && extractCashtags(input.body).length > 0
+            ? post.sentiment
+            : null
+          : extractCashtags(input.body).length > 0
+            ? (input.sentiment ?? null)
+            : null,
       editedAt,
       editHistory: [...post.editHistory, snapshot],
     };

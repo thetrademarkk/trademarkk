@@ -308,6 +308,10 @@ async function main() {
     // Existing rows default to 0 / NULL — additive, idempotent. ──
     `ALTER TABLE posts ADD COLUMN reshare_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE posts ADD COLUMN quote_post_id TEXT`,
+    // ── Optional bullish/bearish sentiment tag: 'bull' | 'bear' | NULL.
+    // NEVER a recommendation — feeds an aggregate per-symbol gauge. Existing
+    // rows default to NULL (no lean) — additive, idempotent. ──
+    `ALTER TABLE posts ADD COLUMN sentiment TEXT`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,

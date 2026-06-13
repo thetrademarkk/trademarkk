@@ -37,6 +37,13 @@ import {
   type TrendingItem,
   type TrendingWindow,
 } from "@/features/community/trending";
+import {
+  computeSentimentGauge,
+  normalizeSentiment,
+  sentimentWindowHours,
+  type SentimentGauge,
+  type SentimentWindow,
+} from "@/features/community/sentiment";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -222,6 +229,7 @@ interface PostRow {
   shareCount: number;
   reshareCount: number;
   quotePostId: string | null;
+  sentiment: string | null;
   createdAt: string;
   editedAt: string | null;
   editHistory: string | null;
@@ -385,6 +393,7 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
       shareCount: r.shareCount,
       reshareCount: r.reshareCount,
       quotePostId: r.quotePostId,
+      sentiment: normalizeSentiment(r.sentiment),
       quoted: r.quotePostId ? (quotedMap.get(r.quotePostId) ?? null) : undefined,
       createdAt: r.createdAt,
       editedAt: r.editedAt,
@@ -874,5 +883,67 @@ export async function queryTrending(
     // The board is a non-critical sidebar/landing surface — degrade to empty
     // rather than error the page (the empty state reads "not enough activity").
     return { window, tickers: [], topics: [] };
+  }
+}
+
+/* ── Per-symbol community sentiment gauge ───────────────────────────────────── */
+
+/**
+ * Loads the bull/bear leans of posts that BOTH tagged `symbol` (via the indexed
+ * `post_symbols` join) AND set a sentiment in the window. Block-aware: a
+ * signed-in viewer never sees posts from authors they've blocked counted toward
+ * the gauge. Only rows with a non-NULL `sentiment` are returned.
+ */
+async function loadSymbolSentimentRows(
+  symbol: string,
+  since: string,
+  viewerId: string | null
+): Promise<{ sentiment: string | null }[]> {
+  const rows = await platformDb.all<{ sentiment: string | null }>(
+    sql`SELECT p.sentiment AS sentiment
+        FROM post_symbols ps
+        JOIN posts p ON p.id = ps.post_id
+        WHERE ps.symbol = ${symbol.toUpperCase()}
+          AND p.sentiment IS NOT NULL
+          AND p.created_at >= ${since}
+          AND (${viewerId} IS NULL
+               OR p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId}))`
+  );
+  return rows;
+}
+
+/**
+ * Computes the per-symbol community sentiment gauge on-read (no cron, no
+ * snapshot). Counts bull vs bear among recent posts that tagged the symbol AND
+ * set a sentiment; the pure `computeSentimentGauge` applies the min-sample gate
+ * so a tiny sample reads "not enough signal" rather than a confident %.
+ *
+ * NEVER a recommendation — the UI carries a not-advice disclaimer. Block-aware
+ * for signed-in viewers (computed per request); the ANONYMOUS gauge is wrapped
+ * in the 10-minute in-memory `cached()` so it costs at most one indexed scan per
+ * symbol/window per 10 minutes globally. Degrades to an empty (no-signal) gauge
+ * on any error — a per-ticker sidebar must never error the page.
+ */
+export async function querySymbolSentiment(
+  symbol: string,
+  window: SentimentWindow,
+  viewerId: string | null
+): Promise<SentimentGauge> {
+  const sym = symbol.toUpperCase();
+  const compute = async (): Promise<SentimentGauge> => {
+    const since = new Date(Date.now() - sentimentWindowHours(window) * 3_600_000).toISOString();
+    const rows = await loadSymbolSentimentRows(sym, since, viewerId);
+    const events = rows
+      .map((r) => normalizeSentiment(r.sentiment))
+      .filter((s): s is "bull" | "bear" => s !== null)
+      .map((sentiment) => ({ sentiment }));
+    return computeSentimentGauge(events);
+  };
+
+  try {
+    if (viewerId) return await compute();
+    return await cached(`sentiment:${sym}:${window}`, 10 * 60_000, compute);
+  } catch {
+    return computeSentimentGauge([]);
   }
 }
