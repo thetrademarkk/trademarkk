@@ -17,6 +17,7 @@ import {
   SUGGESTED_TAGS,
   TrendingBoard,
   useMyProfile,
+  WhoToFollow,
 } from "@/features/community";
 import { WatchlistRail } from "@/features/community/components/watchlist-rail";
 import {
@@ -266,6 +267,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       {/* ── Right rail ── */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 space-y-4">
+          <WhoToFollow enabled={signedIn} />
           <TrendingBoard variant="compact" />
           <div className="rounded-xl border bg-surface p-4">
             <h2 className="text-sm font-semibold">Share with the community</h2>

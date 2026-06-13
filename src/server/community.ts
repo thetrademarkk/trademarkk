@@ -69,7 +69,14 @@ import {
   type ReactorTally,
   type ReputationResult,
   type ReputationSignals,
+  type ReputationTier,
 } from "@/features/community/reputation";
+import {
+  DEFAULT_SUGGESTION_LIMIT,
+  rankFollowSuggestions,
+  type FollowCandidate,
+  type FollowSuggestion,
+} from "@/features/community/follow-suggestions";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -1615,4 +1622,266 @@ export async function getReputation(userId: string): Promise<ReputationView> {
   }
   const meta = tierMeta(result.tier);
   return { ...result, tierLabel: meta.label, tierBlurb: meta.blurb };
+}
+
+/* ── "Who to follow" suggestions (rank-17) ──────────────────────────────────────
+ *
+ * Relevant, non-spammy follow recommendations for the signed-in viewer. We build
+ * a BOUNDED candidate set from existing tables — people followed by people the
+ * viewer follows (2nd-degree), authors who post about tags the viewer follows /
+ * symbols the viewer watches — exclude everyone the viewer already follows / has
+ * blocked / is blocked by / who is banned / themselves (all in SQL), then fill
+ * each candidate's affinity counts + denormalized reputation and rank with the
+ * PURE `rankFollowSuggestions` engine (reputation is a bounded tie-break, never
+ * the dominant term). A viewer with no signals (cold start) falls back to popular
+ * recent contributors. NO new schema, no full-table cross-joins on hot paths.
+ */
+
+/** How many candidate user-ids to gather per source before scoring (cheapness cap). */
+const FOLLOW_SUGGESTION_CANDIDATE_CAP = 60;
+/** Window (days) over which a candidate's "recent quality activity" is counted. */
+const FOLLOW_SUGGESTION_ACTIVITY_DAYS = 30;
+
+/** The public shape returned to the "Who to follow" rail. */
+export interface FollowSuggestionsResult {
+  /** Whether the surface has anything to show (false → the UI renders nothing). */
+  show: boolean;
+  /** Ranked suggestions (already capped + diversified). */
+  suggestions: FollowSuggestion[];
+}
+
+/**
+ * Computes "who to follow" for a viewer. One bounded candidate scan + a handful
+ * of cheap indexed aggregates over the candidate id-set, then the pure ranker.
+ * Degrades to `{show:false}` on any error — a discovery rail must never error
+ * the page.
+ */
+export async function queryFollowSuggestions(
+  viewerId: string,
+  limit = DEFAULT_SUGGESTION_LIMIT
+): Promise<FollowSuggestionsResult> {
+  try {
+    // ── Viewer signals: who they already follow, their interest tags/symbols ──
+    const [followRows, followedTagRows, watchedRows] = await Promise.all([
+      platformDb
+        .select({ followingId: follows.followingId })
+        .from(follows)
+        .where(eq(follows.followerId, viewerId)),
+      platformDb
+        .select({ tag: followedTags.tag })
+        .from(followedTags)
+        .where(eq(followedTags.userId, viewerId)),
+      platformDb
+        .select({ symbol: watchedSymbols.symbol })
+        .from(watchedSymbols)
+        .where(eq(watchedSymbols.userId, viewerId)),
+    ]);
+    const followingIds = followRows.map((r) => r.followingId);
+    const interestTags = followedTagRows.map((r) => r.tag.toLowerCase());
+    const interestSymbols = watchedRows.map((r) => r.symbol.toUpperCase());
+    const coldStart =
+      followingIds.length === 0 && interestTags.length === 0 && interestSymbols.length === 0;
+
+    // ── Candidate sources (each bounded), excluding the viewer + their follows +
+    // blocks BOTH ways + banned accounts. The exclude-set lives in SQL. ──
+
+    // 2nd-degree: people followed by the people the viewer follows, with a count
+    // of HOW MANY of the viewer's follows reach them (the 2nd-degree strength).
+    const secondDegreeRows = followingIds.length
+      ? await platformDb.all<{ id: string; mutuals: number }>(
+          sql`SELECT f2.following_id AS id, COUNT(DISTINCT f2.follower_id) AS mutuals
+              FROM follows f1
+              JOIN follows f2 ON f2.follower_id = f1.following_id
+              WHERE f1.follower_id = ${viewerId}
+                AND f2.following_id <> ${viewerId}
+                AND f2.following_id NOT IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})
+                AND f2.following_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})
+                AND f2.following_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ${viewerId})
+                AND f2.following_id NOT IN (SELECT id FROM user WHERE status = 'banned')
+              GROUP BY f2.following_id
+              ORDER BY mutuals DESC
+              LIMIT ${FOLLOW_SUGGESTION_CANDIDATE_CAP}`
+        )
+      : [];
+    const secondDegreeStrength = new Map<string, number>(
+      secondDegreeRows.map((r) => [String(r.id), Number(r.mutuals)])
+    );
+
+    // Shared-tag authors: people who AUTHORED a live, unflagged, recent post
+    // carrying a tag the viewer follows (matched via the post_symbols-style
+    // json_each over posts.tags). Cheap: bounded by candidate cap + recency.
+    const since = new Date(
+      Date.now() - FOLLOW_SUGGESTION_ACTIVITY_DAYS * 24 * 3600 * 1000
+    ).toISOString();
+    const sharedTagRows =
+      interestTags.length > 0
+        ? await platformDb.all<{ id: string }>(
+            sql`SELECT DISTINCT p.user_id AS id
+                FROM posts p, json_each(p.tags) je
+                WHERE p.tags IS NOT NULL
+                  AND p.quality_flag IS NULL
+                  AND p.created_at >= ${since}
+                  AND lower(je.value) IN (${sql.join(
+                    interestTags.map((t) => sql`${t}`),
+                    sql`, `
+                  )})
+                  AND p.user_id <> ${viewerId}
+                  AND p.user_id NOT IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT id FROM user WHERE status = 'banned')
+                LIMIT ${FOLLOW_SUGGESTION_CANDIDATE_CAP}`
+          )
+        : [];
+
+    // Shared-symbol authors: people who tagged a $cashtag the viewer watches in a
+    // recent post (indexed post_symbols join).
+    const sharedSymbolRows =
+      interestSymbols.length > 0
+        ? await platformDb.all<{ id: string }>(
+            sql`SELECT DISTINCT p.user_id AS id
+                FROM post_symbols ps
+                JOIN posts p ON p.id = ps.post_id
+                WHERE ps.symbol IN (${sql.join(
+                  interestSymbols.map((s) => sql`${s}`),
+                  sql`, `
+                )})
+                  AND p.quality_flag IS NULL
+                  AND p.created_at >= ${since}
+                  AND p.user_id <> ${viewerId}
+                  AND p.user_id NOT IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ${viewerId})
+                  AND p.user_id NOT IN (SELECT id FROM user WHERE status = 'banned')
+                LIMIT ${FOLLOW_SUGGESTION_CANDIDATE_CAP}`
+          )
+        : [];
+
+    // Cold-start fallback: a viewer with no signals gets popular recent
+    // contributors (most live posts), still excluding self/blocked/banned.
+    const popularRows = coldStart
+      ? await platformDb.all<{ id: string }>(
+          sql`SELECT p.user_id AS id
+              FROM posts p
+              WHERE p.quality_flag IS NULL
+                AND p.user_id <> ${viewerId}
+                AND p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})
+                AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ${viewerId})
+                AND p.user_id NOT IN (SELECT id FROM user WHERE status = 'banned')
+              GROUP BY p.user_id
+              ORDER BY COUNT(*) DESC
+              LIMIT ${FOLLOW_SUGGESTION_CANDIDATE_CAP}`
+        )
+      : [];
+
+    // Union the candidate id-set (de-duped).
+    const candidateIds = Array.from(
+      new Set<string>([
+        ...secondDegreeRows.map((r) => String(r.id)),
+        ...sharedTagRows.map((r) => String(r.id)),
+        ...sharedSymbolRows.map((r) => String(r.id)),
+        ...popularRows.map((r) => String(r.id)),
+      ])
+    );
+    if (candidateIds.length === 0) return { show: false, suggestions: [] };
+
+    // ── Enrich the candidate set with cheap indexed aggregates over the id-set ──
+    const [profileRows, sharedTagFacets, sharedSymbolFacets, activityRows] = await Promise.all([
+      // Profile projection + denormalized reputation (NO per-candidate recompute —
+      // the chip reads the cached tier, warmed elsewhere on stale reads).
+      platformDb
+        .select({
+          userId: profiles.userId,
+          username: profiles.username,
+          displayName: profiles.displayName,
+          avatar: profiles.avatar,
+          reputationScore: profiles.reputationScore,
+          reputationTier: profiles.reputationTier,
+        })
+        .from(profiles)
+        .where(inArray(profiles.userId, candidateIds)),
+      // Which of the viewer's followed tags each candidate posts about.
+      interestTags.length > 0
+        ? platformDb.all<{ id: string; tag: string }>(
+            sql`SELECT DISTINCT p.user_id AS id, lower(je.value) AS tag
+                FROM posts p, json_each(p.tags) je
+                WHERE p.user_id IN (${sql.join(
+                  candidateIds.map((id) => sql`${id}`),
+                  sql`, `
+                )})
+                  AND p.quality_flag IS NULL
+                  AND p.created_at >= ${since}
+                  AND lower(je.value) IN (${sql.join(
+                    interestTags.map((t) => sql`${t}`),
+                    sql`, `
+                  )})`
+          )
+        : Promise.resolve([] as { id: string; tag: string }[]),
+      // Which of the viewer's watched symbols each candidate posts about.
+      interestSymbols.length > 0
+        ? platformDb.all<{ id: string; symbol: string }>(
+            sql`SELECT DISTINCT p.user_id AS id, ps.symbol AS symbol
+                FROM post_symbols ps
+                JOIN posts p ON p.id = ps.post_id
+                WHERE p.user_id IN (${sql.join(
+                  candidateIds.map((id) => sql`${id}`),
+                  sql`, `
+                )})
+                  AND p.quality_flag IS NULL
+                  AND p.created_at >= ${since}
+                  AND ps.symbol IN (${sql.join(
+                    interestSymbols.map((s) => sql`${s}`),
+                    sql`, `
+                  )})`
+          )
+        : Promise.resolve([] as { id: string; symbol: string }[]),
+      // Recent live-post counts (genuine activity).
+      platformDb.all<{ id: string; n: number }>(
+        sql`SELECT user_id AS id, COUNT(*) AS n
+            FROM posts
+            WHERE user_id IN (${sql.join(
+              candidateIds.map((id) => sql`${id}`),
+              sql`, `
+            )})
+              AND quality_flag IS NULL
+              AND created_at >= ${since}
+            GROUP BY user_id`
+      ),
+    ]);
+
+    const sharedTagsByUser = new Map<string, string[]>();
+    for (const r of sharedTagFacets) {
+      const arr = sharedTagsByUser.get(String(r.id)) ?? [];
+      arr.push(String(r.tag));
+      sharedTagsByUser.set(String(r.id), arr);
+    }
+    const sharedSymbolsByUser = new Map<string, string[]>();
+    for (const r of sharedSymbolFacets) {
+      const arr = sharedSymbolsByUser.get(String(r.id)) ?? [];
+      arr.push(String(r.symbol));
+      sharedSymbolsByUser.set(String(r.id), arr);
+    }
+    const activityByUser = new Map<string, number>(
+      activityRows.map((r) => [String(r.id), Number(r.n)])
+    );
+
+    // Build the pure candidate set (only rows with a real profile are eligible).
+    const candidates: FollowCandidate[] = profileRows.map((p) => ({
+      userId: p.userId,
+      username: p.username,
+      displayName: p.displayName,
+      avatar: p.avatar ?? null,
+      reputationTier: p.reputationTier ? (normalizeTier(p.reputationTier) as ReputationTier) : null,
+      reputationScore: typeof p.reputationScore === "number" ? p.reputationScore : null,
+      secondDegreeCount: secondDegreeStrength.get(p.userId) ?? 0,
+      sharedTags: sharedTagsByUser.get(p.userId) ?? [],
+      sharedSymbols: sharedSymbolsByUser.get(p.userId) ?? [],
+      recentQualityPosts: activityByUser.get(p.userId) ?? 0,
+    }));
+
+    const suggestions = rankFollowSuggestions(candidates, { limit, coldStart });
+    return { show: suggestions.length > 0, suggestions };
+  } catch {
+    return { show: false, suggestions: [] };
+  }
 }

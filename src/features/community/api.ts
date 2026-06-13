@@ -26,6 +26,7 @@ import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import { toggleFollowedTag } from "./followed-tags";
 import { toggleWatchedSymbol } from "./watchlist";
+import type { ReputationTier } from "./reputation";
 import { extractCashtags } from "./cashtags";
 import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
@@ -159,6 +160,36 @@ export function useStarterSuggestions(enabled: boolean) {
   return useQuery({
     queryKey: ["community-starter-suggestions"],
     queryFn: () => request<StarterSuggestionsResponse>("/api/community/suggestions"),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export interface WhoToFollowSuggestion {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  reputationTier: ReputationTier | null;
+  reason: string;
+}
+export interface WhoToFollowResponse {
+  show: boolean;
+  suggestions: WhoToFollowSuggestion[];
+}
+
+/**
+ * "Who to follow" — relevant, non-spammy follow recommendations for the signed-in
+ * viewer (2nd-degree mutuals, shared followed-tags / watched-symbols, recent
+ * activity; standing only as a bounded tie-break). Cold-start viewers get popular
+ * recent contributors. Enabled only when signed in; viewer-personalized so never
+ * cached on the server. A slowly-changing discovery surface → cached client-side.
+ */
+export function useWhoToFollow(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-who-to-follow"],
+    queryFn: () => request<WhoToFollowResponse>("/api/community/who-to-follow"),
     enabled,
     staleTime: 5 * 60_000,
     retry: false,
