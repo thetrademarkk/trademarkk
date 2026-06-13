@@ -36,11 +36,14 @@ import {
   useToggleBlock,
   useToggleBookmark,
   useToggleLike,
+  useUnfurl,
 } from "../api";
 import { formatCount, formatPostDate } from "../format";
+import { extractFirstLink } from "../unfurl";
 import type { PostView } from "../types";
 import type { ReactionKind } from "../reactions";
 import { CommunityAvatar } from "./avatar";
+import { UnfurlCard } from "./unfurl-card";
 import { TradeCardView } from "./trade-card-view";
 import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
@@ -343,6 +346,11 @@ export function PostCard({
 
       {post.tradeCard && <TradeCardView card={post.tradeCard} />}
 
+      {/* Rich link preview for the FIRST link in the body. Skipped when the
+          post already has its own chart images (those take visual priority)
+          or while editing. Fetched lazily — only when a link is present. */}
+      {!editing && post.images.length === 0 && <PostUnfurl postId={post.id} body={post.body} />}
+
       {post.images.length > 0 && (
         <div className={cn("mt-3 grid gap-2", post.images.length > 1 && "grid-cols-2")}>
           {post.images.map((src, i) => (
@@ -430,4 +438,17 @@ export function PostCard({
       />
     </article>
   );
+}
+
+/**
+ * Lazily fetches and renders the unfurl card for the first link in `body`.
+ * Calling `useUnfurl` with `enabled` false (no link) means the network is never
+ * touched for a linkless post. Renders nothing until/unless the server returns
+ * a usable preview — a missing or unsafe link simply shows no card.
+ */
+function PostUnfurl({ postId, body }: { postId: string; body: string }) {
+  const hasLink = extractFirstLink(body) !== null;
+  const { data } = useUnfurl(postId, hasLink);
+  if (!hasLink || !data?.unfurl) return null;
+  return <UnfurlCard unfurl={data.unfurl} />;
 }

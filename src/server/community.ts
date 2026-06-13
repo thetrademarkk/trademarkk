@@ -17,6 +17,7 @@ import {
 } from "./db/platform-schema";
 import type { AuthorView, PostView, TradeCard } from "@/features/community/types";
 import {
+  applyDiversityCap,
   normalizeReaction,
   resolveReactionCounts,
   topFeedScore,
@@ -312,7 +313,7 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
       .orderBy(desc(sql`${posts.likeCount} + ${posts.commentCount}`), desc(posts.createdAt))
       .limit(Math.min(120, (limit + 1) * 4));
     const now = Date.now();
-    rows = candidates
+    const scored = candidates
       .map((r) => ({
         row: r as PostRow,
         score: topFeedScore(
@@ -321,9 +322,13 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
           (now - new Date(r.createdAt).getTime()) / 3_600_000
         ),
       }))
-      .sort((a, b) => b.score - a.score || (a.row.createdAt < b.row.createdAt ? 1 : -1))
-      .slice(0, limit + 1)
-      .map((s) => s.row);
+      .sort((a, b) => b.score - a.score || (a.row.createdAt < b.row.createdAt ? 1 : -1));
+    // Per-author diversity cap so one prolific poster can't dominate the Top
+    // window. Skipped when the feed is already pinned to a single author (a
+    // profile's Top view) where capping would be meaningless. Applied over the
+    // whole scored window BEFORE slicing so capped authors yield to others.
+    const diversified = q.authorUserId ? scored : applyDiversityCap(scored, (s) => s.row.userId);
+    rows = diversified.slice(0, limit + 1).map((s) => s.row);
   } else {
     if (q.cursor) conditions.push(lt(posts.createdAt, q.cursor));
     rows = await platformDb

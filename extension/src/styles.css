@@ -358,6 +358,43 @@ body.popup .panel {
   gap: 8px;
 }
 
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* ── Entry tabs: Log a trade / Plan a trade ───────────────────── */
+.entry-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.entry-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 0;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 0;
+}
+.entry-tabs button:hover:not(.active) {
+  color: var(--text);
+}
+.entry-tabs button.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
 .disclosure {
   display: inline-flex;
   align-items: center;
@@ -431,6 +468,10 @@ body.popup .panel {
   justify-content: center;
   background: color-mix(in srgb, var(--profit) 16%, transparent);
   color: var(--profit);
+}
+.saved .saved-icon.plan {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
 }
 .saved .title {
   font-weight: 650;

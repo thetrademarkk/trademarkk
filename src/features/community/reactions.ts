@@ -184,6 +184,43 @@ export function topFeedScore(counts: ReactionCounts, comments: number, ageHours:
   return (engagement + 1) / Math.pow(age + 2, 1.2);
 }
 
+/** Default: at most 2 posts from any one author in a single Top-feed window. */
+export const TOP_FEED_AUTHOR_CAP = 2;
+
+/**
+ * Per-author diversity cap for the Top feed. Given items ALREADY sorted best-
+ * first by hot-score, keeps each item only until its author has appeared
+ * `maxPerAuthor` times, so a single prolific poster can't monopolise the Top
+ * window. Overflow posts are NOT dropped — they're appended after the capped
+ * set (still in hot-score order) so the feed stays full when there aren't
+ * enough distinct authors. Deterministic, stable, no ML.
+ *
+ * @param items        hot-score-sorted items, each exposing an author key
+ * @param authorOf     extracts the author id from an item
+ * @param maxPerAuthor cap per author (default TOP_FEED_AUTHOR_CAP)
+ */
+export function applyDiversityCap<T>(
+  items: T[],
+  authorOf: (item: T) => string,
+  maxPerAuthor = TOP_FEED_AUTHOR_CAP
+): T[] {
+  if (maxPerAuthor < 1) return [...items];
+  const seen = new Map<string, number>();
+  const kept: T[] = [];
+  const overflow: T[] = [];
+  for (const item of items) {
+    const author = authorOf(item);
+    const n = seen.get(author) ?? 0;
+    if (n < maxPerAuthor) {
+      kept.push(item);
+      seen.set(author, n + 1);
+    } else {
+      overflow.push(item);
+    }
+  }
+  return kept.concat(overflow);
+}
+
 /**
  * Serializes a per-kind breakdown for the denormalized `posts.reactions`
  * column. Drops zero/empty kinds; returns null when there are no reactions so
