@@ -32,7 +32,7 @@
 - [x] **Goals & risk limits** — daily/weekly guardrails + breach banners.
 - [x] **Indian tax & reporting pack** _(top differentiator — no competitor serves this)_ — FY-grouped F&O turnover statement, speculative vs non-speculative split, STT/stamp/SEBI/GST/brokerage drag breakdown, realised-P&L statement, CSV/Excel export + print-to-PDF. Pure client-side, paise-correct.
 - [x] **More statistics pack** — duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size analysis. All client-side, n>=5 gate per bucket.
-- [ ] **Psychology/discipline scoring v2** — per-day discipline score + trend, plan-adherence (planned_entry/sl/target deviation), confidence calibration (win% by confidence bin). Fields already in schema; n>=5 gates.
+- [x] **Psychology/discipline scoring v2** — per-day discipline score + trend, plan-adherence (planned_entry/sl/target deviation), confidence calibration (win% by confidence bin). Fields already in schema; n>=5 gates.
 - [ ] **Options payoff diagrams + DTE + strategy grouping** — SVG payoff-at-expiry from existing leg rows (no IV/live data), DTE buckets, multi-leg trades collapsed into one strategy row.
 - [ ] **Monte Carlo simulator** — bootstrap the user's R-distribution + win% into an equity cone (p5/p50/p95), risk-of-ruin, max-drawdown odds. Web Worker, seeded PRNG, n>=30 gate.
 - [ ] **Workflow polish** — bulk edit (multi-select tag/playbook), note/journal templates, daily journal prompts, pre-trade plan log (writes planned\_\* fields), keyboard shortcuts. Client-side + localStorage.
@@ -55,3 +55,4 @@
 - [x] 2026-06-13 — Goals & risk limits (guardrail banners + weekly goals widget) — consolidated to main (PR-less)
 - [x] 2026-06-13 — Indian tax & reporting pack (FY turnover/speculative split/charges/realised-P&L, CSV+Excel+print) — PR #46
 - [x] 2026-06-13 — More statistics pack (hold-duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size; n>=5 gate per bucket) — PR #49
+- [x] 2026-06-13 — Psychology/discipline scoring v2 (per-day discipline score 0–100 + recharts trend & 7-day direction, plan-adherence entry-slippage + exit resolution, confidence calibration with over/under-confidence flags; n>=5 honesty gates; demo "Explore with sample data" seed wired) — PR #52

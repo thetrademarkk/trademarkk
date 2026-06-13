@@ -127,6 +127,22 @@ export function useRuleDays() {
   });
 }
 
+/** Broken-rule-check counts keyed by day (YYYY-MM-DD) — powers discipline scoring. */
+export function useRuleBreaksByDay() {
+  const { db } = useDb();
+  return useQuery({
+    queryKey: ["rule-breaks-by-day"],
+    queryFn: async (): Promise<Map<string, number>> => {
+      const res = await db.execute(
+        `SELECT date, COUNT(*) AS n FROM rule_checks WHERE status = 'broken' GROUP BY date`
+      );
+      const map = new Map<string, number>();
+      for (const r of res.rows) map.set(String(r.date), Number(r.n));
+      return map;
+    },
+  });
+}
+
 export interface RuleAdherence {
   rule: Rule;
   followed: number;
