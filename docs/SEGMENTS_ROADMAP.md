@@ -44,7 +44,7 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
 - [x] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
 - [x] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m) — Shipped (accumulated, pending batch deploy)
-- [ ] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data
+- [x] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data — Shipped (accumulated, pending batch deploy)
 - [ ] **SEG-09** Filters, table & grouping for segment/product/holding-period
 - [ ] **SEG-10** Lot-size modelling for derivatives (optional)
 - [ ] **SEG-11** Extension capture carries product + exchange (+ MCX/CDS adapters)
@@ -52,6 +52,41 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-08** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Onboarding asks the trader type, sets defaults, seeds matching sample data.**
+  New pure `src/features/onboarding/trader-profile.ts`: a `TraderType`
+  (`intraday-equity` / `swing` / `fno` / `commodity` / `currency` / `mixed`),
+  `traderTypeDefaults()` mapping each to a default (segment, product) — intraday
+  equity → EQ+MIS, swing → EQ+CNC, F&O → OPT+NRML, commodity → COMM+NRML,
+  currency → CDS+NRML, mixed → EQ+MIS — `dashboardEmphasisForTraderType()`
+  (intraday → intraday, the overnight books → positional, mixed → balanced), and
+  a `sanitizeTraderProfile()` that clamps untrusted JSON to the `mixed` default.
+  The profile persists as an **additive, idempotent** `settings` row keyed
+  `trader_profile.v1` (no migration — the table already exists), so it works
+  identically across hosted / BYOD / local and travels with mode-switch copies +
+  backups. (1) The first-run setup step (`SetupForm`) gained a clean trader-type
+  picker (lucide icons, 360px-clean, optional → defaults to "A bit of
+  everything" = mixed). (2) The trade form reads the profile and applies the
+  default segment + product to a blank new-trade form (via `form.reset()` so the
+  controlled Radix segment select re-initialises atomically and the form isn't
+  marked dirty) — never on edit, a restored draft, or after the user touches it,
+  and the user can always change it per trade. (3) The adaptive dashboard
+  (SEG-06) falls back to the profile's emphasis until there are enough
+  classifiable trades (`GATE_MIN_TRADES`) to read the style from the data, so a
+  brand-new swing/F&O trader gets a relevant layout from session one. (4)
+  `seedSampleData(db, traderType)` is parameterised: a swing pick seeds multi-day
+  CNC equity, F&O seeds OPT + the multi-leg strategy catalogue, commodity seeds
+  MCX (COMM/NRML) futures, currency seeds CDS, and `mixed` blends every recipe
+  (the prior demo behaviour preserved) — all paise-correct through the existing
+  per-(segment,product,exchange) charge engine. Back-compat: `seedDefaults` /
+  `seedSampleData` default to `mixed` so `scripts/seed-demo-user.ts` is
+  unchanged. +22 vitest (trader-type→default mapping + form-validation parity,
+  emphasis defaults, sanitize/round-trip, `trader_profile.v1` persistence over
+  real migration SQL, per-type sample-seed shape via sql.js) → full suite 1299;
+  feature e2e (`e2e-seg-onboarding`) 9/9 (pick Swing → form defaults EQ+CNC + samples are
+  multi-day + dashboard reads positional; pick F&O → OPT+NRML defaults + option
+  samples; skip → Mixed EQ+MIS default; 360px clean; zero console errors).
 
 - **SEG-07** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
   **Tax pack v2**: a correct THREE-WAY income classification for Indian traders,

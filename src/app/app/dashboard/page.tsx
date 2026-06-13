@@ -9,7 +9,9 @@ import {
   TradingStyleSummary,
   HoldingPeriodCard,
 } from "@/features/analytics/components/horizon-stats";
-import { horizonMix, dashboardEmphasis } from "@/lib/stats/horizon";
+import { horizonMix, dashboardEmphasis, GATE_MIN_TRADES } from "@/lib/stats/horizon";
+import { useTraderProfile } from "@/features/onboarding/queries";
+import { dashboardEmphasisForTraderType } from "@/features/onboarding/trader-profile";
 import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
 import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
@@ -46,6 +48,7 @@ export default function DashboardPage() {
   );
   const { data: adherence } = useAdherence(from, to);
   const { data: journalDates = [] } = useJournalDates();
+  const { data: traderProfile } = useTraderProfile();
 
   if (isLoading || !trades) {
     return (
@@ -66,7 +69,14 @@ export default function DashboardPage() {
   // The dashboard adapts to the trader's holding style: positional/swing users
   // get open-positions + holding emphasis, intraday users keep the day-focused
   // arrangement, and a thin/mixed journal degrades to the balanced layout.
-  const emphasis = dashboardEmphasis(horizonMix(allClosed));
+  // SEG-08: until there are enough classifiable trades to read the style from
+  // the data, fall back to the onboarding trader-type's emphasis so a brand-new
+  // swing/F&O trader gets a relevant layout from their very first session.
+  const mix = horizonMix(allClosed);
+  const emphasis =
+    mix.total < GATE_MIN_TRADES && traderProfile
+      ? dashboardEmphasisForTraderType(traderProfile.traderType)
+      : dashboardEmphasis(mix);
   const positional = emphasis === "positional";
 
   // Daily checklist / expensive-habit nudge — an intraday-trader staple. Held

@@ -82,9 +82,11 @@ export function TradeForm({
     defaultValues: {
       accountId: accounts[0]?.id ?? "",
       symbol: "",
-      // Default EQ + MIS (intraday) — onboarding will set per-user defaults in
-      // SEG-08. OPT stays the default only when editing an existing OPT trade
-      // (its product/segment come through `defaults`).
+      // App-wide neutral default EQ + MIS. The host (QuickAdd) passes a SEG-08
+      // trader-type default segment/product via `defaults` for a blank new-trade
+      // form, so it's part of the initial render — the controlled segment select
+      // reflects it without any post-mount mutation. Editing / restored drafts
+      // pin their own segment through `defaults` too.
       segment: "EQ",
       product: "MIS",
       direction: "long",
