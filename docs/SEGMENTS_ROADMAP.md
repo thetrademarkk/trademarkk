@@ -38,7 +38,7 @@ behaviour, so existing P&L never regresses.
 ## Backlog
 
 - [x] **SEG-01** Segment×Product model + per-(segment,product) charge engine + trader-type-aware conditional form
-- [ ] **SEG-02** Charge-engine golden tests for every (segment,product) combo
+- [x] **SEG-02** Charge-engine golden tests for every (segment,product) combo
 - [ ] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
 - [ ] **SEG-04** Backfill product for existing trades + recompute-charges action
 - [ ] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
@@ -61,3 +61,17 @@ behaviour, so existing P&L never regresses.
   expiry for all derivatives, derived read-only holding period), `product`
   threaded through utils/csv/queries/save-statements/tax. Back-compat: legacy
   no-product trades compute as MIS (no FnO or equity P&L regression).
+
+- **SEG-02** (Shipped 2026-06-13) — exhaustive, hand-verified GOLDEN TABLE
+  locking the per-(segment, product) money math. New
+  `src/lib/charges/charges.golden.test.ts`: a data-driven matrix of 17 golden
+  rows (Zerodha + Upstox + the manual zero profile) asserting the FULL charge
+  breakdown — every component line and the total, paise-exact — against values
+  computed BY HAND in the test (formula documented per row). Covers EQ+MIS,
+  EQ+CNC (DP + both-sides STT), EQ+BTST/STBT (delivery basis, no DP), FUT &
+  OPT regression guards (product must not move the charge), COMM future/option/
+  agri (CTT 0.01%/0.05%, agri EXEMPT, no STT), CDS (no STT/CTT), plus the
+  legacy null-product = MIS back-compat case and paise-rounding boundaries
+  (half-up at 0.105 → 0.11). 27 new tests, all green; the engine matched the
+  statutory hand computation exactly — NO charge bug found, no `charges.ts`
+  change needed.
