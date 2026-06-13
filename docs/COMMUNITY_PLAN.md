@@ -1,9 +1,9 @@
-# TradeMark Community — Plan (+ separate journal research)
+# TradeMarkk Community — Plan (+ separate journal research)
 
 > **Two independent tracks, planned together but distinct:**
 >
 > **Track A — Community (new product area, this document's focus).** A trader
-> community inside TradeMark — posts, comments, trade ideas, images — stored
+> community inside TradeMarkk — posts, comments, trade ideas, images — stored
 > **centrally in our platform DB**. Community content is public by definition, so
 > central storage doesn't break the "your journal stays yours" promise; the journal
 > never leaves the user's DB — sharing a trade copies a snapshot the user approves.
@@ -26,7 +26,7 @@
 
 ### 2.1 Identity model (important)
 
-- Community identity = **TradeMark account** (Better Auth). Hosted users already have one.
+- Community identity = **TradeMarkk account** (Better Auth). Hosted users already have one.
 - **BYOD/local users can join too**: they sign in/up _just for community_ — their journal
   stays wherever it is. UI copy makes this explicit.
 - Public identity = **handle** (`@nifty_scalper`) + display name + bio. Handle is
@@ -69,7 +69,7 @@
 - **Logged-out readers** see everything (growth!); any action raises the sign-in gate.
 - **Empty/loading states** everywhere; optimistic likes/comments; toasts on errors.
 - **Compliance:** persistent footer + composer note: _"Educational discussion only —
-  nothing on TradeMark is investment advice."_ (SEBI-sane defaults for an Indian
+  nothing on TradeMarkk is investment advice."_ (SEBI-sane defaults for an Indian
   trading community.)
 
 ### 2.4 Accessibility (non-negotiable, app-wide)
@@ -143,9 +143,9 @@ weekly digest email · image storage on R2/Vercel Blob · per-post view counts.
 ## 3. Track B — journal improvements from the reference video
 
 Feature matrix extracted from the platform class the video demonstrates
-(TradesViz & Indian competitors), mapped against TradeMark's journal:
+(TradesViz & Indian competitors), mapped against TradeMarkk's journal:
 
-| Feature in the walkthrough/platform class            | TradeMark today                 | Action                                            |
+| Feature in the walkthrough/platform class            | TradeMarkk today                | Action                                            |
 | ---------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
 | Expiry-day vs normal-day analytics                   | ❌ (we already store `expiry`!) | **Shipping now**                                  |
 | Psychology/emotion vs P&L analysis                   | partial (emotion tags exist)    | **Shipping now**                                  |

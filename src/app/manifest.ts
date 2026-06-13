@@ -2,9 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TradeMark — Trading Journal",
-    short_name: "TradeMark",
-    description: "Mark your trade, every day. Free open-source trading journal for Indian FnO traders.",
+    name: "TradeMarkk — Trading Journal",
+    short_name: "TradeMarkk",
+    description:
+      "Mark your trade, every day. Free open-source trading journal for Indian FnO traders.",
     start_url: "/app/dashboard",
     display: "standalone",
     background_color: "#0A0A0B",

@@ -172,7 +172,7 @@ await step("₹ is hidden by default (WIN/R hero, no rupee glyph)", async () => 
 
 await step("download PNG (default card)", async () => {
   const name = await downloadPng(page.getByRole("button", { name: "Download PNG" }));
-  if (!/^trademark-SHARECLOSED-\d{4}-\d{2}-\d{2}\.png$/.test(name))
+  if (!/^trademarkk-SHARECLOSED-\d{4}-\d{2}-\d{2}\.png$/.test(name))
     throw new Error(`bad file name ${name}`);
   await page.getByText("Image downloaded").waitFor({ timeout: 5000 });
 });
@@ -249,7 +249,7 @@ await step("report ₹ opt-in + PNG download", async () => {
   if (!/^[+-]₹[\d,]+\.\d{2}$/.test(hero)) throw new Error(`hero not paise-exact ₹: ${hero}`);
   await page.waitForTimeout(300);
   const name = await downloadPng(page.getByRole("button", { name: "Download PNG" }));
-  if (!/^trademark-week-review-\d{4}-\d{2}-\d{2}\.png$/.test(name))
+  if (!/^trademarkk-week-review-\d{4}-\d{2}-\d{2}\.png$/.test(name))
     throw new Error(`bad file name ${name}`);
   await page.keyboard.press("Escape");
 });

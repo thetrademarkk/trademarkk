@@ -20,10 +20,15 @@ export function Sidebar() {
         sidebarCollapsed ? "w-16" : "w-60"
       )}
     >
-      <div className={cn("flex items-center px-4 h-14 border-b", sidebarCollapsed && "justify-center px-0")}>
+      <div
+        className={cn(
+          "flex items-center px-4 h-14 border-b",
+          sidebarCollapsed && "justify-center px-0"
+        )}
+      >
         <Link
           href="/app/dashboard"
-          aria-label="TradeMark dashboard"
+          aria-label="TradeMarkk dashboard"
           className="flex items-center gap-2 font-semibold tracking-tight"
         >
           <CandlestickChart className="h-5 w-5 text-accent shrink-0" aria-hidden />
@@ -64,7 +69,13 @@ export function Sidebar() {
           );
           // Community is its own surface — open it in a new tab, keep the journal where it is.
           const link = item.newTab ? (
-            <a key={item.href} href={item.href} target="_blank" rel="noopener" className={className}>
+            <a
+              key={item.href}
+              href={item.href}
+              target="_blank"
+              rel="noopener"
+              className={className}
+            >
               {inner}
             </a>
           ) : (

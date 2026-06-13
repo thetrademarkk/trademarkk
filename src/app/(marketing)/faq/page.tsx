@@ -3,14 +3,14 @@ import { jsonLdScript } from "@/config/site";
 
 export const metadata: Metadata = {
   title: "FAQ",
-  description: "Frequently asked questions about TradeMark, the free open-source trading journal.",
+  description: "Frequently asked questions about TradeMarkk, the free open-source trading journal.",
   alternates: { canonical: "/faq" },
 };
 
 const FAQS = [
   {
-    q: "Is TradeMark really free?",
-    a: "Yes. TradeMark is MIT-licensed open source. There is no premium tier, no trial, no ads. You can also self-host it on Vercel with your own keys.",
+    q: "Is TradeMarkk really free?",
+    a: "Yes. TradeMarkk is MIT-licensed open source. There is no premium tier, no trial, no ads. You can also self-host it on Vercel with your own keys.",
   },
   {
     q: "Where is my trading data stored?",
@@ -30,7 +30,7 @@ const FAQS = [
   },
   {
     q: "Is there a mobile app?",
-    a: "TradeMark is an installable PWA — add it to your home screen and it behaves like a native app, with a bottom tab bar and a one-tap quick-add button.",
+    a: "TradeMarkk is an installable PWA — add it to your home screen and it behaves like a native app, with a bottom tab bar and a one-tap quick-add button.",
   },
   {
     q: "What makes it different from TradeZella or Tradervue?",

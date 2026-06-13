@@ -1,7 +1,7 @@
 /**
  * Anthropic-launch-style product demo (~70s): smooth scripted cursor, click
  * ripples, eased zooms, full trade-entry walkthrough, click sounds in post.
- * Output: demo/trademark-demo.mp4 (local only — never committed).
+ * Output: demo/trademarkk-demo.mp4 (local only — never committed).
  */
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
@@ -414,7 +414,7 @@ execFileSync(ffmpeg, [
   `${(durMs / 1000 + 0.3).toFixed(1)}`,
   "-movflags",
   "+faststart",
-  "demo/trademark-demo.mp4",
+  "demo/trademarkk-demo.mp4",
 ]);
 renameSync(video, "demo/raw.webm");
-console.log(`done -> demo/trademark-demo.mp4 (${clicks.length} clicks, ${keys.length} key taps)`);
+console.log(`done -> demo/trademarkk-demo.mp4 (${clicks.length} clicks, ${keys.length} key taps)`);

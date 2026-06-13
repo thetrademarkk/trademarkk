@@ -12,7 +12,7 @@ export const serverEnv = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   resendApiKey: process.env.RESEND_API_KEY ?? "",
-  emailFrom: process.env.EMAIL_FROM ?? "TradeMark <onboarding@resend.dev>",
+  emailFrom: process.env.EMAIL_FROM ?? "TradeMarkk <onboarding@resend.dev>",
   upstashUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
   adminEmails: process.env.ADMIN_EMAILS ?? "",

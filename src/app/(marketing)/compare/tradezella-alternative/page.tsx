@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Free TradeZella alternative for Indian traders",
   description:
-    "TradeMark is a free, open-source TradeZella alternative built for Indian FnO & intraday traders — with Indian charges, broker imports, and your-own-database privacy.",
+    "TradeMarkk is a free, open-source TradeZella alternative built for Indian FnO & intraday traders — with Indian charges, broker imports, and your-own-database privacy.",
   alternates: { canonical: "/compare/tradezella-alternative" },
 };
 
@@ -29,7 +29,7 @@ export default function ComparePage() {
       <h1 className="text-3xl font-bold">Looking for a free TradeZella alternative?</h1>
       <p className="mt-3 text-sm leading-6 text-muted">
         TradeZella is a polished journal — built for US markets at a US price. If you trade NIFTY
-        options from India, TradeMark gives you the journaling loop that matters (trades, mistakes,
+        options from India, TradeMarkk gives you the journaling loop that matters (trades, mistakes,
         rules, reviews) for free, with Indian charges and brokers built in, and your data in your
         own database.
       </p>
@@ -38,7 +38,7 @@ export default function ComparePage() {
           <thead>
             <tr className="border-b bg-surface">
               <th className="px-4 py-2 text-left font-semibold"></th>
-              <th className="px-4 py-2 text-left font-semibold text-accent">TradeMark</th>
+              <th className="px-4 py-2 text-left font-semibold text-accent">TradeMarkk</th>
               <th className="px-4 py-2 text-left font-semibold">TradeZella</th>
             </tr>
           </thead>
@@ -54,7 +54,7 @@ export default function ComparePage() {
         </table>
       </div>
       <Button className="mt-8" size="lg" asChild>
-        <Link href="/app/dashboard">Try TradeMark free</Link>
+        <Link href="/app/dashboard">Try TradeMarkk free</Link>
       </Button>
     </div>
   );

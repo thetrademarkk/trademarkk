@@ -13,7 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModeSwitchWizard } from "@/features/migration";
 import { downloadFile, exportBackup, exportTradesCsv, importBackup } from "../backup";
 
-const MODE_LABELS = { hosted: "Hosted (we store it)", byod: "Your own database", local: "This browser only" };
+const MODE_LABELS = {
+  hosted: "Hosted (we store it)",
+  byod: "Your own database",
+  local: "This browser only",
+};
 
 export function StorageSection() {
   const { db, mode } = useDb();
@@ -53,7 +57,10 @@ export function StorageSection() {
             onClick={async () => {
               setBusy(true);
               try {
-                downloadFile(`trademark-backup-${toDateKey(new Date())}.json`, await exportBackup(db));
+                downloadFile(
+                  `trademarkk-backup-${toDateKey(new Date())}.json`,
+                  await exportBackup(db)
+                );
               } finally {
                 setBusy(false);
               }
@@ -70,7 +77,8 @@ export function StorageSection() {
               try {
                 const csv = await exportTradesCsv(db);
                 if (!csv) toast.info("No trades to export yet");
-                else downloadFile(`trademark-trades-${toDateKey(new Date())}.csv`, csv, "text/csv");
+                else
+                  downloadFile(`trademarkk-trades-${toDateKey(new Date())}.csv`, csv, "text/csv");
               } finally {
                 setBusy(false);
               }

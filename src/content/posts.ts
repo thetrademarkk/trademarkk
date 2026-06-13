@@ -58,7 +58,7 @@ export const POSTS: Post[] = [
         id: "start-today",
         heading: "Start today, free",
         paragraphs: [
-          "TradeMark was built exactly for this loop: log in 15 seconds, tag the mistake, tick your rules daily, and review the week every Saturday. It's free, open-source, and your data can live in your own database.",
+          "TradeMarkk was built exactly for this loop: log in 15 seconds, tag the mistake, tick your rules daily, and review the week every Saturday. It's free, open-source, and your data can live in your own database.",
         ],
       },
     ],
@@ -93,7 +93,7 @@ export const POSTS: Post[] = [
         heading: "Why seeing the number works",
         paragraphs: [
           "Vague guilt ('I overtraded again') doesn't change behaviour. A number does: '₹18,400 lost this month on days I revenge-traded' is unforgettable. It converts discipline from a virtue into a P&L line item — and traders are very good at optimizing P&L line items.",
-          "TradeMark automates this entire loop with a daily rule checklist and an adherence dashboard that prices every broken rule. Twenty seconds a day, and the number it shows you is usually the one that finally changes the habit.",
+          "TradeMarkk automates this entire loop with a daily rule checklist and an adherence dashboard that prices every broken rule. Twenty seconds a day, and the number it shows you is usually the one that finally changes the habit.",
         ],
       },
     ],

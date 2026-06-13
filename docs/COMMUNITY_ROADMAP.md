@@ -1,6 +1,6 @@
 # Community Roadmap — North Star: LinkedIn/Twitter-grade UX
 
-> **Goal:** continuously evolve the TradeMark community until its polish, depth
+> **Goal:** continuously evolve the TradeMarkk community until its polish, depth
 > and stickiness match the best social products — while keeping the journal's
 > privacy-first architecture (journals never leave the user's DB).
 >

@@ -1,10 +1,13 @@
-/* TradeMark service worker — offline shell + static asset caching. */
+/* TradeMarkk service worker — offline shell + static asset caching. */
 const VERSION = "tm-v1";
 const PRECACHE = ["/offline", "/icons/icon.svg", "/icons/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches
+      .open(VERSION)
+      .then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
   );
 });
 

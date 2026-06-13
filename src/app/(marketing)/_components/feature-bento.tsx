@@ -116,7 +116,7 @@ const CELLS = [
   {
     icon: BarChart3,
     title: "Your most expensive habit, priced",
-    text: "Tag mistakes on trades. TradeMark totals what each habit costs you — in rupees, not feelings — alongside expectancy, R-multiples and win rate.",
+    text: "Tag mistakes on trades. TradeMarkk totals what each habit costs you — in rupees, not feelings — alongside expectancy, R-multiples and win rate.",
     demo: <CostTicker />,
     className: "md:row-span-2",
   },

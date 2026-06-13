@@ -1,8 +1,8 @@
 {
-  "name": "trademark",
+  "name": "trademarkk",
   "version": "0.1.0",
   "private": true,
-  "description": "TradeMark — mark your trade, every day. Open-source trading journal for Indian intraday & FnO traders.",
+  "description": "TradeMarkk — mark your trade, every day. Open-source trading journal for Indian intraday & FnO traders.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

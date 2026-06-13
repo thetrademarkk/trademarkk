@@ -95,7 +95,7 @@ export function SettingsDrawer({
 
         <div className="section">
           <label htmlFor="tm-app-url" className="hint">
-            TradeMark app URL
+            TradeMarkk app URL
           </label>
           <input
             id="tm-app-url"
@@ -105,7 +105,8 @@ export function SettingsDrawer({
             spellCheck={false}
           />
           <p className="hint">
-            TradeMark is open source — self-hosters can point the extension at their own deployment.
+            TradeMarkk is open source — self-hosters can point the extension at their own
+            deployment.
           </p>
           {error && (
             <p className="hint" style={{ color: "var(--loss)" }} role="alert">
@@ -123,7 +124,7 @@ export function SettingsDrawer({
             <CaptureToggle key={a.id} adapter={a} />
           ))}
           <p className="hint">
-            Adds a &ldquo;Log in TradeMark&rdquo; button to the broker&rsquo;s order window that
+            Adds a &ldquo;Log in TradeMarkk&rdquo; button to the broker&rsquo;s order window that
             prefills the quick log. Reads only the order fields you can see — never holdings,
             positions or balances. Chrome asks for your permission once.
           </p>
@@ -142,7 +143,7 @@ export function SettingsDrawer({
         <div className="footer">
           <button type="button" className="btn-ghost" onClick={() => openAppTab(appUrl)}>
             <ExternalLink size={13} />
-            Open TradeMark
+            Open TradeMarkk
           </button>
           {userEmail && (
             <button type="button" className="btn-ghost" onClick={doSignOut} disabled={busy}>
@@ -150,7 +151,7 @@ export function SettingsDrawer({
               Sign out
             </button>
           )}
-          <div className="version">TradeMark extension v{version}</div>
+          <div className="version">TradeMarkk extension v{version}</div>
         </div>
       </div>
     </>

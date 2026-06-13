@@ -41,7 +41,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
   const [capturedFrom, setCapturedFrom] = React.useState<PendingCapture | null>(null);
   const instrumentRef = React.useRef<HTMLInputElement>(null);
 
-  // Broker-page capture (purely additive sugar): a "Log in TradeMark" click on
+  // Broker-page capture (purely additive sugar): a "Log in TradeMarkk" click on
   // the broker's order window staged a CapturedOrder — prefill the quick log.
   // Everything stays editable; manual logging is unchanged when nothing lands.
   React.useEffect(() => {
@@ -120,7 +120,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
         <p className="note">
           Finish setting up your trading account in the web app first.{" "}
           <button type="button" className="link" onClick={() => openAppTab(appUrl)}>
-            Open TradeMark
+            Open TradeMarkk
           </button>
         </p>
       </section>

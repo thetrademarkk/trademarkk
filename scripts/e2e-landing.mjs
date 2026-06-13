@@ -132,7 +132,7 @@ const browser = await chromium.launch();
     const mock = page.getByTestId("hero-showcase");
     await mock.waitFor({ timeout: 15000 });
     for (const text of [
-      "TradeMark — Dashboard",
+      "TradeMarkk — Dashboard",
       "Equity curve",
       "Today's rules",
       "Risk max 1% per trade",
@@ -274,7 +274,8 @@ const browser = await chromium.launch();
       .locator('[data-pulse-stat="Registered traders"]')
       .innerText({ timeout: 10000 });
     const n = Number(traders.replace(/[^\d]/g, ""));
-    if (!Number.isFinite(n) || n <= 0) throw new Error(`traders KPI not a real count: "${traders}"`);
+    if (!Number.isFinite(n) || n <= 0)
+      throw new Error(`traders KPI not a real count: "${traders}"`);
     for (const label of ["Active · 30 days", "Page views · 30 days", "Community posts"]) {
       if ((await page.locator(`[data-pulse-stat="${label}"]`).count()) === 0)
         throw new Error(`missing KPI "${label}"`);
@@ -301,7 +302,8 @@ const browser = await chromium.launch();
 
   await step("/pulse web vitals cards — P75 or honest empty state", async () => {
     const cards = page.locator("[data-vital]");
-    if ((await cards.count()) !== 5) throw new Error(`expected 5 vital cards, got ${await cards.count()}`);
+    if ((await cards.count()) !== 5)
+      throw new Error(`expected 5 vital cards, got ${await cards.count()}`);
     for (const metric of ["LCP", "INP", "CLS", "FCP", "TTFB"]) {
       const card = page.locator(`[data-vital="${metric}"]`);
       const text = await card.innerText();

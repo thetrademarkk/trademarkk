@@ -9,7 +9,7 @@ export default function OfflinePage() {
       <WifiOff className="h-10 w-10 text-muted" aria-hidden />
       <h1 className="text-lg font-semibold">You&apos;re offline</h1>
       <p className="max-w-sm text-sm text-muted">
-        TradeMark needs a connection to reach your database. Your data is safe — reconnect and
+        TradeMarkk needs a connection to reach your database. Your data is safe — reconnect and
         reload.
       </p>
     </div>

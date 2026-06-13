@@ -131,6 +131,6 @@ describe("buildTradeShareCard — composition", () => {
 
   it("builds an OS-safe file name from the contract", () => {
     const card = buildTradeShareCard(mk({ symbol: "M&M", strike: 1450 }), { includePnl: false });
-    expect(card.fileName).toBe("trademark-M-M-1450-CE-2026-06-09.png");
+    expect(card.fileName).toBe("trademarkk-M-M-1450-CE-2026-06-09.png");
   });
 });

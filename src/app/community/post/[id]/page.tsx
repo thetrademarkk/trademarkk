@@ -29,21 +29,21 @@ export async function generateMetadata({
       .from(posts)
       .where(eq(posts.id, id))
       .get();
-    if (!row) return { title: "Post not found — TradeMark Community" };
+    if (!row) return { title: "Post not found — TradeMarkk Community" };
     const author = await platformDb
       .select({ displayName: profiles.displayName })
       .from(profiles)
       .where(eq(profiles.userId, row.userId))
       .get();
-    const title = row.title ?? `${author?.displayName ?? "A trader"} on TradeMark`;
+    const title = row.title ?? `${author?.displayName ?? "A trader"} on TradeMarkk`;
     const description = row.body.replace(/\s+/g, " ").trim().slice(0, 160);
     return {
-      title: `${title} — TradeMark Community`,
+      title: `${title} — TradeMarkk Community`,
       description,
       openGraph: { title, description },
     };
   } catch {
-    return { title: "TradeMark Community" };
+    return { title: "TradeMarkk Community" };
   }
 }
 

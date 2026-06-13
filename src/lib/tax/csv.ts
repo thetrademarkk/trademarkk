@@ -10,12 +10,7 @@
  */
 
 import { fyLabel } from "./fy";
-import {
-  classifyTrade,
-  fyTaxSummary,
-  tradeTurnover,
-  type TaxTrade,
-} from "./turnover";
+import { classifyTrade, fyTaxSummary, tradeTurnover, type TaxTrade } from "./turnover";
 
 /** RFC-4180 escape: quote a field that holds a comma, quote or newline. */
 export function csvCell(v: string | number | null | undefined): string {
@@ -52,7 +47,7 @@ export function buildTaxCsv(
   const s = fyTaxSummary(trades);
   const lines: string[] = [];
 
-  lines.push(row(["TradeMark — Tax & reporting", `FY ${fyLabel(startYear)}`]));
+  lines.push(row(["TradeMarkk — Tax & reporting", `FY ${fyLabel(startYear)}`]));
   lines.push(row(["Informational only — not tax advice. Verify with a CA.", ""]));
   lines.push("");
 
@@ -65,11 +60,15 @@ export function buildTaxCsv(
   lines.push("");
 
   lines.push(row(["Speculative vs non-speculative split", ""]));
-  lines.push(row(["Category", "Trades", "Gross P&L", "Charges", "Net P&L", "Turnover (abs profit)"]));
+  lines.push(
+    row(["Category", "Trades", "Gross P&L", "Charges", "Net P&L", "Turnover (abs profit)"])
+  );
   for (const b of [s.split.speculative, s.split.nonSpeculative]) {
     lines.push(
       row([
-        b.category === "speculative" ? "Speculative (intraday equity)" : "Non-speculative (F&O + delivery)",
+        b.category === "speculative"
+          ? "Speculative (intraday equity)"
+          : "Non-speculative (F&O + delivery)",
         b.trades,
         money(b.grossPnl),
         money(b.charges),
@@ -82,7 +81,9 @@ export function buildTaxCsv(
 
   lines.push(row(["F&O turnover statement", ""]));
   lines.push(row(["F&O trades", s.turnover.trades]));
-  lines.push(row(["Turnover — absolute-profit convention (INR)", money(s.turnover.absoluteProfitTurnover)]));
+  lines.push(
+    row(["Turnover — absolute-profit convention (INR)", money(s.turnover.absoluteProfitTurnover)])
+  );
   lines.push(row(["  Total profit (INR)", money(s.turnover.totalProfit)]));
   lines.push(row(["  Total loss (INR)", money(s.turnover.totalLoss)]));
   lines.push(row(["Net realised P&L (INR)", money(s.turnover.netRealised)]));
@@ -90,7 +91,9 @@ export function buildTaxCsv(
   lines.push(row(["Sell-side turnover (alt) (INR)", money(s.turnover.sellTurnover)]));
   lines.push("");
 
-  lines.push(row(["Charges breakdown", charges.estimated ? "components estimated from charge profile" : ""]));
+  lines.push(
+    row(["Charges breakdown", charges.estimated ? "components estimated from charge profile" : ""])
+  );
   lines.push(row(["Brokerage (INR)", money(charges.brokerage)]));
   lines.push(row(["STT / CTT (INR)", money(charges.stt)]));
   lines.push(row(["Exchange txn (INR)", money(charges.exchange)]));
@@ -101,7 +104,19 @@ export function buildTaxCsv(
   lines.push("");
 
   lines.push(row(["Realised P&L by instrument", ""]));
-  lines.push(row(["Symbol", "Segment", "Trades", "Qty", "Buy value", "Sell value", "Gross P&L", "Charges", "Net P&L"]));
+  lines.push(
+    row([
+      "Symbol",
+      "Segment",
+      "Trades",
+      "Qty",
+      "Buy value",
+      "Sell value",
+      "Gross P&L",
+      "Charges",
+      "Net P&L",
+    ])
+  );
   for (const r of s.byInstrument) {
     lines.push(
       row([

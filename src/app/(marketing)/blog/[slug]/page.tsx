@@ -163,7 +163,7 @@ export default async function BlogPost({ params }: { params: Promise<{ slug: str
               href="/app/onboarding"
               className="mt-4 inline-block rounded-lg bg-accent-solid px-5 py-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
             >
-              Open TradeMark
+              Open TradeMarkk
             </Link>
           </div>
         </article>

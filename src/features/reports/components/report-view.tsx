@@ -90,7 +90,7 @@ export function ReportView() {
         t.r_multiple ?? "",
       ].join(",")
     );
-    downloadFile(`trademark-report-${range.from}.csv`, [header, ...rows].join("\n"), "text/csv");
+    downloadFile(`trademarkk-report-${range.from}.csv`, [header, ...rows].join("\n"), "text/csv");
   };
 
   return (

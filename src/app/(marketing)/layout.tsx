@@ -60,7 +60,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <div className="flex flex-wrap justify-between gap-x-12 gap-y-8">
             <div className="max-w-xs">
               <div className="flex items-center gap-2 font-semibold text-foreground">
-                <CandlestickChart className="h-4 w-4 text-accent" aria-hidden /> TradeMark
+                <CandlestickChart className="h-4 w-4 text-accent" aria-hidden /> TradeMarkk
               </div>
               <p className="mt-2 text-xs leading-5 text-muted">
                 {siteConfig.tagline} The free, open-source trading journal for Indian intraday &amp;
@@ -119,7 +119,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             </div>
           </div>
           <p className="mt-10 border-t pt-5 text-[11px] text-muted">
-            MIT licensed · Free forever · Educational only — nothing on TradeMark is investment
+            MIT licensed · Free forever · Educational only — nothing on TradeMarkk is investment
             advice.
           </p>
         </div>

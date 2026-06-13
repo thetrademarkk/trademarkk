@@ -54,7 +54,16 @@ export async function notifyMentions(text: string, actorId: string, postId: stri
   );
 }
 
-const RESERVED_USERNAMES = new Set(["admin", "trademark", "api", "mod", "support", "system", "me"]);
+const RESERVED_USERNAMES = new Set([
+  "admin",
+  "trademark",
+  "trademarkk",
+  "api",
+  "mod",
+  "support",
+  "system",
+  "me",
+]);
 
 export async function getSession() {
   return auth.api.getSession({ headers: await headers() });

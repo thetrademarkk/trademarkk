@@ -2,7 +2,7 @@ import type { BrokerCaptureAdapter } from "../brokers/types";
 
 /**
  * Broker-agnostic content-script runtime: watches the page for the adapter's
- * order panel and anchors a single "Log in TradeMark" affordance to it.
+ * order panel and anchors a single "Log in TradeMarkk" affordance to it.
  * Clicking reads the order fields (only the order fields) and hands them to
  * the service worker, which stages them for the side panel's quick log.
  *
@@ -19,7 +19,7 @@ const CAPTURE_MESSAGE_TYPE = "tm:capture";
 
 const BTN_ATTR = "data-tm-capture";
 const RESCAN_MS = 250;
-const LABEL = "Log in TradeMark";
+const LABEL = "Log in TradeMarkk";
 
 export function runCapture(adapter: BrokerCaptureAdapter): void {
   // Extension got reloaded/removed → this orphaned script must stay inert.
@@ -86,7 +86,7 @@ function buildButton(adapter: BrokerCaptureAdapter): HTMLButtonElement {
       }
       chrome.runtime.sendMessage({ type: CAPTURE_MESSAGE_TYPE, order }).then(
         () => {
-          btn.textContent = "Sent to TradeMark";
+          btn.textContent = "Sent to TradeMarkk";
           setTimeout(() => {
             btn.textContent = LABEL;
           }, 2000);

@@ -229,7 +229,7 @@ export function Composer({
       </div>
 
       <p className="text-[11px] leading-4 text-muted">
-        Educational discussion only — nothing on TradeMark is investment advice. Be kind; no tips,
+        Educational discussion only — nothing on TradeMarkk is investment advice. Be kind; no tips,
         no spam, no paid-group promotion.
       </p>
 

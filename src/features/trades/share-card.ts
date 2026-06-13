@@ -93,6 +93,6 @@ export function buildTradeShareCard(
       month: "short",
       year: "numeric",
     }),
-    fileName: `trademark-${slugify([trade.symbol, trade.strike, trade.option_type])}-${trade.opened_at.slice(0, 10)}.png`,
+    fileName: `trademarkk-${slugify([trade.symbol, trade.strike, trade.option_type])}-${trade.opened_at.slice(0, 10)}.png`,
   };
 }

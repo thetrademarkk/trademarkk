@@ -9,7 +9,7 @@ import { PulseCharts } from "./_components/pulse-sections";
 export const metadata: Metadata = {
   title: "Pulse — live platform stats",
   description:
-    "Live, honest numbers from the TradeMark platform: traders, activity, community growth and real-visit web vitals. Aggregates only — never personal data.",
+    "Live, honest numbers from the TradeMarkk platform: traders, activity, community growth and real-visit web vitals. Aggregates only — never personal data.",
   alternates: { canonical: "/pulse" },
 };
 
@@ -167,12 +167,12 @@ export default async function PulsePage() {
                 first-party page events. No third-party trackers, no sampling.
               </li>
               <li>
-                · Page views and vitals are anonymous: we store the path and timestamp, never IPs
-                or fingerprints. Profile and post URLs are normalized before storage.
+                · Page views and vitals are anonymous: we store the path and timestamp, never IPs or
+                fingerprints. Profile and post URLs are normalized before storage.
               </li>
               <li>
-                · Your journal (trades, notes, rules) lives in your own database. We cannot read
-                it, so it can never appear here.
+                · Your journal (trades, notes, rules) lives in your own database. We cannot read it,
+                so it can never appear here.
               </li>
               <li>
                 · Aggregated{" "}

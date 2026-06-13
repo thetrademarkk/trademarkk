@@ -264,7 +264,7 @@ export function renderShareCard(
   ctx.stroke();
   drawMark(ctx, PAD, 631, 18);
   drawWordmark(ctx, PAD + 28, 648, 18, fonts);
-  let host = "trademark journal";
+  let host = "trademarkk journal";
   try {
     host = new URL(siteConfig.url).host;
   } catch {

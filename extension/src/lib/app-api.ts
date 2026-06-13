@@ -1,5 +1,5 @@
 /**
- * Calls to the TradeMark app's API using the user's existing cookie session.
+ * Calls to the TradeMarkk app's API using the user's existing cookie session.
  * Chrome treats extension-initiated requests as same-site for origins the
  * extension holds host permissions on, so the SameSite=Lax session cookie is
  * attached — the extension itself never stores credentials.

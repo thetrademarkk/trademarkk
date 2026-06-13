@@ -122,7 +122,7 @@ describe("buildReportShareCard — composition", () => {
   it("labels the date range and file name from the period bounds", () => {
     const card = buildReportShareCard(input(sample()), { includePnl: false });
     expect(card.dateLabel).toBe("8 Jun – 14 Jun 2026");
-    expect(card.fileName).toBe("trademark-week-review-2026-06-08.png");
+    expect(card.fileName).toBe("trademarkk-week-review-2026-06-08.png");
   });
 
   it("stays honest (no NaN, no ₹) on an empty period", () => {

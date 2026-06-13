@@ -55,7 +55,7 @@ export function Topbar() {
   const { state, disconnect } = useDbSession();
   const { setTheme, theme } = useTheme();
 
-  const title = NAV_ITEMS.find((i) => pathname.startsWith(i.href))?.label ?? "TradeMark";
+  const title = NAV_ITEMS.find((i) => pathname.startsWith(i.href))?.label ?? "TradeMarkk";
   const mode = state.status === "ready" ? state.mode : null;
   const ModeIcon = mode ? MODE_META[mode].icon : Database;
 
@@ -85,7 +85,7 @@ export function Topbar() {
       <Link
         href="/app/dashboard"
         className="text-sm font-semibold md:hidden"
-        aria-label="TradeMark dashboard"
+        aria-label="TradeMarkk dashboard"
       >
         Trade<span className="text-accent">Mark</span>
       </Link>

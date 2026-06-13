@@ -16,7 +16,7 @@ const SECTIONS = [
   },
   {
     title: "The rules & mistakes engine",
-    text: "Write your rules once — 'risk max 1%', 'no trades in the first 15 minutes', 'stop after 2 losses'. Tick them off daily. TradeMark tracks adherence over time and prices every broken rule in rupees, so you can see your most expensive habit, not just feel it.",
+    text: "Write your rules once — 'risk max 1%', 'no trades in the first 15 minutes', 'stop after 2 losses'. Tick them off daily. TradeMarkk tracks adherence over time and prices every broken rule in rupees, so you can see your most expensive habit, not just feel it.",
   },
   {
     title: "A journal you'll actually keep",

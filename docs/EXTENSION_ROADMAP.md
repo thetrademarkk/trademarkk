@@ -1,4 +1,4 @@
-# TradeMark Chrome Extension — Roadmap
+# TradeMarkk Chrome Extension — Roadmap
 
 > Log trades and tick your daily rules **without leaving your broker's web page**
 > (Zerodha Kite, Upstox, Groww, Dhan, Fyers). The extension is a thin companion
@@ -8,7 +8,7 @@
 
 The moment a trade closes is the moment journaling honesty peaks — and the
 moment most traders are furthest from their journal. The extension puts a
-TradeMark side panel directly beside the broker tab so logging a trade takes
+TradeMarkk side panel directly beside the broker tab so logging a trade takes
 under ten seconds and the day's rules stay in view all session. Everything the
 extension writes lands in the user's own journal database, byte-identical to a
 trade logged from the web app.
@@ -128,7 +128,7 @@ trade logged from the web app.
 
 ### Capture hand-off: content script → SW → side panel
 
-- The injected "Log in TradeMark" pill (inline styles, no stylesheet leakage
+- The injected "Log in TradeMarkk" pill (inline styles, no stylesheet leakage
   into the broker page) reads the order fields on click and
   `chrome.runtime.sendMessage`s them. The SW stages the capture in
   `chrome.storage.session` (5-minute TTL — stale context is dropped) and
@@ -162,7 +162,7 @@ trade logged from the web app.
 
 - Side panel + runtime popup fallback sharing one UI; 320 px-min layouts;
   dark theme on app tokens, light via `prefers-color-scheme`.
-- Signed-out state → one-click "Sign in to TradeMark" (opens app tab, panel
+- Signed-out state → one-click "Sign in to TradeMarkk" (opens app tab, panel
   auto-detects the session by polling `/api/db/status`).
 - **Quick trade log** (hero, ≤10 s): instrument input with contract-name
   parsing (`BANKNIFTY24JUN52000CE`, `NIFTY 25 JUN 2026 24500 CALL`, Fyers
@@ -211,6 +211,6 @@ trade logged from the web app.
 ## Shipped by the loop
 
 - 2026-06-12 — v1: side panel + popup fallback, cookie-session auth with pinned-ID origin allowlist, token-vended Turso writes via the shared statement builder, quick trade log with contract parsing, today's rules tri-state checklist, P&L + streak glance strip, settings, Playwright extension e2e. (PR #22)
-- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker content scripts, versioned adapter registry, "Log in TradeMark" pill, SW-staged captures, silent degradation, Kite fixtures + 6 e2e steps, 26 unit tests. (PR #37)
+- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker content scripts, versioned adapter registry, "Log in TradeMarkk" pill, SW-staged captures, silent degradation, Kite fixtures + 6 e2e steps, 26 unit tests. (PR #37)
 - 2026-06-13 — Positions/Tradebook auto-import (Kite first): versioned `kite-positions` adapter (pure `assembleFills` split from DOM collection; reads only executed-order fields; rejected/pending rows skipped; silent degradation on changed markup), `positions-import.ts` (reuses the CSV import's FIFO pairing — fills time-sorted first since Kite renders newest-first — + paise-correct charges + deterministic `stableId` so re-scraping the same tradebook dedupes idempotently and never re-writes already-journaled rows), `ImportModal` preview with new-vs-already-in-journal rows + per-row include/exclude + import progress/result, opt-in `chrome.scripting` registration behind the `kite.zerodha.com` optional host permission, panel-driven scrape (no `tabs` permission — discovers the broker tab by message round-trip), writes through the shared `save-statements.ts`. Committed `kite-tradebook.html` + changed-DOM fixtures; +33 unit tests; 7 new e2e steps (preview, dedupe-hides-existing, import-to-journal, idempotent re-import, silent degradation). (PR #48)
-- 2026-06-13 — **Upstox order-window capture adapter** — second adapter on the v2 registry. `extension/src/brokers/upstox.ts` (`upstoxAdapter`, id `upstox`, originPattern `https://*.upstox.com/*`, content bundle `content-upstox.js`): one-click "Log in TradeMark" prefill from the Upstox Pro Floating Order Window, exactly like Kite. Upstox Pro is a React app with **CSS-Modules hashed class names** (public DOM research; real Upstox is login-walled), so the adapter anchors on what survives a rebuild — visible "Qty"/"Price" label-text walked to the adjacent input, buy/sell class FRAGMENT + active side-tab text + "Confirm to buy/sell" button copy for the side, and `[class*='_symbol_']`/`[class*='ltp']` substring matchers as last resort. Pure `assembleUpstoxCapture()` (+ `normalizeUpstoxInstrumentText` handling Upstox's `NSE_EQ|SYMBOL` pipe-keys & exchange prefixes, `normalizeUpstoxExchange`, `resolveUpstoxSide`) split from DOM collection; market orders fall back to the visible LTP; unknown side/symbol ⇒ no capture (never guess). Registered in `brokers/index.ts` so the Settings toggle, optional host-permission request, dynamic registration, panel prefill and `releaseHostIfUnused` pick it up automatically. New `extension/src/content/upstox-capture.ts` + `vite.content-upstox.config.ts` (4th `ext:build` pass). Committed `upstox-order-window.html` + changed-DOM fixtures; +27 unit tests (490 total); 6 new e2e steps (registration, buy-limit prefill→journal, sell-market last-price fallback, changed-DOM silent degradation). Manual logging + Kite capture + Kite positions-import unchanged. (PR #TBD)
+- 2026-06-13 — **Upstox order-window capture adapter** — second adapter on the v2 registry. `extension/src/brokers/upstox.ts` (`upstoxAdapter`, id `upstox`, originPattern `https://*.upstox.com/*`, content bundle `content-upstox.js`): one-click "Log in TradeMarkk" prefill from the Upstox Pro Floating Order Window, exactly like Kite. Upstox Pro is a React app with **CSS-Modules hashed class names** (public DOM research; real Upstox is login-walled), so the adapter anchors on what survives a rebuild — visible "Qty"/"Price" label-text walked to the adjacent input, buy/sell class FRAGMENT + active side-tab text + "Confirm to buy/sell" button copy for the side, and `[class*='_symbol_']`/`[class*='ltp']` substring matchers as last resort. Pure `assembleUpstoxCapture()` (+ `normalizeUpstoxInstrumentText` handling Upstox's `NSE_EQ|SYMBOL` pipe-keys & exchange prefixes, `normalizeUpstoxExchange`, `resolveUpstoxSide`) split from DOM collection; market orders fall back to the visible LTP; unknown side/symbol ⇒ no capture (never guess). Registered in `brokers/index.ts` so the Settings toggle, optional host-permission request, dynamic registration, panel prefill and `releaseHostIfUnused` pick it up automatically. New `extension/src/content/upstox-capture.ts` + `vite.content-upstox.config.ts` (4th `ext:build` pass). Committed `upstox-order-window.html` + changed-DOM fixtures; +27 unit tests (490 total); 6 new e2e steps (registration, buy-limit prefill→journal, sell-market last-price fallback, changed-DOM silent degradation). Manual logging + Kite capture + Kite positions-import unchanged. (PR #TBD)

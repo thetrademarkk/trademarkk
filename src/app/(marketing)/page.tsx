@@ -255,7 +255,7 @@ export default function LandingPage() {
           <Reveal>
             <h2 className="text-2xl font-bold md:text-4xl">Built for speed</h2>
             <p className="mx-auto mt-3 max-w-md text-sm text-muted">
-              Journaling only works if it&apos;s effortless. TradeMark is keyboard-first and
+              Journaling only works if it&apos;s effortless. TradeMarkk is keyboard-first and
               installs on your phone like a native app.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-muted">

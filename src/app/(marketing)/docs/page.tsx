@@ -5,7 +5,7 @@ import { Toc } from "../blog/_components/toc";
 export const metadata: Metadata = {
   title: "Docs — getting started",
   description:
-    "How to set up TradeMark: hosted mode, bring-your-own Turso database, CSV imports, mode switching, community and self-hosting.",
+    "How to set up TradeMarkk: hosted mode, bring-your-own Turso database, CSV imports, mode switching, community and self-hosting.",
   alternates: { canonical: "/docs" },
 };
 
@@ -17,9 +17,11 @@ const SECTIONS: { id: string; heading: string; body: React.ReactNode }[] = [
     heading: "1 · Hosted (easiest)",
     body: (
       <p>
-        <Link href="/app/onboarding" className="text-accent underline">Sign up</Link> with email or
-        Google. We provision a dedicated database for your journal — isolated from every other
-        user. You can export everything or move to your own database at any time.
+        <Link href="/app/onboarding" className="text-accent underline">
+          Sign up
+        </Link>{" "}
+        with email or Google. We provision a dedicated database for your journal — isolated from
+        every other user. You can export everything or move to your own database at any time.
       </p>
     ),
   },
@@ -30,11 +32,35 @@ const SECTIONS: { id: string; heading: string; body: React.ReactNode }[] = [
       <>
         <p>No terminal needed — everything works from Turso&apos;s web dashboard:</p>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Create a free account at <a href="https://app.turso.tech" className="text-accent underline" target="_blank" rel="noreferrer">app.turso.tech</a> (no card needed)</li>
-          <li>Click <strong>Databases → Create Database</strong>, give it a name (e.g. <code className={code}>my-journal</code>)</li>
-          <li>Open the database and copy its <strong>URL</strong> (starts with <code className={code}>libsql://</code>)</li>
-          <li>Click <strong>Generate Token</strong> (read &amp; write) and copy it</li>
-          <li>Paste both in <Link href="/app/onboarding" className="text-accent underline">the connect wizard</Link></li>
+          <li>
+            Create a free account at{" "}
+            <a
+              href="https://app.turso.tech"
+              className="text-accent underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              app.turso.tech
+            </a>{" "}
+            (no card needed)
+          </li>
+          <li>
+            Click <strong>Databases → Create Database</strong>, give it a name (e.g.{" "}
+            <code className={code}>my-journal</code>)
+          </li>
+          <li>
+            Open the database and copy its <strong>URL</strong> (starts with{" "}
+            <code className={code}>libsql://</code>)
+          </li>
+          <li>
+            Click <strong>Generate Token</strong> (read &amp; write) and copy it
+          </li>
+          <li>
+            Paste both in{" "}
+            <Link href="/app/onboarding" className="text-accent underline">
+              the connect wizard
+            </Link>
+          </li>
         </ol>
         <p>
           CLI fans: <code className={code}>turso db create my-journal</code>, then{" "}
@@ -76,10 +102,13 @@ const SECTIONS: { id: string; heading: string; body: React.ReactNode }[] = [
     heading: "5 · Community & sharing trades",
     body: (
       <p>
-        The <Link href="/community" className="text-accent underline">community</Link> uses a free
-        TradeMark account as your public identity — your journal stays wherever you keep it. Share
-        any trade from its detail page as a structured trade card; your ₹ P&amp;L is only included
-        if you toggle it on.
+        The{" "}
+        <Link href="/community" className="text-accent underline">
+          community
+        </Link>{" "}
+        uses a free TradeMarkk account as your public identity — your journal stays wherever you
+        keep it. Share any trade from its detail page as a structured trade card; your ₹ P&amp;L is
+        only included if you toggle it on.
       </p>
     ),
   },
@@ -88,7 +117,10 @@ const SECTIONS: { id: string; heading: string; body: React.ReactNode }[] = [
     heading: "6 · Writing for the blog",
     body: (
       <p>
-        Anyone can <Link href="/blog/write" className="text-accent underline">submit an article</Link>{" "}
+        Anyone can{" "}
+        <Link href="/blog/write" className="text-accent underline">
+          submit an article
+        </Link>{" "}
         with the rich-text editor. Submissions are reviewed before publishing — educational,
         original content only.
       </p>
@@ -99,10 +131,10 @@ const SECTIONS: { id: string; heading: string; body: React.ReactNode }[] = [
     heading: "7 · Self-host",
     body: (
       <p>
-        Clone the repo, set the environment variables from <code className={code}>.env.example</code>{" "}
-        (a Turso platform API token for hosted mode, Better Auth secret, optional Resend/Google
-        keys, <code className={code}>ADMIN_EMAILS</code> for the admin panel) and deploy to Vercel.
-        The README covers it step by step.
+        Clone the repo, set the environment variables from{" "}
+        <code className={code}>.env.example</code> (a Turso platform API token for hosted mode,
+        Better Auth secret, optional Resend/Google keys, <code className={code}>ADMIN_EMAILS</code>{" "}
+        for the admin panel) and deploy to Vercel. The README covers it step by step.
       </p>
     ),
   },
@@ -122,7 +154,7 @@ export default function DocsPage() {
         <div className="min-w-0 max-w-3xl">
           <h1 className="text-3xl font-bold">Documentation</h1>
           <p className="mt-2 text-sm text-muted">
-            Everything you need to run TradeMark — pick a storage mode, import your trades, switch
+            Everything you need to run TradeMarkk — pick a storage mode, import your trades, switch
             anytime.
           </p>
 
@@ -132,7 +164,9 @@ export default function DocsPage() {
             <ul className="mt-2 space-y-1.5">
               {SECTIONS.map((s) => (
                 <li key={s.id}>
-                  <a href={`#${s.id}`} className="text-sm text-muted hover:text-accent">{s.heading}</a>
+                  <a href={`#${s.id}`} className="text-sm text-muted hover:text-accent">
+                    {s.heading}
+                  </a>
                 </li>
               ))}
             </ul>
@@ -142,7 +176,9 @@ export default function DocsPage() {
             {SECTIONS.map((s) => (
               <section key={s.id}>
                 <h2 id={s.id} className="scroll-mt-24 text-lg font-semibold">
-                  <a href={`#${s.id}`} className="hover:text-accent">{s.heading}</a>
+                  <a href={`#${s.id}`} className="hover:text-accent">
+                    {s.heading}
+                  </a>
                 </h2>
                 <div className="mt-2 space-y-3 text-sm leading-6 text-muted">{s.body}</div>
               </section>

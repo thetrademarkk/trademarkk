@@ -4,12 +4,12 @@ export function jsonLdScript(data: unknown): string {
 }
 
 export const siteConfig = {
-  name: "TradeMark",
+  name: "TradeMarkk",
   tagline: "Mark your trade, every day.",
   description:
     "Free, open-source trading journal for Indian intraday & FnO traders. Track trades, mistakes and rules — your data stays in your own database.",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-  github: "https://github.com/raashish1601/trademark",
+  github: "https://github.com/thetrademarkk/trademarkk",
   keywords: [
     "trading journal",
     "free trading journal",

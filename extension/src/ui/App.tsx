@@ -157,7 +157,7 @@ function Header({ children, onSettings }: { children?: React.ReactNode; onSettin
     <header className="panel-header">
       <span className="brand">
         <BrandMark />
-        TradeMark
+        TradeMarkk
       </span>
       {children}
       <button

@@ -93,7 +93,7 @@ export function PostCard({
     const url = postUrl();
     if (navigator.share) {
       try {
-        await navigator.share({ title: post.title ?? "Trade idea on TradeMark", url });
+        await navigator.share({ title: post.title ?? "Trade idea on TradeMarkk", url });
       } catch {
         return; // reader closed the share sheet — nothing was shared
       }

@@ -1,9 +1,9 @@
-# 📈 TradeMark — mark your trade, every day.
+# 📈 TradeMarkk — mark your trade, every day.
 
 Free, open-source trading journal for Indian intraday & FnO traders. Track trades, mistakes
 and rules — and keep your data in **your own database**.
 
-## Why TradeMark
+## Why TradeMarkk
 
 - **15-second trade logging** with NIFTY/BANKNIFTY strikes and the full Indian charges engine
   (brokerage, STT, exchange, SEBI, GST, stamp duty) built in.

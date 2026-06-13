@@ -8,7 +8,7 @@ import { CommunitySearch, MessagesFab, NotificationsBell } from "@/features/comm
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
-  title: { default: "Community", template: `%s · TradeMark Community` },
+  title: { default: "Community", template: `%s · TradeMarkk Community` },
   description:
     "Trade ideas, lessons and discussion from Indian intraday & FnO traders. Educational only — no tips, no spam.",
   alternates: { canonical: "/community" },
@@ -36,7 +36,7 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
         <main className="flex-1">{children}</main>
         <MessagesFab />
         <footer className="border-t py-6 text-center text-[11px] text-muted">
-          Educational discussion only — nothing on TradeMark is investment advice.
+          Educational discussion only — nothing on TradeMarkk is investment advice.
         </footer>
       </div>
     </QueryProvider>

@@ -1,4 +1,4 @@
-# TradeMark Chrome Extension
+# TradeMarkk Chrome Extension
 
 Log trades and tick your daily rules **without leaving your broker's web page**
 (Zerodha Kite, Upstox, Groww, Dhan, Fyers — any tab, really). The extension is
@@ -12,7 +12,7 @@ Architecture decisions and the iteration backlog live in
 ## Broker capture (v2)
 
 Turn on **Settings → Broker capture → Zerodha Kite** and the extension adds a
-small **"Log in TradeMark"** button to Kite's order window. Clicking it sends
+small **"Log in TradeMarkk"** button to Kite's order window. Clicking it sends
 the order's instrument, side, quantity and price (market orders use the last
 traded price) straight into the side panel's quick log — review, tweak, Enter.
 Manual logging is unchanged; capture is purely a shortcut.
@@ -34,7 +34,7 @@ Manual logging is unchanged; capture is purely a shortcut.
 - Captured fields go directly from the broker tab to your side panel via the
   extension's own service worker (held in `chrome.storage.session`, expiring
   after 5 minutes or when the browser closes). They are **never** sent to the
-  TradeMark platform server — like every journal write, the saved trade goes
+  TradeMarkk platform server — like every journal write, the saved trade goes
   straight to **your** database.
 
 ## Tradebook import (v2)
@@ -74,7 +74,7 @@ is skipped too, never guessed.
 - It reads **nothing on its own** — only when you click "Import from Zerodha
   Kite". The scraped fills travel from the broker tab to the side panel inside
   the extension and are written directly to **your** database; they **never**
-  touch the TradeMark platform server.
+  touch the TradeMarkk platform server.
 - Opt-in exactly like capture: nothing runs on Kite until you enable it (Chrome
   prompts for `kite.zerodha.com` once), and turning it off removes both the
   script and the permission. When Kite's table markup changes, the import
@@ -90,7 +90,7 @@ is skipped too, never guessed.
 - **Today's rules** — your daily discipline checklist with the same
   followed / broken / n.a. tri-state as the dashboard, synced live.
 - **Glance strip** — today's net P&L and your journaling streak in the header.
-- **Settings** — point the extension at your own deployment (TradeMark is
+- **Settings** — point the extension at your own deployment (TradeMarkk is
   open source), sign out.
 
 ## Install (load unpacked)
@@ -105,8 +105,8 @@ is skipped too, never guessed.
 2. Open `chrome://extensions` in Chrome (114+).
 3. Turn on **Developer mode** (top-right toggle).
 4. Click **Load unpacked** and select the `extension/dist` folder.
-5. Pin the TradeMark icon and click it — the side panel opens.
-6. Click **Sign in to TradeMark**: a normal app tab opens; sign in once and
+5. Pin the TradeMarkk icon and click it — the side panel opens.
+6. Click **Sign in to TradeMarkk**: a normal app tab opens; sign in once and
    the panel picks the session up automatically.
 
 The manifest carries a pinned `key`, so the extension ID is always

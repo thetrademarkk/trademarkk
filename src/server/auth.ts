@@ -53,7 +53,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await sendEmail(
         user.email,
-        "Reset your TradeMark password",
+        "Reset your TradeMarkk password",
         emailLayout("Password reset", "Click below to reset your password.", "Reset password", url)
       );
     },
@@ -64,10 +64,10 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await sendEmail(
         user.email,
-        "Verify your TradeMark email",
+        "Verify your TradeMarkk email",
         emailLayout(
           "Verify your email",
-          "Welcome to TradeMark! Verify your email to start journaling.",
+          "Welcome to TradeMarkk! Verify your email to start journaling.",
           "Verify email",
           url
         )

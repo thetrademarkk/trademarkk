@@ -57,7 +57,7 @@ export function DemoVideo({ duration }: { duration: string }) {
           <span className="h-2.5 w-2.5 rounded-full bg-loss/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-profit/70" />
-          <span className="ml-3 text-[11px] text-muted">TradeMark — product walkthrough</span>
+          <span className="ml-3 text-[11px] text-muted">TradeMarkk — product walkthrough</span>
         </div>
         {showVideo ? (
           <div className="relative">
@@ -73,7 +73,7 @@ export function DemoVideo({ duration }: { duration: string }) {
               width={1280}
               height={800}
               className="block h-auto w-full"
-              aria-label="TradeMark product walkthrough"
+              aria-label="TradeMarkk product walkthrough"
               data-testid="walkthrough-video"
               onClick={(e) => {
                 if (reduced) return; // native controls own the clicks
@@ -112,7 +112,7 @@ export function DemoVideo({ duration }: { duration: string }) {
           >
             <Image
               src="/demo/poster.jpg"
-              alt="Preview frame of the TradeMark walkthrough: the dashboard with equity curve and rules checklist"
+              alt="Preview frame of the TradeMarkk walkthrough: the dashboard with equity curve and rules checklist"
               width={1280}
               height={800}
               loading="lazy"

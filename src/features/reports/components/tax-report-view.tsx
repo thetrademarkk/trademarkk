@@ -1,29 +1,11 @@
 "use client";
 
 import * as React from "react";
-import {
-  Download,
-  FileSpreadsheet,
-  Info,
-  Landmark,
-  Printer,
-  Receipt,
-  Scale,
-} from "lucide-react";
+import { Download, FileSpreadsheet, Info, Landmark, Printer, Receipt, Scale } from "lucide-react";
 import { useTrades, useAccounts } from "@/features/trades";
 import { downloadFile } from "@/features/settings";
-import {
-  availableFyYears,
-  currentFyStartYear,
-  fyLabel,
-  fyRange,
-  fyStartYear,
-} from "@/lib/tax/fy";
-import {
-  chargesBreakdown,
-  fyTaxSummary,
-  type TaxTrade,
-} from "@/lib/tax/turnover";
+import { availableFyYears, currentFyStartYear, fyLabel, fyRange, fyStartYear } from "@/lib/tax/fy";
+import { chargesBreakdown, fyTaxSummary, type TaxTrade } from "@/lib/tax/turnover";
 import { buildTaxCsv, toExcelCsv } from "@/lib/tax/csv";
 import { formatINR, formatPct } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,13 +21,7 @@ import { PnlText } from "@/components/shared/pnl-text";
 
 const SEGMENT_LABEL: Record<string, string> = { EQ: "Equity", FUT: "Futures", OPT: "Options" };
 
-function Stat({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <div className="micro-label">{label}</div>
@@ -105,7 +81,7 @@ export function TaxReportView() {
     const csv = buildTaxCsv(startYear, fyTrades, breakdown);
     const body = excel ? toExcelCsv(csv) : csv;
     downloadFile(
-      `trademark-tax-FY${fyLabel(startYear)}${excel ? "-excel" : ""}.csv`,
+      `trademarkk-tax-FY${fyLabel(startYear)}${excel ? "-excel" : ""}.csv`,
       body,
       "text/csv;charset=utf-8"
     );
@@ -182,9 +158,7 @@ export function TaxReportView() {
                 <Stat label="Net realised P&L">
                   <Money value={summary.netPnl} />
                 </Stat>
-                <Stat label="Charge drag (of gross)">
-                  {formatPct(summary.chargeDragPct, 1)}
-                </Stat>
+                <Stat label="Charge drag (of gross)">{formatPct(summary.chargeDragPct, 1)}</Stat>
                 <Stat label="Period">
                   <span className="text-xs text-muted">
                     {range.from} → {range.to}
@@ -284,8 +258,8 @@ export function TaxReportView() {
                       </span>
                     </div>
                     <p className="mt-1">
-                      The abs-profit figure is the ICAI Guidance-Note convention used for the
-                      audit / presumptive-tax thresholds.
+                      The abs-profit figure is the ICAI Guidance-Note convention used for the audit
+                      / presumptive-tax thresholds.
                     </p>
                   </div>
                 </>

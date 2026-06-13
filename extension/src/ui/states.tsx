@@ -46,7 +46,7 @@ export function SignedOutState({ appUrl }: { appUrl: string }) {
   return (
     <StateShell
       icon={LogIn}
-      title="Sign in to TradeMark"
+      title="Sign in to TradeMarkk"
       body="Sign in once on the web app — this panel picks up your session automatically."
     >
       <button
@@ -55,7 +55,7 @@ export function SignedOutState({ appUrl }: { appUrl: string }) {
         onClick={() => openAppTab(appUrl, "/app/onboarding")}
       >
         <LogIn size={15} />
-        Sign in to TradeMark
+        Sign in to TradeMarkk
       </button>
     </StateShell>
   );
@@ -66,11 +66,11 @@ export function SetupIncompleteState({ appUrl }: { appUrl: string }) {
     <StateShell
       icon={MonitorSmartphone}
       title="Finish setup in the web app"
-      body="Your journal isn't connected to TradeMark cloud yet. The extension works with Hosted or BYOD storage — local-mode journals live inside the web app's browser storage and can't be reached from here."
+      body="Your journal isn't connected to TradeMarkk cloud yet. The extension works with Hosted or BYOD storage — local-mode journals live inside the web app's browser storage and can't be reached from here."
     >
       <button type="button" className="btn-primary" onClick={() => openAppTab(appUrl)}>
         <ExternalLink size={15} />
-        Open TradeMark
+        Open TradeMarkk
       </button>
     </StateShell>
   );
@@ -85,7 +85,7 @@ export function SchemaOutdatedState({ appUrl }: { appUrl: string }) {
     >
       <button type="button" className="btn-primary" onClick={() => openAppTab(appUrl)}>
         <ExternalLink size={15} />
-        Open TradeMark
+        Open TradeMarkk
       </button>
     </StateShell>
   );

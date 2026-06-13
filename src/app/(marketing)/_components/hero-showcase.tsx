@@ -71,7 +71,7 @@ export function HeroShowcase() {
           <span className="h-2.5 w-2.5 rounded-full bg-loss/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-warning/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-profit/70" />
-          <span className="ml-3 text-[11px] text-muted">TradeMark — Dashboard</span>
+          <span className="ml-3 text-[11px] text-muted">TradeMarkk — Dashboard</span>
         </div>
 
         <div className="grid gap-3 p-4 sm:grid-cols-3">

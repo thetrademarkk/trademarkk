@@ -3,7 +3,7 @@ import { CandlestickChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The TradeMark logo. Renders the wordmark as ONE flex child so flex `gap`
+ * The TradeMarkk logo. Renders the wordmark as ONE flex child so flex `gap`
  * never splits "Trade" and "Mark". Always a link (dashboard inside the app,
  * home elsewhere).
  */
@@ -19,7 +19,7 @@ export function Logo({
   return (
     <Link
       href={href}
-      aria-label="TradeMark"
+      aria-label="TradeMarkk"
       className={cn("flex w-fit items-center gap-2 font-semibold", className)}
     >
       <CandlestickChart className={cn("h-5 w-5 shrink-0 text-accent", iconClassName)} aria-hidden />

@@ -1,11 +1,17 @@
 "use client";
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AuthForm } from "@/features/auth";
 
 /**
  * Sign-in dialog raised when a logged-out reader tries to interact.
- * Community identity is a free TradeMark account — the journal stays wherever it is.
+ * Community identity is a free TradeMarkk account — the journal stays wherever it is.
  */
 export function SignInGate({
   open,
@@ -22,7 +28,7 @@ export function SignInGate({
         <DialogHeader>
           <DialogTitle>Join the conversation</DialogTitle>
           <DialogDescription>
-            Community uses a free TradeMark account. Your journal data stays wherever you keep it —
+            Community uses a free TradeMarkk account. Your journal data stays wherever you keep it —
             this account is only your public identity here.
           </DialogDescription>
         </DialogHeader>

@@ -1,6 +1,6 @@
 # Landing Page Roadmap — North Star: the front door earns the product
 
-> **Goal:** the landing page is TradeMark's highest-traffic surface and first
+> **Goal:** the landing page is TradeMarkk's highest-traffic surface and first
 > impression. It must feel like the product itself: dark-first, fast, honest,
 > data-dense but calm. Every iteration ships one coherent slice through the
 > standard pipeline (branch → PR → CI → squash-merge → auto-deploy → verify).
@@ -84,7 +84,7 @@ decision, so the reasoning is recorded here.
       subtle corner mute toggle (the recording has soft UI click sounds).
 - [x] **Hero mock restored** ("the screenshot … is not looking relevant —
       earlier it was good"). The v1 handcrafted dashboard mock (browser
-      chrome titled "TradeMark — Dashboard", ₹18,920 / 67% / 2.1R KPI cards,
+      chrome titled "TradeMarkk — Dashboard", ₹18,920 / 67% / 2.1R KPI cards,
       self-drawing equity curve, day-strip pills, Today's-rules check tiles)
       replaces the v2 screenshot. Refined while restoring: pure JSX/CSS
       server component — the v1 NumberFlow/motion ticker loops (which forced
@@ -119,7 +119,7 @@ Additional sources for v3: [Cruip spotlight card](https://cruip.com/how-to-creat
       the changelog; latest 2 blog posts above the footer.
 - [ ] **Interactive product tour** — guided in-browser demo (drives the real
       local-mode app with seeded data) instead of/alongside the video.
-- [ ] **Comparison strip** — honest TradeMark vs paid journals table teaser
+- [ ] **Comparison strip** — honest TradeMarkk vs paid journals table teaser
       linking to /compare.
 - [ ] **i18n groundwork** — hi-IN copy variant for the marketing surface.
 - [ ] **Video v2** — captions track, chapter markers, refreshed recording
@@ -130,7 +130,7 @@ Additional sources for v3: [Cruip spotlight card](https://cruip.com/how-to-creat
 - [ ] **Refresh the demo video** after the next major UI change (re-run the
       capture pipeline; keep total media under 8 MB). Publish it **with its
       click-track audio**: the current walkthrough.mp4/webm encodes are
-      silent (the audio-mixed master `demo/trademark-demo.mp4` is a
+      silent (the audio-mixed master `demo/trademarkk-demo.mp4` is a
       different 86s/16:9 session, so its track can't be muxed in honestly) —
       until then the v3 unmute toggle is wired but a no-op.
 

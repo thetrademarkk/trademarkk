@@ -34,7 +34,7 @@ const editorialItem = (p: Post): BlogListItem => ({
   description: p.description,
   date: p.date,
   minutes: readingTime(p),
-  authorName: "TradeMark",
+  authorName: "TradeMarkk",
   source: "editorial",
 });
 
@@ -55,7 +55,10 @@ export async function listBlogPosts(): Promise<BlogListItem[]> {
       title: a.title,
       description: a.excerpt,
       date: a.reviewedAt ?? a.createdAt,
-      minutes: Math.max(1, Math.round(a.contentHtml.replace(/<[^>]+>/g, " ").split(/\s+/).length / 200)),
+      minutes: Math.max(
+        1,
+        Math.round(a.contentHtml.replace(/<[^>]+>/g, " ").split(/\s+/).length / 200)
+      ),
       authorName: handleMap.get(a.authorId) ?? "Community",
       source: "community",
     }));
@@ -76,7 +79,7 @@ export async function getBlogArticle(slug: string): Promise<BlogArticle | null> 
       description: editorial.description,
       date: editorial.date,
       minutes: readingTime(editorial),
-      authorName: "TradeMark",
+      authorName: "TradeMarkk",
       source: "editorial",
       sections: editorial.sections,
       intro: editorial.intro,
@@ -90,7 +93,11 @@ export async function getBlogArticle(slug: string): Promise<BlogArticle | null> 
       .where(and(eq(blogSubmissions.slug, slug), eq(blogSubmissions.status, "approved")))
       .get();
     if (!row) return null;
-    author = await platformDb.select().from(profiles).where(eq(profiles.userId, row.authorId)).get();
+    author = await platformDb
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, row.authorId))
+      .get();
   } catch {
     return null;
   }
@@ -99,7 +106,10 @@ export async function getBlogArticle(slug: string): Promise<BlogArticle | null> 
     title: row.title,
     description: row.excerpt,
     date: row.reviewedAt ?? row.createdAt,
-    minutes: Math.max(1, Math.round(row.contentHtml.replace(/<[^>]+>/g, " ").split(/\s+/).length / 200)),
+    minutes: Math.max(
+      1,
+      Math.round(row.contentHtml.replace(/<[^>]+>/g, " ").split(/\s+/).length / 200)
+    ),
     authorName: author?.displayName ?? "Community",
     source: "community",
     html: row.contentHtml,

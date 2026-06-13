@@ -63,7 +63,11 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
         <MailCheck className="mt-0.5 h-5 w-5 shrink-0 text-profit" />
         <div className="space-y-2">
           <p className="text-sm">{notice}</p>
-          <button type="button" className="text-xs text-accent hover:underline" onClick={() => switchMode("signin")}>
+          <button
+            type="button"
+            className="text-xs text-accent hover:underline"
+            onClick={() => switchMode("signin")}
+          >
             Back to sign in
           </button>
         </div>
@@ -77,7 +81,13 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
         {mode === "signup" && (
           <div className="space-y-1.5">
             <Label htmlFor="auth-name">Name</Label>
-            <Input id="auth-name" name="name" required placeholder="Your name" autoComplete="name" />
+            <Input
+              id="auth-name"
+              name="name"
+              required
+              placeholder="Your name"
+              autoComplete="name"
+            />
           </div>
         )}
         <div className="space-y-1.5">
@@ -130,12 +140,18 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
         )}
 
         {error && (
-          <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">{error}</p>
+          <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">
+            {error}
+          </p>
         )}
 
         <Button type="submit" className="w-full" disabled={busy}>
           {busy && <Loader2 className="animate-spin" />}
-          {mode === "signup" ? "Create free account" : mode === "signin" ? "Sign in" : "Send reset link"}
+          {mode === "signup"
+            ? "Create free account"
+            : mode === "signin"
+              ? "Sign in"
+              : "Send reset link"}
         </Button>
       </form>
 
@@ -153,10 +169,22 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
             onClick={() => signIn.social({ provider: "google", callbackURL: "/app/onboarding" })}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
-              <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.43.35-2.1V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" />
-              <path fill="#EA4335" d="M12 5.38c1.61 0 3.06.55 4.21 1.64l3.16-3.16A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" />
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.1A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.43.35-2.1V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.61 0 3.06.55 4.21 1.64l3.16-3.16A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z"
+              />
             </svg>
             Continue with Google
           </Button>
@@ -170,7 +198,8 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
           </button>
         ) : (
           <button type="button" className="hover:text-accent" onClick={() => switchMode("signup")}>
-            New to TradeMark? <span className="font-medium text-accent">Create a free account</span>
+            New to TradeMarkk?{" "}
+            <span className="font-medium text-accent">Create a free account</span>
           </button>
         )}
       </p>

@@ -8,12 +8,19 @@ export async function exportBackup(db: DbClient): Promise<string> {
   for (const table of JOURNAL_TABLES) {
     data[table] = (await db.execute(`SELECT * FROM ${table}`)).rows;
   }
-  return JSON.stringify({ app: "trademark", version: 1, exportedAt: new Date().toISOString(), data }, null, 2);
+  return JSON.stringify(
+    { app: "trademark", version: 1, exportedAt: new Date().toISOString(), data },
+    null,
+    2
+  );
 }
 
 export async function importBackup(db: DbClient, json: string): Promise<number> {
-  const parsed = JSON.parse(json) as { app?: string; data?: Record<string, Record<string, unknown>[]> };
-  if (parsed.app !== "trademark" || !parsed.data) throw new Error("Not a TradeMark backup file");
+  const parsed = JSON.parse(json) as {
+    app?: string;
+    data?: Record<string, Record<string, unknown>[]>;
+  };
+  if (parsed.app !== "trademark" || !parsed.data) throw new Error("Not a TradeMarkk backup file");
   let total = 0;
   for (const table of JOURNAL_TABLES) {
     const rows = parsed.data[table] ?? [];
@@ -21,7 +28,10 @@ export async function importBackup(db: DbClient, json: string): Promise<number> 
     // Backup files are untrusted input — column names go into SQL, so validate them.
     const columns = assertSafeIdentifiers(Object.keys(rows[0]!));
     const sql = `INSERT OR REPLACE INTO ${table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`;
-    const stmts: DbStatement[] = rows.map((r) => ({ sql, args: columns.map((c) => (r[c] ?? null) as DbValue) }));
+    const stmts: DbStatement[] = rows.map((r) => ({
+      sql,
+      args: columns.map((c) => (r[c] ?? null) as DbValue),
+    }));
     for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
     total += rows.length;
   }
@@ -47,5 +57,7 @@ export async function exportTradesCsv(db: DbClient): Promise<string> {
     const s = v == null ? "" : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [columns.join(","), ...rows.map((r) => columns.map((c) => esc(r[c])).join(","))].join("\n");
+  return [columns.join(","), ...rows.map((r) => columns.map((c) => esc(r[c])).join(","))].join(
+    "\n"
+  );
 }

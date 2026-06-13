@@ -5,7 +5,7 @@ import type { DbClient, DbResult, DbStatement, DbValue } from "../types";
  * Implements the same DbClient interface as the Turso adapters, so the entire
  * app works fully offline with zero accounts.
  */
-const IDB_NAME = "trademark-local";
+const IDB_NAME = "trademarkk-local";
 const IDB_STORE = "files";
 const IDB_KEY = "journal.db";
 

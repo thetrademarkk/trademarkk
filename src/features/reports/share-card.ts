@@ -100,6 +100,6 @@ export function buildReportShareCard(
         ? `${green} green day${green === 1 ? "" : "s"} · ${red} red day${red === 1 ? "" : "s"}`
         : null,
     dateLabel: `${dayLabel(input.from, false)} – ${dayLabel(input.to, true)}`,
-    fileName: `trademark-${input.kind}-review-${input.from}.png`,
+    fileName: `trademarkk-${input.kind}-review-${input.from}.png`,
   };
 }
