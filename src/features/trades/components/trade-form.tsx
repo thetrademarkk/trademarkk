@@ -593,8 +593,14 @@ export function TradeForm({
           </p>
         )}
         <div className="space-y-1">
-          <Label>Charges override ₹ (blank = auto-calculated)</Label>
-          <Input type="number" step="any" {...register("manualCharges")} />
+          <Label htmlFor="manualCharges">Charges override ₹ (blank = auto-calculated)</Label>
+          <Input
+            id="manualCharges"
+            type="number"
+            step="any"
+            aria-label="Charges override"
+            {...register("manualCharges")}
+          />
         </div>
       </div>
 
