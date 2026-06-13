@@ -9,6 +9,7 @@ import {
   Link2,
   Loader2,
   MessageCircle,
+  Pencil,
   Pin,
   PinOff,
   Share2,
@@ -45,6 +46,9 @@ import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
+import { EditPostForm } from "./edit-post-form";
+import { EditedMarker } from "./edit-history-dialog";
+import { useEditWindow } from "../use-edit-window";
 
 export function PostCard({
   post,
@@ -71,7 +75,10 @@ export function PostCard({
   const [gateOpen, setGateOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(detail);
+  const [editing, setEditing] = React.useState(false);
   const pendingAction = React.useRef<(() => void) | null>(null);
+  // Owner-only edit affordance, live-gated to the 15-minute window.
+  const { editable: canEdit, minutesLeft } = useEditWindow(post.createdAt);
 
   // Attempt → 401 → gate → retry. No client-side session pre-checks.
   const onUnauthorized = (retry: () => void) => {
@@ -202,6 +209,12 @@ export function PostCard({
             >
               {detail ? formatPostDate(post.createdAt) : timeAgo(post.createdAt)}
             </time>
+            {post.editedAt && (
+              <>
+                {" · "}
+                <EditedMarker kind="post" history={post.editHistory} />
+              </>
+            )}
           </p>
         </div>
         {detail && !post.mine && authorFollowedByMe !== undefined && (
@@ -252,6 +265,14 @@ export function PostCard({
             </DropdownMenuItem>
             {post.mine ? (
               <>
+                {canEdit && (
+                  <DropdownMenuItem onClick={() => setEditing(true)}>
+                    <Pencil /> Edit post
+                    <span className="ml-auto pl-3 text-[11px] text-muted">
+                      {minutesLeft > 0 ? `${minutesLeft} min left` : ""}
+                    </span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={handlePin}>
                   {post.pinned ? (
                     <>
@@ -281,40 +302,44 @@ export function PostCard({
         </DropdownMenu>
       </header>
 
-      <div className="mt-3">
-        {post.title && (
-          <h2
-            className={cn(
-              "font-semibold",
-              detail ? "text-xl leading-tight tracking-tight" : "text-base leading-snug"
-            )}
-          >
-            {detail ? (
-              post.title
-            ) : (
-              <Link href={`/community/post/${post.id}`} className="hover:text-accent">
-                {post.title}
-              </Link>
-            )}
-          </h2>
-        )}
-        <p
-          className={cn(
-            "mt-1 whitespace-pre-wrap text-foreground/90",
-            detail ? "mt-2 text-[15px] leading-7" : "text-sm leading-6"
+      {editing ? (
+        <EditPostForm post={post} onClose={() => setEditing(false)} />
+      ) : (
+        <div className="mt-3">
+          {post.title && (
+            <h2
+              className={cn(
+                "font-semibold",
+                detail ? "text-xl leading-tight tracking-tight" : "text-base leading-snug"
+              )}
+            >
+              {detail ? (
+                post.title
+              ) : (
+                <Link href={`/community/post/${post.id}`} className="hover:text-accent">
+                  {post.title}
+                </Link>
+              )}
+            </h2>
           )}
-        >
-          <RichText text={body} />
-        </p>
-        {longBody && !expanded && (
-          <button
-            className="mt-1 text-xs font-medium text-accent hover:underline"
-            onClick={() => setExpanded(true)}
+          <p
+            className={cn(
+              "mt-1 whitespace-pre-wrap text-foreground/90",
+              detail ? "mt-2 text-[15px] leading-7" : "text-sm leading-6"
+            )}
           >
-            Show more
-          </button>
-        )}
-      </div>
+            <RichText text={body} />
+          </p>
+          {longBody && !expanded && (
+            <button
+              className="mt-1 text-xs font-medium text-accent hover:underline"
+              onClick={() => setExpanded(true)}
+            >
+              Show more
+            </button>
+          )}
+        </div>
+      )}
 
       {post.tradeCard && <TradeCardView card={post.tradeCard} />}
 
@@ -333,7 +358,7 @@ export function PostCard({
         </div>
       )}
 
-      {post.tags.length > 0 && (
+      {!editing && post.tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {post.tags.map((t) => (
             <Link

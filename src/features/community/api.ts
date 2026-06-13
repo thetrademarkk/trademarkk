@@ -24,7 +24,8 @@ import type {
 } from "./types";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
-import type { CreatePostInput, UpdateProfileInput } from "./schemas";
+import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
+import type { PostEditSnapshot } from "./edit-window";
 
 export class ApiError extends Error {
   constructor(
@@ -182,6 +183,114 @@ export function useDeletePost() {
   return useMutation({
     mutationFn: (id: string) => request(`/api/community/posts/${id}`, { method: "DELETE" }),
     onSuccess: () => invalidatePostLists(qc),
+  });
+}
+
+/**
+ * Edit a post (title/body/tags) within its window. Optimistically patches every
+ * cached copy — feed pages and the detail page — appending the pre-edit content
+ * to the local history and stamping `editedAt`, then rolls back on error.
+ */
+export function useEditPost(id: string) {
+  const qc = useQueryClient();
+
+  const patchPost = (post: PostView, input: EditPostInput, editedAt: string): PostView => {
+    const snapshot: PostEditSnapshot = {
+      editedAt,
+      title: post.title,
+      body: post.body,
+      tags: post.tags,
+    };
+    return {
+      ...post,
+      title: input.title?.trim() || null,
+      body: input.body.trim(),
+      tags: input.tags,
+      editedAt,
+      editHistory: [...post.editHistory, snapshot],
+    };
+  };
+
+  const patchEverywhere = (input: EditPostInput, editedAt: string) => {
+    qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((p) => ({
+              ...p,
+              posts: p.posts.map((post) =>
+                post.id === id ? patchPost(post, input, editedAt) : post
+              ),
+            })),
+          }
+        : data
+    );
+    qc.setQueryData<PostDetailResponse>(["community-post", id], (data) =>
+      data ? { ...data, post: patchPost(data.post, input, editedAt) } : data
+    );
+  };
+
+  return useMutation({
+    mutationFn: (input: EditPostInput) =>
+      request<{ edited: boolean; editedAt: string }>(`/api/community/posts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    onMutate: (input) => {
+      const feeds = qc.getQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] });
+      const detail = qc.getQueryData<PostDetailResponse>(["community-post", id]);
+      patchEverywhere(input, new Date().toISOString());
+      return { feeds, detail };
+    },
+    onError: (_e, _input, ctx) => {
+      if (!ctx) return;
+      for (const [key, data] of ctx.feeds) qc.setQueryData(key, data);
+      qc.setQueryData(["community-post", id], ctx.detail);
+    },
+    // Refresh profile lists + reconcile the detail/feed history with server truth.
+    onSettled: () => invalidatePostLists(qc),
+  });
+}
+
+/** Edit a comment's body within its window — optimistic patch with rollback. */
+export function useEditComment(postId: string) {
+  const qc = useQueryClient();
+  const key = ["community-post", postId];
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) =>
+      request<{ edited: boolean; editedAt: string }>(`/api/community/comments/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body }),
+      }),
+    onMutate: ({ id, body }) => {
+      const prev = qc.getQueryData<PostDetailResponse>(key);
+      const editedAt = new Date().toISOString();
+      qc.setQueryData<PostDetailResponse>(key, (data) =>
+        data
+          ? {
+              ...data,
+              comments: data.comments.map((c) =>
+                c.id === id
+                  ? {
+                      ...c,
+                      editHistory: [...c.editHistory, { editedAt, body: c.body }],
+                      body: body.trim(),
+                      editedAt,
+                    }
+                  : c
+              ),
+            }
+          : data
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["community-user-comments"] });
+    },
   });
 }
 

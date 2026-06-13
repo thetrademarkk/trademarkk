@@ -102,6 +102,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       likeCount: 0,
       likedByMe: false,
       createdAt: new Date().toISOString(),
+      editedAt: null,
+      editHistory: [],
       mine: true,
       author: { username: profile!.username, displayName: profile!.displayName },
     },

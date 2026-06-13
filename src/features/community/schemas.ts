@@ -39,6 +39,22 @@ export const createCommentSchema = z.object({
   parentId: z.string().max(40).nullish(),
 });
 
+/**
+ * Editing a post re-runs the SAME validation as creating one (title/body/tags) —
+ * an edit can never bypass the rules a fresh post must pass. Images and the
+ * trade card are immutable after creation (not editable in this window).
+ */
+export const editPostSchema = z.object({
+  title: z.string().max(120).optional(),
+  body: z.string().min(2, "Say something!").max(5000),
+  tags: z.array(tagSchema).max(4).default([]),
+});
+
+/** Editing a comment re-runs the create-comment body validation. */
+export const editCommentSchema = z.object({
+  body: z.string().min(1, "Empty comment").max(2000),
+});
+
 export const updateProfileSchema = z.object({
   username: z
     .string()
@@ -99,4 +115,6 @@ export const reportSchema = z.object({
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+export type EditPostInput = z.infer<typeof editPostSchema>;
+export type EditCommentInput = z.infer<typeof editCommentSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
