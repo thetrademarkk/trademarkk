@@ -39,7 +39,7 @@ behaviour, so existing P&L never regresses.
 
 - [x] **SEG-01** Segment×Product model + per-(segment,product) charge engine + trader-type-aware conditional form
 - [x] **SEG-02** Charge-engine golden tests for every (segment,product) combo
-- [ ] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
+- [x] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
 - [ ] **SEG-04** Backfill product for existing trades + recompute-charges action
 - [ ] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
 - [ ] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
@@ -75,3 +75,25 @@ behaviour, so existing P&L never regresses.
   (half-up at 0.105 → 0.11). 27 new tests, all green; the engine matched the
   statutory hand computation exactly — NO charge bug found, no `charges.ts`
   change needed.
+
+- **SEG-03** (Shipped 2026-06-13) — broker imports now parse the **Product
+  column** and classify **MCX (COMM) / currency (CDS)** segments. `RawFill`
+  carries an optional `product` (+ widened `segment`); `csv-brokers.ts` resolves
+  each broker's product column (Fyers `Product`, Angel One `Product Type`, Dhan
+  `Product`) and `mapProduct()` maps codes → enum: CNC/DELIVERY→CNC,
+  MIS/INTRADAY→MIS, NRML/NORMAL/CARRY→NRML, MARGIN/CO/BO/COVER/BRACKET→NRML,
+  BTST/STBT preserved; blank/unknown → null so `buildTrade` infers from the
+  holding pattern (same-day EQ=MIS, overnight EQ=CNC, derivatives=NRML — matching
+  the v4 backfill). Zerodha/Upstox/Groww reports carry no product column → null →
+  inferred. `instrument-parse.ts` reclassifies an `MCX:` prefix or a commodity
+  base (CRUDEOIL/GOLD/SILVER/NATURALGAS/…) → COMM and the four INR pairs
+  (USDINR/EURINR/GBPINR/JPYINR, incl. decimal strikes) or a CDS prefix → CDS,
+  preserving strike/CE-PE/expiry (no more EQ/OPT fallback). The import dialog
+  preview now shows a per-row `<segment> <product>` chip. **Dedupe ids are
+  unchanged** — product is not part of the id parts or the pairing key, so a
+  byte-identical re-import produces identical ids (verified). +23 tests
+  (instrument COMM/CDS + per-broker product mapping + missing-column inference +
+  EQ-CNC delivery-charge cross-check vs the engine + dedupe idempotency).
+  Feature e2e (`e2e-seg-ingest`): a crafted Fyers CSV (EQ CNC + EQ MIS + FUT +
+  MCX + USDINR) imports with each row's segment/product asserted and delivery >
+  intraday charges proven, zero console errors.

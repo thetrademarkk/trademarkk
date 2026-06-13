@@ -1,7 +1,7 @@
 import { computeCharges, computeGrossPnl } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
 import { parseContractName } from "./instrument-parse";
-import type { TradeRow } from "./types";
+import type { Product, Segment, TradeRow } from "./types";
 
 export interface RawFill {
   symbol: string;
@@ -11,9 +11,16 @@ export interface RawFill {
   time: string; // ISO
   expiry?: string | null;
   /** Pre-parsed instrument fields — set by broker-specific mappers only. */
-  segment?: "EQ" | "FUT" | "OPT" | null;
+  segment?: Segment | null;
   strike?: number | null;
   optionType?: "CE" | "PE" | null;
+  /**
+   * Product / holding intent from the broker's product column (SEG-03), when
+   * the report exposes one. Null/absent → buildTrade infers it from the holding
+   * pattern (same-day EQ = MIS, overnight EQ = CNC, derivatives = NRML), matching
+   * the v4 migration backfill.
+   */
+  product?: Product | null;
 }
 
 export interface ColumnMapping {
@@ -178,11 +185,11 @@ function buildTrade(
   const openedAt = first.time;
   const closedAt = closed ? exits[exits.length - 1]!.time : null;
 
-  // Derive a product (the broker Product column isn't parsed on import yet —
-  // that's SEG-03). Mirror the v4 migration backfill: same-day equity = MIS
-  // (intraday), overnight equity = CNC (delivery), derivatives = NRML.
-  // An open equity trade has no close → leave MIS (intraday assumption).
-  const product: TradeRow["product"] =
+  // Product (SEG-03). Prefer the broker's parsed product column when present;
+  // otherwise infer from the holding pattern, mirroring the v4 migration
+  // backfill: same-day equity = MIS (intraday), overnight equity = CNC
+  // (delivery), derivatives = NRML. An open equity trade has no close → MIS.
+  const inferredProduct: TradeRow["product"] =
     inst.segment === "EQ"
       ? closedAt && closedAt.slice(0, 10) === openedAt.slice(0, 10)
         ? "MIS"
@@ -190,6 +197,7 @@ function buildTrade(
           ? "CNC"
           : "MIS"
       : "NRML";
+  const product: TradeRow["product"] = first.product ?? inferredProduct;
 
   let gross = 0;
   let charges = 0;

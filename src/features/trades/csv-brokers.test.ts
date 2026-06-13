@@ -1,7 +1,9 @@
 import Papa from "papaparse";
 import { describe, expect, it } from "vitest";
-import { detectBroker } from "./csv-brokers";
+import { detectBroker, mapProduct } from "./csv-brokers";
 import { pairFillsToTrades, type RawFill } from "./csv";
+import { computeCharges } from "@/lib/charges/charges";
+import { getChargeProfile } from "@/config/brokers";
 
 /** Parses a fixture CSV string exactly like the import dialog does. */
 function load(fixture: string) {
@@ -251,6 +253,170 @@ describe("Zerodha Console tradebook (legacy path preserved)", () => {
   });
 });
 
+// ───────────────────── SEG-03: Product column mapping ─────────────────────
+describe("mapProduct — broker product code → Product enum", () => {
+  it("maps the canonical codes", () => {
+    expect(mapProduct("CNC")).toBe("CNC");
+    expect(mapProduct("MIS")).toBe("MIS");
+    expect(mapProduct("NRML")).toBe("NRML");
+  });
+
+  it("maps MARGIN/CO/BO/cover/bracket → NRML (carry basis)", () => {
+    expect(mapProduct("MARGIN")).toBe("NRML");
+    expect(mapProduct("CO")).toBe("NRML");
+    expect(mapProduct("BO")).toBe("NRML");
+    expect(mapProduct("COVER")).toBe("NRML");
+    expect(mapProduct("BRACKET")).toBe("NRML");
+  });
+
+  it("maps verbose / alias forms", () => {
+    expect(mapProduct("DELIVERY")).toBe("CNC");
+    expect(mapProduct("Intraday")).toBe("MIS");
+    expect(mapProduct("NORMAL")).toBe("NRML");
+    expect(mapProduct("Carry Forward")).toBe("NRML");
+    expect(mapProduct("BTST")).toBe("BTST");
+    expect(mapProduct("STBT")).toBe("STBT");
+  });
+
+  it("blank / unrecognised → null (lets buildTrade infer)", () => {
+    expect(mapProduct("")).toBeNull();
+    expect(mapProduct(undefined)).toBeNull();
+    expect(mapProduct("???")).toBeNull();
+  });
+});
+
+describe("Fyers Product column → fill.product", () => {
+  const { headers, rows } = load(FYERS);
+  it("reads the broker Product column per row", () => {
+    const fills = detectBroker(headers)!.toFills(rows, headers);
+    expect(fills.find((f) => f.symbol === "NIFTY")?.product).toBe("NRML"); // MARGIN → NRML
+    expect(fills.find((f) => f.symbol === "SBIN")?.product).toBe("CNC"); // CNC
+  });
+
+  it("threads the parsed product into the built trade (CNC equity = delivery)", () => {
+    const trades = pairFillsToTrades(detectBroker(headers)!.toFills(rows, headers), "acc", "fyers");
+    const sbin = trades.find((t) => t.symbol === "SBIN")!;
+    // Open SBIN buy would infer MIS without a column; the CNC column wins.
+    expect(sbin.product).toBe("CNC");
+    expect(sbin.segment).toBe("EQ");
+  });
+});
+
+const ANGEL_ONE_PRODUCT = `
+Trade Date,Trade Time,Exchange,Segment,Symbol Name,Transaction Type,Quantity,Trade Price,Product Type,Order No,Trade No
+12-06-2026,09:30:15,NSE,EQ,TCS,BUY,5,3890.00,DELIVERY,A1,T1
+13-06-2026,10:30:15,NSE,EQ,TCS,SELL,5,3950.00,DELIVERY,A2,T2
+12-06-2026,11:30:15,NSE,EQ,WIPRO,BUY,20,520.00,INTRADAY,A3,T3
+12-06-2026,14:30:15,NSE,EQ,WIPRO,SELL,20,524.00,INTRADAY,A4,T4
+`;
+
+describe("Angel One Product Type column → delivery vs intraday charges", () => {
+  const { headers, rows } = load(ANGEL_ONE_PRODUCT);
+  it("classifies CNC (DELIVERY) vs MIS (INTRADAY) from the column", () => {
+    const fills = detectBroker(headers)!.toFills(rows, headers);
+    expect(fills.find((f) => f.symbol === "TCS")?.product).toBe("CNC");
+    expect(fills.find((f) => f.symbol === "WIPRO")?.product).toBe("MIS");
+  });
+
+  it("imported EQ-CNC row computes DELIVERY charges (both-sides STT + DP), not intraday", () => {
+    const trades = pairFillsToTrades(
+      detectBroker(headers)!.toFills(rows, headers),
+      "acc",
+      "angelone"
+    );
+    const tcs = trades.find((t) => t.symbol === "TCS")!;
+    expect(tcs.product).toBe("CNC");
+    expect(tcs.status).toBe("closed");
+    // Cross-check against the charge engine directly with the SAME inputs.
+    const profile = getChargeProfile("angelone");
+    const expected = computeCharges(profile, {
+      segment: "EQ",
+      product: "CNC",
+      qty: 5,
+      entryPrice: 3890,
+      exitPrice: 3950,
+      direction: "long",
+      orders: 2,
+    });
+    expect(tcs.charges).toBe(Math.round(expected.total * 100) / 100);
+    // Delivery STT is 0.1% BOTH sides + ₹15.34 DP, far above the intraday line.
+    const asIntraday = computeCharges(profile, {
+      segment: "EQ",
+      product: "MIS",
+      qty: 5,
+      entryPrice: 3890,
+      exitPrice: 3950,
+      direction: "long",
+      orders: 2,
+    });
+    expect(expected.total).toBeGreaterThan(asIntraday.total);
+    expect(expected.dpCharge).toBeGreaterThan(0);
+  });
+});
+
+// ───────────────── SEG-03: MCX (COMM) + currency (CDS) on import ─────────────────
+const FYERS_MCX = `
+Client ID,Symbol,Trade Date and Time,Exchange,Segment,Transaction Type,Product,Qty,Traded Price,Order No,Trade No
+AB1,MCX:CRUDEOIL24JUNFUT,12-06-2026 11:00:00,MCX,COM,BUY,NRML,100,6500.00,O1,T1
+AB1,MCX:CRUDEOIL24JUNFUT,12-06-2026 14:00:00,MCX,COM,SELL,NRML,100,6560.00,O2,T2
+`;
+
+describe("Fyers MCX symbol → COMM segment on import", () => {
+  const { headers, rows } = load(FYERS_MCX);
+  it("classifies an MCX contract as COMM (not EQ/FUT) and carries product", () => {
+    const fills = detectBroker(headers)!.toFills(rows, headers);
+    expect(fills).toHaveLength(2);
+    expect(fills[0]).toMatchObject({ symbol: "CRUDEOIL", segment: "COMM", product: "NRML" });
+    const trades = pairFillsToTrades(fills, "acc", "fyers");
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      product: "NRML",
+      status: "closed",
+    });
+  });
+});
+
+const FYERS_CDS = `
+Client ID,Symbol,Trade Date and Time,Exchange,Segment,Transaction Type,Product,Qty,Traded Price,Order No,Trade No
+AB1,NSE:USDINR24JUN83.5CE,12-06-2026 11:00:00,CDS,FO,BUY,NRML,1000,0.42,O1,T1
+AB1,NSE:USDINR24JUN83.5CE,12-06-2026 14:00:00,CDS,FO,SELL,NRML,1000,0.58,O2,T2
+`;
+
+describe("Fyers USDINR decimal-strike option → CDS segment on import", () => {
+  const { headers, rows } = load(FYERS_CDS);
+  it("classifies USDINR as CDS, preserving decimal strike + CE", () => {
+    const fills = detectBroker(headers)!.toFills(rows, headers);
+    expect(fills[0]).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      strike: 83.5,
+      optionType: "CE",
+      product: "NRML",
+    });
+    const trades = pairFillsToTrades(fills, "acc", "fyers");
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      strike: 83.5,
+      option_type: "CE",
+    });
+    // CDS carries no STT/CTT — the transaction-tax line is zero.
+    const charges = computeCharges(getChargeProfile("fyers"), {
+      segment: "CDS",
+      product: "NRML",
+      qty: 1000,
+      entryPrice: 0.42,
+      exitPrice: 0.58,
+      direction: "long",
+      orders: 2,
+    });
+    expect(charges.stt).toBe(0);
+  });
+});
+
 // ───────────────────────── cross-cutting safety ─────────────────────────
 describe("detector + pairing safety", () => {
   it("unknown headers fall back to manual mapping (null)", () => {
@@ -279,5 +445,42 @@ describe("detector + pairing safety", () => {
     expect(trades).toHaveLength(2);
     expect(new Set(trades.map((t) => t.id)).size).toBe(2);
     expect(trades.map((t) => t.strike).sort()).toEqual([24500, 24600]);
+  });
+
+  it("adding a product to a fill does NOT change the dedupe id (back-compat)", () => {
+    const base: RawFill = {
+      symbol: "TCS",
+      segment: "EQ",
+      strike: null,
+      optionType: null,
+      side: "buy",
+      qty: 5,
+      price: 3890,
+      time: iso("2026-06-12T09:30:00"),
+      expiry: null,
+    };
+    const exit: RawFill = { ...base, side: "sell", price: 3950, time: iso("2026-06-13T15:00:00") };
+    const withoutProduct = pairFillsToTrades([base, exit], "acc", "zero");
+    const withProduct = pairFillsToTrades(
+      [
+        { ...base, product: "CNC" },
+        { ...exit, product: "CNC" },
+      ],
+      "acc",
+      "zero"
+    );
+    expect(withProduct.map((t) => t.id)).toEqual(withoutProduct.map((t) => t.id));
+    expect(withProduct[0]!.product).toBe("CNC");
+    expect(withoutProduct[0]!.product).toBe("CNC"); // inferred (overnight EQ)
+  });
+
+  it("re-parsing the same broker rows yields identical ids across all 6 mappers", () => {
+    for (const fixture of [UPSTOX, ANGEL_ONE, DHAN, FYERS, GROWW, ZERODHA]) {
+      const { headers, rows } = load(fixture);
+      const spec = detectBroker(headers)!;
+      const a = pairFillsToTrades(spec.toFills(rows, headers), "acc", "zero");
+      const b = pairFillsToTrades(spec.toFills(rows, headers), "acc", "zero");
+      expect(a.map((t) => t.id)).toEqual(b.map((t) => t.id));
+    }
   });
 });

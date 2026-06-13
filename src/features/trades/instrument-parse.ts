@@ -10,12 +10,21 @@
  *   Fyers symbols   NSE:SBIN-EQ / NSE:NIFTY24JUN24500CE (exchange prefix + series)
  *   Spaced names    "NIFTY 25 JUN 2026 24500 CALL" / "BANKNIFTY 26JUN2026 52000 CE"
  *                   (Groww contract names, Dhan security names — CALL/PUT → CE/PE)
+ *   Commodity (MCX) MCX:CRUDEOIL24JUNFUT / CRUDEOIL / GOLD24JUN72000CE → COMM
+ *   Currency (CDS)  USDINR24JUN83.5CE / EURINR / NSE:USDINR24JUNFUT    → CDS
  *   Anything else   plain equity symbol
+ *
+ * Commodity / currency classification (SEG-03): an `MCX:` prefix, a CDS exchange
+ * prefix, or a recognised commodity contract base (CRUDEOIL/GOLD/SILVER/…) maps
+ * the segment to COMM; the four INR currency pairs (USDINR/EURINR/GBPINR/JPYINR,
+ * incl. decimal strikes) map to CDS. Strike / option-type / expiry parsing is
+ * preserved — a COMM or CDS option keeps its strike+CE/PE, a future stays a
+ * carry contract in its own segment rather than falling back to EQ/FUT/OPT.
  */
 
 export interface ParsedInstrument {
   symbol: string;
-  segment: "EQ" | "FUT" | "OPT";
+  segment: "EQ" | "FUT" | "OPT" | "COMM" | "CDS";
   strike: number | null;
   optionType: "CE" | "PE" | null;
   /** ISO yyyy-mm-dd when the name carries a full date, else null. */
@@ -50,13 +59,61 @@ const eq = (symbol: string): ParsedInstrument => ({
   expiry: null,
 });
 
+/** The four NSE/BSE INR currency pairs (CDS segment). */
+const CURRENCY_PAIRS = new Set(["USDINR", "EURINR", "GBPINR", "JPYINR"]);
+
+/**
+ * MCX commodity contract bases. A symbol whose base matches one of these (e.g.
+ * CRUDEOIL, GOLDM, SILVERMIC) is a commodity even without an MCX: prefix —
+ * Dhan/Groww/Angel security names omit the exchange tag. Matched by prefix so
+ * mini/micro variants (GOLDM, GOLDPETAL, SILVERMIC, CRUDEOILM) classify too.
+ */
+const COMMODITY_BASES = [
+  "CRUDEOIL",
+  "NATURALGAS",
+  "NATGAS",
+  "GOLD",
+  "SILVER",
+  "COPPER",
+  "ZINC",
+  "ALUMINIUM",
+  "ALUMINI",
+  "LEAD",
+  "NICKEL",
+  "MENTHAOIL",
+  "COTTON",
+  "CARDAMOM",
+  "KAPAS",
+];
+
+/** Agri commodities (CTT-exempt) — informational; charge engine takes agri flag separately. */
+const isCommodityBase = (sym: string) => COMMODITY_BASES.some((b) => sym.startsWith(b));
+
+/**
+ * Reclassifies an equity/F&O parse into COMM (MCX commodity) or CDS (currency)
+ * when the exchange prefix or symbol base says so, preserving strike/optionType
+ * /expiry. `exchange` is the stripped prefix (MCX/CDS/NSE/…) or "".
+ */
+function reclassifySegment(p: ParsedInstrument, exchange: string): ParsedInstrument {
+  const isCurrency = exchange === "CDS" || CURRENCY_PAIRS.has(p.symbol);
+  const isCommodity = exchange === "MCX" || isCommodityBase(p.symbol);
+  if (!isCurrency && !isCommodity) return p;
+  // Currency wins only if the base is an actual INR pair OR the prefix is CDS and
+  // it isn't a known commodity (avoids an MCX symbol that merely contains "INR").
+  const segment: ParsedInstrument["segment"] = isCurrency && !isCommodity ? "CDS" : "COMM";
+  return { ...p, segment };
+}
+
 export function parseContractName(raw: string): ParsedInstrument {
   let s = raw.trim().toUpperCase().replace(/\s+/g, " ");
   if (!s) return eq(s);
-  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS):/, ""); // Fyers exchange prefix
+  const prefix = s.match(/^(NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCO):/); // Fyers/exchange prefix
+  const exchange = prefix?.[1] ?? "";
+  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCO):/, "");
   const series = s.match(/^([A-Z0-9&.-]+?)-(?:EQ|BE|BZ|SM|ST|A|B|T|XT)$/); // Fyers series suffix
-  if (series) return eq(series[1]!);
-  return s.includes(" ") ? parseSpacedName(s) : parseCompactName(s);
+  if (series) return reclassifySegment(eq(series[1]!), exchange);
+  const parsed = s.includes(" ") ? parseSpacedName(s) : parseCompactName(s);
+  return reclassifySegment(parsed, exchange);
 }
 
 function parseCompactName(s: string): ParsedInstrument {
