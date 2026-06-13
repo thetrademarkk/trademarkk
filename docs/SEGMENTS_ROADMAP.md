@@ -41,7 +41,7 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-02** Charge-engine golden tests for every (segment,product) combo
 - [x] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
 - [x] **SEG-04** Backfill product for existing trades + recompute-charges action
-- [ ] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
+- [x] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
 - [ ] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
 - [ ] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m)
 - [ ] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data
@@ -121,3 +121,29 @@ behaviour, so existing P&L never regresses.
   (`e2e-seg-recompute`): seed a stale delivery EQ trade, preview shows the delta
   in the confirm dialog, confirm corrects charges + net (gross preserved),
   re-run is a no-op; 360px clean, zero console errors.
+
+- **SEG-05** (Shipped 2026-06-14, accumulated - pending batch deploy) -
+  hold-horizon-aware analytics. New pure `src/lib/stats/horizon.ts`:
+  `classifyHorizon` derives intraday / swing (1-7 calendar days) / positional
+  (>7 days) per trade from `opened_at`->`closed_at` interpreted in IST
+  (reusing `istDateKey`) and the product - MIS forces intraday, CNC/NRML/
+  BTST/STBT are overnight-by-definition (never intraday even on same-day
+  timestamps), legacy null-product falls back to the IST same-day test.
+  `holdingPeriodBuckets` (count + net P&L + win rate per horizon, MIN_SAMPLE>=5
+  gate via `enough`), `horizonMix` (fractions + multi-day share),
+  `shouldGateIntradayPanels` (data-driven: gate only when multi-day >= 70% of
+  > =5 classifiable trades - thin journals never hide anything), and
+  > `tradingStyle` ("Mostly positional - 68% of trades held >7 days" / "Mixed
+  > style" / empty state). UI: a "Holding period" card + "Your trading style"
+  > summary on /app/analytics (Time tab + header) and a compact style line on the
+  > dashboard; the entry-hour and expiry-day panels are relabelled "intraday only"
+  > with an explanatory note when the book is predominantly multi-day; the Insights
+  > page hides the minutes-between-trades tilt checks (`tilt-pace`/`tilt-fade`) and
+  > the entry-hour insight when gated, with a banner explaining why. n>=5 honesty
+  > gates + explicit empty states throughout; lucide icons, no emoji, paise-correct,
+  > 360px clean. +23 vitest (IST same-day vs overnight CNC vs 7d/8d boundaries,
+  > bucket aggregation + n<5 suppression, gating predicate over a trade mix,
+  > style summary). Feature e2e (`e2e-seg-horizon`): a mostly-positional Fyers CSV
+  > -> "Mostly positional" + positional bucket real / intraday suppressed +
+  > panels labelled intraday-only + tilt checks gated; a mostly-intraday CSV ->
+  > panels ungated; thin single-trade honesty; 360px clean, zero console errors.
