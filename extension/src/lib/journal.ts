@@ -176,6 +176,38 @@ export function useSaveTrade() {
   });
 }
 
+/**
+ * Attaches an image (a captured chart screenshot) to a trade — byte-identical
+ * to the web app's `useAddAttachment`: same `attachments` columns, same insert,
+ * so the row renders on the web trade-detail's Screenshots view. Trade
+ * screenshots are linked to the trade id, never a journal date.
+ */
+export function useAddAttachment() {
+  const db = useDb();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (att: {
+      tradeId?: string;
+      journalDate?: string;
+      data: string;
+      caption?: string;
+    }) => {
+      await db.execute(
+        `INSERT INTO attachments (id, trade_id, journal_date, data, caption, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          newId(),
+          att.tradeId ?? null,
+          att.journalDate ?? null,
+          att.data,
+          att.caption ?? null,
+          new Date().toISOString(),
+        ]
+      );
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["glance"] }),
+  });
+}
+
 /** Count of trades opened or closed on `day` — the badge's "has traded today". */
 function useTradesTodayCount(day: string) {
   const db = useDb();

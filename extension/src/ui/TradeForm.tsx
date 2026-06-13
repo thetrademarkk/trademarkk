@@ -1,11 +1,13 @@
 import * as React from "react";
 import {
+  Camera,
   Check,
   ChevronDown,
   ChevronUp,
   CircleAlert,
   ExternalLink,
   Import,
+  Loader2,
   X,
   Zap,
 } from "lucide-react";
@@ -14,11 +16,13 @@ import { brokerLabel } from "../brokers";
 import { openAppTab } from "../lib/app-api";
 import { onPendingCapture, takePendingCapture, type PendingCapture } from "../lib/capture";
 import { buildQuickTradeValues, describeParsed } from "../lib/quick-trade";
-import { useAccounts, usePlaybooks, useSaveTrade } from "../lib/journal";
+import { useAccounts, useAddAttachment, usePlaybooks, useSaveTrade } from "../lib/journal";
+import { captureVisibleTab, compressScreenshot } from "../lib/screenshot";
 
 interface SavedTrade {
   symbol: string;
   open: boolean;
+  withScreenshot: boolean;
 }
 
 /** The hero flow: log a trade in under ten seconds without leaving the broker tab. */
@@ -26,6 +30,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: playbooks = [] } = usePlaybooks();
   const saveTrade = useSaveTrade();
+  const addAttachment = useAddAttachment();
 
   const [instrument, setInstrument] = React.useState("");
   const [side, setSide] = React.useState<"buy" | "sell">("buy");
@@ -39,6 +44,9 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<SavedTrade | null>(null);
   const [capturedFrom, setCapturedFrom] = React.useState<PendingCapture | null>(null);
+  // A captured + compressed chart screenshot, attached to the trade on save.
+  const [screenshot, setScreenshot] = React.useState<string | null>(null);
+  const [capturing, setCapturing] = React.useState(false);
   const instrumentRef = React.useRef<HTMLInputElement>(null);
 
   // Broker-page capture (purely additive sugar): a "Log in TradeMarkk" click on
@@ -80,7 +88,25 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
     setError(null);
     setSaved(null);
     setCapturedFrom(null);
+    setScreenshot(null);
     requestAnimationFrame(() => instrumentRef.current?.focus());
+  };
+
+  // Capture the visible broker/chart tab on an explicit click, downscale +
+  // compress it to a small JPEG, and stage it as a removable preview. Privacy:
+  // nothing is read until this click, and only the visible tab is captured.
+  const onCapture = async () => {
+    if (capturing) return;
+    setError(null);
+    setCapturing(true);
+    try {
+      const raw = await captureVisibleTab();
+      setScreenshot(await compressScreenshot(raw));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not capture the chart.");
+    } finally {
+      setCapturing(false);
+    }
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -102,11 +128,25 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
       return;
     }
     saveTrade.mutate(result.values, {
-      onSuccess: () =>
+      onSuccess: async (tradeId) => {
+        // Persist the captured chart as a trade-linked AttachmentRow — the same
+        // write path as the web app, so it renders on the web trade-detail.
+        let attached = false;
+        if (screenshot) {
+          try {
+            await addAttachment.mutateAsync({ tradeId, data: screenshot });
+            attached = true;
+          } catch {
+            // The trade is already saved; a failed screenshot must not block the
+            // success state. The user can still add it from the web trade-detail.
+          }
+        }
         setSaved({
           symbol: result.values.symbol.toUpperCase(),
           open: result.values.avgExit == null,
-        }),
+          withScreenshot: attached,
+        });
+      },
       onError: (err) => setError(err instanceof Error ? err.message : "Could not save the trade"),
     });
   };
@@ -137,6 +177,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
           <div className="title">{saved.symbol} logged</div>
           <div className="sub">
             {saved.open ? "Saved as an open trade" : "Saved to your journal"}
+            {saved.withScreenshot ? " · chart attached" : ""}
           </div>
           <div className="actions">
             <button
@@ -257,6 +298,35 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
               autoComplete="off"
             />
           </div>
+        </div>
+
+        <div className="field">
+          <label>Chart</label>
+          {screenshot ? (
+            <div className="shot-preview" data-testid="screenshot-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element -- extension panel, not Next */}
+              <img src={screenshot} alt="Captured chart screenshot" />
+              <button
+                type="button"
+                className="shot-remove"
+                aria-label="Remove captured chart"
+                onClick={() => setScreenshot(null)}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost shot-capture"
+              onClick={() => void onCapture()}
+              disabled={capturing}
+              data-testid="capture-chart"
+            >
+              {capturing ? <Loader2 size={14} className="spin" /> : <Camera size={14} />}
+              {capturing ? "Capturing…" : "Capture chart"}
+            </button>
+          )}
         </div>
 
         <button
