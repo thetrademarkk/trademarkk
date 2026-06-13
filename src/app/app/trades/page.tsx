@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpenText, ListFilter } from "lucide-react";
+import { BookOpenText, ClipboardList, ListChecks, ListFilter } from "lucide-react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useUiStore } from "@/stores/ui-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -19,6 +19,8 @@ import {
 } from "@/features/trades";
 import { useRuleDays } from "@/features/rules";
 import { RiskGuardrailBanner } from "@/features/goals";
+import { BulkActionBar, PlanTradeDialog } from "@/features/workflow";
+import { selectionReducer, selectAllState } from "@/features/workflow/bulk-actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PnlText } from "@/components/shared/pnl-text";
@@ -57,9 +59,31 @@ export default function TradesPage() {
   const { setQuickAddOpen } = useUiStore();
   const isDesktop = useIsDesktop();
 
+  // --- multi-select (bulk edit) ---
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [planOpen, setPlanOpen] = React.useState(false);
+  const toggle = (id: string) => setSelected((s) => selectionReducer(s, { type: "toggle", id }));
+  const toggleAll = (ids: string[], on: boolean) =>
+    setSelected((s) =>
+      on ? selectionReducer(s, { type: "selectAll", ids }) : selectionReducer(s, { type: "clear" })
+    );
+  const clearSelection = () => setSelected(new Set());
+  // Drop ids that fall out of the current filter so the bar count stays honest.
+  const visibleIds = React.useMemo(() => (filtered ?? []).map((t) => t.id), [filtered]);
+  const selectedVisible = React.useMemo(
+    () => visibleIds.filter((id) => selected.has(id)),
+    [visibleIds, selected]
+  );
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    clearSelection();
+  };
+
   const nActive = countActiveFilters(filters);
   // The rule-adherence criterion needs the day sets before it can filter.
   const pending = isLoading || !trades || !filtered || (filters.ruleCheck != null && !ruleDays);
+  const hasTrades = Boolean(trades && trades.length > 0);
 
   return (
     <div className="space-y-4">
@@ -72,7 +96,23 @@ export default function TradesPage() {
               : `${trades.length} trades`
             : "Every trade, marked."
         }
-        actions={<CsvImport />}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setPlanOpen(true)}>
+              <ClipboardList className="h-3.5 w-3.5" /> Plan a trade
+            </Button>
+            {hasTrades && (
+              <Button
+                variant={selectMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              >
+                <ListChecks className="h-3.5 w-3.5" /> {selectMode ? "Done" : "Select"}
+              </Button>
+            )}
+            <CsvImport />
+          </>
+        }
       />
       <RiskGuardrailBanner />
       {filtered && filtered.length > 0 && (
@@ -104,10 +144,28 @@ export default function TradesPage() {
           }
         />
       ) : isDesktop ? (
-        <TradesTable trades={filtered} />
+        <TradesTable
+          trades={filtered}
+          selection={
+            selectMode
+              ? {
+                  selected,
+                  onToggle: toggle,
+                  onToggleAll: toggleAll,
+                  allState: selectAllState(selected, visibleIds),
+                }
+              : undefined
+          }
+        />
       ) : (
-        <TradeCards trades={filtered} />
+        <TradeCards
+          trades={filtered}
+          selection={selectMode ? { active: true, selected, onToggle: toggle } : undefined}
+        />
       )}
+
+      {selectMode && <BulkActionBar selectedIds={selectedVisible} onClear={exitSelectMode} />}
+      <PlanTradeDialog open={planOpen} onOpenChange={setPlanOpen} />
     </div>
   );
 }

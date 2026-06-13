@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PnlText } from "@/components/shared/pnl-text";
 import { TagChip } from "@/components/shared/tag-chip";
 import { formatHoldTime } from "@/lib/utils";
@@ -19,8 +20,23 @@ import { TradeQuickView } from "./trade-quick-view";
 
 type SortKey = "opened_at" | "net_pnl" | "r_multiple" | "symbol";
 
+/** Multi-select wiring lifted from the page (so the bulk-action bar can act). */
+export interface SelectionProps {
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  /** Header checkbox toggles every visible trade. */
+  onToggleAll: (ids: string[], on: boolean) => void;
+  allState: "none" | "some" | "all";
+}
+
 /** Desktop dense table; rows open a quick-view modal. Mobile uses TradeCards. */
-export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
+export function TradesTable({
+  trades,
+  selection,
+}: {
+  trades: TradeWithMeta[];
+  selection?: SelectionProps;
+}) {
   const [sortKey, setSortKey] = React.useState<SortKey>("opened_at");
   const [asc, setAsc] = React.useState(false);
   const [quickView, setQuickView] = React.useState<TradeWithMeta | null>(null);
@@ -57,6 +73,26 @@ export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            {selection && (
+              <TableHead className="w-9">
+                <Checkbox
+                  aria-label="Select all trades"
+                  checked={
+                    selection.allState === "all"
+                      ? true
+                      : selection.allState === "some"
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={(c) =>
+                    selection.onToggleAll(
+                      sorted.map((t) => t.id),
+                      c === true
+                    )
+                  }
+                />
+              </TableHead>
+            )}
             <TableHead>{header("Date", "opened_at")}</TableHead>
             <TableHead>{header("Instrument", "symbol")}</TableHead>
             <TableHead>Side</TableHead>
@@ -71,61 +107,78 @@ export function TradesTable({ trades }: { trades: TradeWithMeta[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map((t) => (
-            <TableRow
-              key={t.id}
-              className="cursor-pointer"
-              onClick={() => setQuickView(t)}
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && setQuickView(t)}
-              aria-label={`Quick view ${describeInstrument(t)}`}
-            >
-              <TableCell className="text-muted text-xs">
-                {new Date(t.opened_at).toLocaleDateString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                })}
-                <span className="ml-1 opacity-60">
-                  {new Date(t.opened_at).toLocaleTimeString("en-IN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false,
+          {sorted.map((t) => {
+            const checked = selection?.selected.has(t.id) ?? false;
+            return (
+              <TableRow
+                key={t.id}
+                className="cursor-pointer"
+                data-state={checked ? "selected" : undefined}
+                onClick={() => setQuickView(t)}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && setQuickView(t)}
+                aria-label={`Quick view ${describeInstrument(t)}`}
+              >
+                {selection && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={checked}
+                      aria-label={`Select ${describeInstrument(t)}`}
+                      onCheckedChange={() => selection.onToggle(t.id)}
+                    />
+                  </TableCell>
+                )}
+                <TableCell className="text-muted text-xs">
+                  {new Date(t.opened_at).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
                   })}
-                </span>
-              </TableCell>
-              <TableCell className="font-medium">{describeInstrument(t)}</TableCell>
-              <TableCell>
-                <Badge variant={t.direction === "long" ? "profit" : "loss"}>{t.direction}</Badge>
-              </TableCell>
-              <TableCell className="text-right font-money">{t.qty}</TableCell>
-              <TableCell className="text-right font-money">{t.avg_entry.toFixed(2)}</TableCell>
-              <TableCell className="text-right font-money">
-                {t.avg_exit != null ? t.avg_exit.toFixed(2) : <Badge variant="warning">open</Badge>}
-              </TableCell>
-              <TableCell className="text-right">
-                {t.status === "closed" ? <PnlText value={t.net_pnl} /> : "—"}
-              </TableCell>
-              <TableCell className="text-right font-money text-muted">
-                {t.r_multiple != null ? `${t.r_multiple}R` : "—"}
-              </TableCell>
-              <TableCell className="text-xs text-muted max-w-[120px] truncate">
-                {t.playbook_name ?? "—"}
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-1 max-w-[160px] overflow-hidden">
-                  {t.tags.slice(0, 2).map((tag) => (
-                    <TagChip key={tag.id} name={tag.name} color={tag.color} />
-                  ))}
-                  {t.tags.length > 2 && (
-                    <span className="text-[11px] text-muted">+{t.tags.length - 2}</span>
+                  <span className="ml-1 opacity-60">
+                    {new Date(t.opened_at).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </span>
+                </TableCell>
+                <TableCell className="font-medium">{describeInstrument(t)}</TableCell>
+                <TableCell>
+                  <Badge variant={t.direction === "long" ? "profit" : "loss"}>{t.direction}</Badge>
+                </TableCell>
+                <TableCell className="text-right font-money">{t.qty}</TableCell>
+                <TableCell className="text-right font-money">{t.avg_entry.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-money">
+                  {t.avg_exit != null ? (
+                    t.avg_exit.toFixed(2)
+                  ) : (
+                    <Badge variant="warning">open</Badge>
                   )}
-                </div>
-              </TableCell>
-              <TableCell className="text-xs text-muted">
-                {formatHoldTime(t.opened_at, t.closed_at)}
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+                <TableCell className="text-right">
+                  {t.status === "closed" ? <PnlText value={t.net_pnl} /> : "—"}
+                </TableCell>
+                <TableCell className="text-right font-money text-muted">
+                  {t.r_multiple != null ? `${t.r_multiple}R` : "—"}
+                </TableCell>
+                <TableCell className="text-xs text-muted max-w-[120px] truncate">
+                  {t.playbook_name ?? "—"}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1 max-w-[160px] overflow-hidden">
+                    {t.tags.slice(0, 2).map((tag) => (
+                      <TagChip key={tag.id} name={tag.name} color={tag.color} />
+                    ))}
+                    {t.tags.length > 2 && (
+                      <span className="text-[11px] text-muted">+{t.tags.length - 2}</span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-xs text-muted">
+                  {formatHoldTime(t.opened_at, t.closed_at)}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
       <TradeQuickView trade={quickView} onOpenChange={(open) => !open && setQuickView(null)} />

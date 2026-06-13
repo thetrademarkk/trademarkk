@@ -26,6 +26,13 @@ import { PnlText } from "@/components/shared/pnl-text";
 import { cn, toDateKey, todayKey } from "@/lib/utils";
 import { describeInstrument } from "@/features/trades";
 import {
+  DailyPromptsWidget,
+  EMPTY_PROMPTS,
+  parsePrompts,
+  serializePrompts,
+  type DailyPrompts,
+} from "@/features/workflow";
+import {
   journalStreak,
   useDayTrades,
   useJournalDates,
@@ -52,11 +59,16 @@ export function JournalEditor({ date }: { date: string }) {
   const [postmarket, setPostmarket] = React.useState("");
   const [mood, setMood] = React.useState<number | null>(null);
   const [followed, setFollowed] = React.useState<boolean | null>(null);
+  const [prompts, setPrompts] = React.useState<DailyPrompts>(EMPTY_PROMPTS);
 
   React.useEffect(() => {
     setPremarket(entry?.premarket_plan ?? "");
     setMarket(entry?.market_notes ?? "");
-    setPostmarket(entry?.postmarket_review ?? "");
+    {
+      const { prompts: p, freeText } = parsePrompts(entry?.postmarket_review);
+      setPrompts(p);
+      setPostmarket(freeText);
+    }
     setMood(entry?.mood ?? null);
     setFollowed(entry?.followed_plan == null ? null : entry.followed_plan === 1);
   }, [entry, date]);
@@ -69,17 +81,25 @@ export function JournalEditor({ date }: { date: string }) {
   const dayPnl = dayTrades.filter((t) => t.status === "closed").reduce((s, t) => s + t.net_pnl, 0);
   const streak = journalStreak(dates);
 
-  const handleSave = async () => {
+  const handleSave = React.useCallback(async () => {
     await save.mutateAsync({
       date,
       premarket_plan: premarket,
       market_notes: market,
-      postmarket_review: postmarket,
+      // Structured daily prompts are folded into the review text (no schema change).
+      postmarket_review: serializePrompts(prompts, postmarket),
       mood,
       followed_plan: followed,
     });
     toast.success("Journal saved");
-  };
+  }, [save, date, premarket, market, prompts, postmarket, mood, followed]);
+
+  // Ctrl/Cmd+S anywhere on the journal page saves (the page is not a <form>).
+  React.useEffect(() => {
+    const onSave = () => void handleSave();
+    window.addEventListener("tm:save", onSave);
+    return () => window.removeEventListener("tm:save", onSave);
+  }, [handleSave]);
 
   if (isLoading) return null;
 
@@ -174,6 +194,8 @@ export function JournalEditor({ date }: { date: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <DailyPromptsWidget value={prompts} onChange={setPrompts} />
 
       <div className="flex flex-wrap items-center gap-6">
         <div className="space-y-1">

@@ -35,7 +35,7 @@
 - [x] **Psychology/discipline scoring v2** — per-day discipline score + trend, plan-adherence (planned_entry/sl/target deviation), confidence calibration (win% by confidence bin). Fields already in schema; n>=5 gates.
 - [x] **Options payoff diagrams + DTE + strategy grouping** — SVG payoff-at-expiry from existing leg rows (no IV/live data), DTE buckets, multi-leg trades collapsed into one strategy row.
 - [x] **Monte Carlo simulator** — bootstrap the user's R-distribution + win% into an equity cone (p5/p50/p95), risk-of-ruin, max-drawdown odds. Web Worker, seeded PRNG, n>=30 gate.
-- [ ] **Workflow polish** — bulk edit (multi-select tag/playbook), note/journal templates, daily journal prompts, pre-trade plan log (writes planned\_\* fields), keyboard shortcuts. Client-side + localStorage.
+- [x] **Workflow polish** — bulk edit (multi-select tag/playbook), note/journal templates, daily journal prompts, pre-trade plan log (writes planned\_\* fields), keyboard shortcuts. Client-side + localStorage.
 
 ### Deferred (need paid market data — revisit if/when a data source is funded)
 
@@ -56,5 +56,6 @@
 - [x] 2026-06-13 — Indian tax & reporting pack (FY turnover/speculative split/charges/realised-P&L, CSV+Excel+print) — PR #46
 - [x] 2026-06-13 — More statistics pack (hold-duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size; n>=5 gate per bucket) — PR #49
 - [x] 2026-06-13 — Psychology/discipline scoring v2 (per-day discipline score 0–100 + recharts trend & 7-day direction, plan-adherence entry-slippage + exit resolution, confidence calibration with over/under-confidence flags; n>=5 honesty gates; demo "Explore with sample data" seed wired) — PR #52
+- [x] 2026-06-13 — Workflow polish (bulk multi-select tag/playbook reassign/delete in one transaction, named note/journal templates with quick-apply + manager, structured daily journal prompts persisted to the journal entry, pre-trade plan log writing planned_entry/sl/target, Ctrl+S/Q/L shortcuts + "?" help sheet; all client-side + localStorage) — PR #PENDING
 - [x] 2026-06-13 — Options payoff diagrams + DTE + strategy grouping (pure SVG payoff-at-expiry on trade detail for single- & multi-leg OPT trades with max-profit/-loss/breakeven markers + auto-detected strategy label; analytics Options tab with strategy-level grouping and DTE buckets; all closed-form intrinsic-value math, no IV/live data; n>=5 DTE gate; multi-leg demo seed) — PR #57
 - [x] 2026-06-13 — Monte Carlo simulator (analytics "Monte Carlo" tab: bootstraps your closed-trade R-distribution into 10k future-trade sequences in a Web Worker with a seeded PRNG → reproducible p5/p25/p50/p75/p95 equity cone in plain SVG, risk-of-ruin vs a user-set drawdown floor, median + worst max-drawdown, probability of finishing net-positive; user-selectable horizon defaulting to your trades/year estimate; n>=30 R-bearing-trade gate with an honest "not enough data" message) — PR #62

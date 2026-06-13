@@ -28,6 +28,8 @@ import {
 import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
 import { deriveTradeNumbers, localInputToIso, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
+import { TemplateMenu } from "@/features/workflow";
+import type { TemplatePatch } from "@/features/workflow";
 
 const SEGMENT_OPTIONS: { value: TradeFormValues["segment"]; label: string }[] = [
   { value: "OPT", label: "Options" },
@@ -189,8 +191,32 @@ export function TradeForm({
     }
   }, [values.openedAt, values.closedAt]);
 
+  // Quick-apply a note/journal template — fills setup notes + playbook +
+  // confidence in one click. Marks the form dirty so the draft + save flow run.
+  const applyTemplate = React.useCallback(
+    (patch: TemplatePatch) => {
+      setValue("notes", patch.notes, { shouldDirty: true });
+      if (patch.playbookId !== undefined)
+        setValue("playbookId", patch.playbookId, { shouldDirty: true });
+      if (patch.confidence !== undefined)
+        setValue("confidence", patch.confidence, { shouldDirty: true });
+    },
+    [setValue]
+  );
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <div className="flex justify-end">
+        <TemplateMenu
+          onApply={applyTemplate}
+          current={{
+            notes: values.notes,
+            playbookId: values.playbookId,
+            confidence: values.confidence,
+          }}
+          playbooks={playbooks}
+        />
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2 space-y-1">
           <Label>Symbol</Label>

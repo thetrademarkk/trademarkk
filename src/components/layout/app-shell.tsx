@@ -12,6 +12,7 @@ import { BottomNav } from "./bottom-nav";
 import { CommandPalette } from "./command-palette";
 import { UnlockScreen } from "./unlock-screen";
 import { QuickAdd } from "@/features/trades";
+import { KeyboardShortcuts } from "@/features/workflow";
 
 function Splash() {
   return (
@@ -70,6 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <BottomNav />
       <QuickAdd />
       <CommandPalette />
+      <KeyboardShortcuts />
     </TooltipProvider>
   );
 }
