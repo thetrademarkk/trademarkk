@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -19,7 +20,9 @@ import type {
   PostView,
   ProfileCommentView,
   ProfileView,
+  SearchResponse,
 } from "./types";
+import { SEARCH_MIN_CHARS } from "./search";
 import type { CreatePostInput, UpdateProfileInput } from "./schemas";
 
 export class ApiError extends Error {
@@ -73,6 +76,22 @@ export function useFeed(
           initialDataUpdatedAt: 0,
         }
       : {}),
+  });
+}
+
+/**
+ * Unified header-search typeahead — traders + topics + posts in one call.
+ * `keepPreviousData` holds the last results on screen between keystrokes so
+ * the panel never flashes empty mid-typing.
+ */
+export function useCommunitySearch(q: string) {
+  return useQuery({
+    queryKey: ["community-search", q],
+    queryFn: () => request<SearchResponse>(`/api/community/search?q=${encodeURIComponent(q)}`),
+    enabled: q.length >= SEARCH_MIN_CHARS,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    retry: false,
   });
 }
 

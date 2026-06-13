@@ -150,6 +150,32 @@ export interface FeedResponse {
   nextCursor: string | null;
 }
 
+/* ── Header search (Search v2) — compact unified results, no image payloads ── */
+
+export interface SearchUserView {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  bio: string | null;
+}
+
+export interface SearchPostView {
+  id: string;
+  title: string | null;
+  /** Pre-trimmed window around the first match — never the full body. */
+  snippet: string;
+  author: AuthorView;
+  likeCount: number;
+  commentCount: number;
+  createdAt: string;
+}
+
+export interface SearchResponse {
+  users: SearchUserView[];
+  tags: { tag: string; count: number }[];
+  posts: SearchPostView[];
+}
+
 export const SUGGESTED_TAGS = [
   "nifty",
   "banknifty",
