@@ -4,7 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { platformDb } from "./db/platform";
 import * as schema from "./db/platform-schema";
 import { serverEnv, hasResend } from "./env";
-import { sendEmail, emailLayout } from "./email";
+import { sendEmail, emailLayout, checkEmailThrottle } from "./email";
 
 const socialProviders =
   serverEnv.googleClientId && serverEnv.googleClientSecret
@@ -51,6 +51,9 @@ export const auth = betterAuth({
     // Email verification gates DB provisioning (abuse control). Skipped in dev without Resend.
     requireEmailVerification: hasResend(),
     sendResetPassword: async ({ user, url }) => {
+      // Durable per-account cooldown + daily cap. Silently skip when throttled —
+      // Better Auth still reports success to the caller (anti-enumeration).
+      if (!(await checkEmailThrottle(user.email, "reset"))) return;
       await sendEmail(
         user.email,
         "Reset your TradeMarkk password",
@@ -62,6 +65,8 @@ export const auth = betterAuth({
     sendOnSignUp: hasResend(),
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
+      // Silent skip when throttled (success still reported; anti-enumeration).
+      if (!(await checkEmailThrottle(user.email, "verification"))) return;
       await sendEmail(
         user.email,
         "Verify your TradeMarkk email",
@@ -73,6 +78,15 @@ export const auth = betterAuth({
         )
       );
     },
+  },
+  // Better Auth's own global limiter (default in-memory storage on serverless,
+  // so this is a cheap per-instance brake). Durable per-IP email caps live in
+  // the auth route wrapper (src/app/api/auth/[...all]/route.ts), backed by our
+  // platform-DB rateLimit().
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 30,
   },
   socialProviders,
 });

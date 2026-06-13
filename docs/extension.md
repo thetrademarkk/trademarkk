@@ -81,6 +81,35 @@ is skipped too, never guessed.
   finds zero rows and shows an empty state — it never guesses a trade out of
   markup it no longer understands.
 
+## Chart screenshot capture
+
+In the quick log, click **Capture chart** to grab a screenshot of whatever
+broker/chart tab you're looking at and attach it to the trade you're logging.
+The captured image shows as a small preview you can remove before saving; on
+**Save**, it's stored against the new trade and shows up in the **Screenshots**
+section of that trade on the web app — identical to a screenshot you'd paste in
+there yourself.
+
+- **Lean by default**: the raw capture is downscaled and re-compressed to a
+  small JPEG (capped around 200 KB) in your browser before it's saved, so your
+  journal database stays light. Nothing full-resolution is ever stored.
+- **Same store as the web app**: the screenshot is written through the **same
+  attachment schema** the web trade-detail uses (no new database columns), so
+  it renders on the web exactly like any other trade screenshot.
+
+### Privacy (chart screenshot)
+
+- The screenshot is taken **only when you click "Capture chart"** — never on its
+  own — and captures **only the currently visible tab** (the
+  `chrome.tabs.captureVisibleTab` API, gated behind the `activeTab` permission
+  that Chrome grants for that one tab on your click). It cannot see other tabs,
+  background pages, or anything you didn't just look at.
+- The image stays inside your browser: it's compressed locally and written
+  **directly to your database**, exactly like every other journal write. It is
+  **never** sent to the TradeMarkk platform server.
+- You can remove the captured preview before saving; if you don't capture
+  anything, the trade saves with no screenshot, unchanged.
+
 ## What it does (v1)
 
 - **Quick trade log** — type a contract name (`BANKNIFTY24JUN52000CE`,
@@ -135,12 +164,14 @@ hosted app already allowlists it.
   `chrome.storage.session` (cleared when the browser closes).
 - **Journal data never touches the platform server** — the panel talks to
   your Turso database directly, exactly like the web client.
-- Minimal permissions: `sidePanel`, `storage`, `scripting`, host permissions
-  for the app origin only. Broker-page access is an **optional** permission,
-  requested only when you enable Broker capture **or** Tradebook import and
-  returned when you disable them (see above). No `tabs` permission — tradebook
-  import discovers your broker tab by messaging the content script it injected
-  there, so it can only ever reach a page you granted access to.
+- Minimal permissions: `sidePanel`, `storage`, `scripting`, `alarms`,
+  `activeTab`, host permissions for the app origin only. Broker-page access is
+  an **optional** permission, requested only when you enable Broker capture
+  **or** Tradebook import and returned when you disable them (see above). No
+  `tabs` permission — tradebook import discovers your broker tab by messaging
+  the content script it injected there, so it can only ever reach a page you
+  granted access to. `activeTab` lets **Capture chart** screenshot the tab you
+  click from — Chrome grants it for that one tab, on that one gesture only.
 
 ## Self-hosters
 

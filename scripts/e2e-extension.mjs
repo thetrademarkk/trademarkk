@@ -241,6 +241,90 @@ await step("trade appears in the web journal with correct values", async () => {
   }
 });
 
+// ── Chart screenshot capture → attach to trade ─────────────────────────────
+// Real chrome.tabs.captureVisibleTab needs a real broker/chart tab + a user
+// gesture Playwright can't supply, so we stub it in the panel page to return a
+// fixture PNG. The REAL compress/attach code runs: the panel downscales +
+// JPEG-compresses it (capped ~200 KB) and writes it through the SAME
+// AttachmentRow write path as the web app, so the round-trip — capture →
+// preview → attach → web trade-detail <img> — is exercised end to end.
+const SHOT_SYMBOL = "TATAMOTORS";
+// 1x1 red PNG (a real, decodable image so the panel's <img>/canvas pipeline runs).
+const FIXTURE_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+await step("screenshot: capture button stages a removable preview", async () => {
+  await panel.bringToFront();
+  // Return to the quick-log form after the first trade's success screen.
+  await panel.getByRole("button", { name: "Log another" }).click();
+  await panel.getByLabel("Instrument", { exact: true }).waitFor({ timeout: 15000 });
+
+  // Stub the Chrome capture API on the panel page (the real one is gesture/host
+  // gated). Re-applied here because the panel is a fresh document per render.
+  await panel.evaluate((png) => {
+    // @ts-ignore — test stub
+    chrome.tabs = chrome.tabs || {};
+    // @ts-ignore — test stub
+    chrome.tabs.captureVisibleTab = () => Promise.resolve(png);
+  }, FIXTURE_PNG);
+
+  await panel.getByTestId("capture-chart").click();
+  const preview = panel.getByTestId("screenshot-preview");
+  await preview.waitFor({ timeout: 15000 });
+  const src = await preview.locator("img").getAttribute("src");
+  if (!src || !src.startsWith("data:image/")) {
+    throw new Error(`preview is not a data-URL image: ${String(src).slice(0, 40)}`);
+  }
+  // The stored image is the compressed JPEG, not the raw PNG we fed in.
+  if (!src.startsWith("data:image/jpeg")) {
+    throw new Error(`expected compressed JPEG preview, got: ${src.slice(0, 30)}`);
+  }
+
+  // Removable before save.
+  await panel.getByRole("button", { name: "Remove captured chart" }).click();
+  if ((await panel.getByTestId("screenshot-preview").count()) !== 0) {
+    throw new Error("preview was not removed");
+  }
+  // Re-capture for the attach step.
+  await panel.getByTestId("capture-chart").click();
+  await panel.getByTestId("screenshot-preview").waitFor({ timeout: 15000 });
+});
+
+let shotDataLen = 0;
+await step("screenshot: saving the trade attaches the chart", async () => {
+  await panel.getByLabel("Instrument", { exact: true }).fill(SHOT_SYMBOL);
+  await panel.getByLabel("Qty", { exact: true }).fill("10");
+  await panel.getByLabel("Entry", { exact: true }).fill("950");
+  await panel.getByLabel("Exit", { exact: true }).fill("980");
+  shotDataLen = (await panel.getByTestId("screenshot-preview").locator("img").getAttribute("src"))
+    .length;
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText(`${SHOT_SYMBOL} logged`).waitFor({ timeout: 30000 });
+  // Success copy confirms the attachment write succeeded.
+  await panel.getByText(/chart attached/).waitFor({ timeout: 10000 });
+});
+
+await step("screenshot: chart renders on the web trade-detail", async () => {
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  const row = appTab.locator("tr", { hasText: SHOT_SYMBOL }).first();
+  await row.waitFor({ timeout: 30000 });
+  await row.click(); // opens the quick-view dialog
+  await appTab.getByRole("link", { name: /Open full view/ }).click();
+  await appTab.waitForURL("**/app/trades/**", { timeout: 30000 });
+  await appTab.getByText("Screenshots").waitFor({ timeout: 30000 });
+  // The attachment must render as an <img> whose src is the stored data URL.
+  const shot = appTab.locator('img[alt="Trade screenshot"]').first();
+  await shot.waitFor({ timeout: 30000 });
+  const src = await shot.getAttribute("src");
+  if (!src || !src.startsWith("data:image/")) {
+    throw new Error(`trade-detail screenshot is not a data URL: ${String(src).slice(0, 40)}`);
+  }
+  if (src.length !== shotDataLen) {
+    throw new Error(`round-trip mismatch: panel ${shotDataLen} vs web ${src.length} bytes`);
+  }
+});
+
 // ── Rules-nudge toolbar badge ──────────────────────────────────────────────
 // Now there's 1 trade today and the 6 seeded rules are still untouched, so the
 // service worker must show the unticked-rule count on the toolbar action badge.
