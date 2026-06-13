@@ -21,7 +21,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["sidePanel", "storage", "scripting"],
+  "permissions": ["sidePanel", "storage", "scripting", "alarms"],
   "host_permissions": ["https://thetrademarkk.com/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"]
 }

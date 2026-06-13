@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleAlert, Download, ExternalLink, X } from "lucide-react";
 import { describeInstrument } from "@/features/trades/types";
 import { openAppTab } from "../lib/app-api";
@@ -29,6 +30,7 @@ const inr = (n: number) =>
  */
 export function ImportModal({ appUrl, onClose }: { appUrl: string; onClose: () => void }) {
   const db = useDb();
+  const qc = useQueryClient();
   const { data: accounts = [] } = useAccounts();
   const [phase, setPhase] = React.useState<Phase>({ kind: "scanning" });
   // Selection is keyed by dedupe id; NEW rows default checked, existing ones unchecked.
@@ -87,6 +89,9 @@ export function ImportModal({ appUrl, onClose }: { appUrl: string; onClose: () =
     try {
       const profileId = await chargeProfileFor(db, accountId);
       const imported = await importTrades(chosen, profileId, db);
+      // Imported trades feed the glance strip + the rules-nudge toolbar badge.
+      void qc.invalidateQueries({ queryKey: ["glance"] });
+      void qc.invalidateQueries({ queryKey: ["badge"] });
       setPhase({ kind: "done", imported, skipped: preview.skippedNoTime });
     } catch (e) {
       setPhase({
@@ -151,9 +156,7 @@ export function ImportModal({ appUrl, onClose }: { appUrl: string; onClose: () =
             onToggle={toggle}
             onImport={() => void doImport(phase.preview)}
             onSelectAllNew={() =>
-              setSelected(
-                new Set(phase.preview.trades.filter((t) => !t.existing).map((t) => t.id))
-              )
+              setSelected(new Set(phase.preview.trades.filter((t) => !t.existing).map((t) => t.id)))
             }
             onClear={() => setSelected(new Set())}
           />

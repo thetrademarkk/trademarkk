@@ -197,6 +197,27 @@ await step("trade appears in the web journal with correct values", async () => {
   }
 });
 
+// ── Rules-nudge toolbar badge ──────────────────────────────────────────────
+// Now there's 1 trade today and the 6 seeded rules are still untouched, so the
+// service worker must show the unticked-rule count on the toolbar action badge.
+// The panel computes the snapshot and pokes the SW, which owns the badge text;
+// chrome.action.getBadgeText reads the applied value straight from the SW. This
+// run is on IST (the box the journal is keyed to), so the trade's local-time
+// timestamp lands on the same IST day the badge query counts.
+await step("badge: shows the unticked-rule count once the day has a trade", async () => {
+  await panel.bringToFront();
+  const text = await panel.waitForFunction(
+    async () => {
+      const t = await chrome.action.getBadgeText({});
+      return /^[1-9]\d*$/.test(t) ? t : false;
+    },
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  const badge = await text.jsonValue();
+  if (badge !== "6") throw new Error(`expected badge "6" (6 untouched rules), got "${badge}"`);
+});
+
 // ── Rules sync ─────────────────────────────────────────────────────────────
 let firstRule = "";
 await step("rule checks off from the panel", async () => {
@@ -207,6 +228,20 @@ await step("rule checks off from the panel", async () => {
   await panel.locator(".rule-btn").first().click(); // "Followed" on rule 1
   await panel.locator(".rule-btn.on-followed").first().waitFor({ timeout: 10000 });
   await panel.getByText(/1\/\d+ followed/).waitFor({ timeout: 10000 });
+});
+
+await step("badge: decrements when a rule is addressed", async () => {
+  // One of the 6 rules is now ticked (any tri-state counts as addressed), so
+  // the nudge count must drop to 5.
+  const handle = await panel.waitForFunction(
+    async () => {
+      const t = await chrome.action.getBadgeText({});
+      return t === "5" ? t : false;
+    },
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  if ((await handle.jsonValue()) !== "5") throw new Error("badge did not decrement to 5");
 });
 
 await step("rule check-off is visible on the web dashboard", async () => {
@@ -947,6 +982,16 @@ await step("panel sign-out returns to the signed-out state", async () => {
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel.getByRole("button", { name: "Sign out" }).click();
   await panel.getByText("Sign in to TradeMarkk").first().waitFor({ timeout: 20000 });
+});
+
+await step("badge: sign-out clears the toolbar badge", async () => {
+  // Signing out must drop the nudge entirely (and cancel the SW alarm).
+  const handle = await panel.waitForFunction(
+    async () => ((await chrome.action.getBadgeText({})) === "" ? true : false),
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  if (!(await handle.jsonValue())) throw new Error("badge was not cleared on sign-out");
 });
 
 // ── Cleanup: delete the account (also deletes the provisioned Turso DB) ───
