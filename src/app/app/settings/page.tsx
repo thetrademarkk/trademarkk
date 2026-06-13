@@ -4,6 +4,7 @@ import {
   AccountSection,
   AppearanceSection,
   DangerSection,
+  RecomputeChargesSection,
   StorageSection,
   TagsSection,
 } from "@/features/settings";
@@ -21,6 +22,9 @@ export default function SettingsPage() {
       </section>
       <section id="account" className="scroll-mt-20">
         <AccountSection />
+      </section>
+      <section id="recompute-charges" className="scroll-mt-20">
+        <RecomputeChargesSection />
       </section>
       <section id="goals" className="scroll-mt-20">
         <GoalsSection />

@@ -341,8 +341,19 @@ await step("settings sections render", async () => {
   await page.goto(`${BASE}/app/settings`, { waitUntil: "networkidle" });
   await page.getByText("Storage & data").waitFor({ timeout: 15000 });
   await page.getByText("Account & charges").waitFor();
+  await page.getByText("Recompute charges").first().waitFor();
   await page.getByText("Appearance").waitFor();
   await page.getByText("Danger zone").waitFor();
+});
+
+await step("recompute charges: idempotent no-op on a fresh demo journal", async () => {
+  // The demo seed already stores engine-correct charges, so the maintenance
+  // action must find nothing to change and never rewrite P&L silently.
+  await page.getByTestId("recompute-charges-btn").click();
+  await page
+    .getByText(/already correct|No closed trades/)
+    .first()
+    .waitFor({ timeout: 15000 });
 });
 
 await step("demo data persists across reload (IndexedDB)", async () => {

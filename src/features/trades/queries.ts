@@ -15,6 +15,12 @@ import type {
   TradeRow,
   TradeWithMeta,
 } from "./types";
+import {
+  buildRecomputeStatements,
+  previewRecompute,
+  type RecomputePreview,
+  type TradeForRecompute,
+} from "./recompute";
 import type { TradeFormValues } from "./schemas";
 import { buildTradeSaveStatements } from "./save-statements";
 
@@ -294,6 +300,62 @@ export function useImportTrades() {
       }));
       for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
       return rows.length;
+    },
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+/**
+ * SEG-04 — recompute-charges maintenance action. Gathers the account charge
+ * profile + every CLOSED trade (and its legs) and diffs the stored charges
+ * against a fresh per-(segment,product) engine pass. Used both to PREVIEW (no
+ * write) and, on explicit confirm, to APPLY the corrected charges/net in one
+ * batch. Works identically across hosted / BYOD / local.
+ */
+async function gatherRecomputeInput(
+  db: DbClient
+): Promise<{ profileId: string; trades: TradeForRecompute[] }> {
+  const accountRes = await db.execute(
+    `SELECT charge_profile FROM accounts ORDER BY created_at LIMIT 1`
+  );
+  const profileId = String(accountRes.rows[0]?.charge_profile ?? "zerodha");
+  const tradeRes = await db.execute(`SELECT * FROM trades WHERE status = 'closed'`);
+  const trades = cast<TradeRow>(tradeRes.rows);
+  const legRes = await db.execute(`SELECT * FROM trade_legs ORDER BY trade_id, leg_no`);
+  const legsByTrade = new Map<string, TradeLegRow[]>();
+  for (const leg of cast<TradeLegRow>(legRes.rows)) {
+    const arr = legsByTrade.get(leg.trade_id);
+    if (arr) arr.push(leg);
+    else legsByTrade.set(leg.trade_id, [leg]);
+  }
+  return {
+    profileId,
+    trades: trades.map((t) => ({ trade: t, legs: legsByTrade.get(t.id) ?? [] })),
+  };
+}
+
+/** Previews a charge recompute over all closed trades (read-only — no writes). */
+export function useRecomputePreview() {
+  const { db } = useDb();
+  return useMutation({
+    mutationFn: async (): Promise<RecomputePreview> => {
+      const { profileId, trades } = await gatherRecomputeInput(db);
+      return previewRecompute(profileId, trades);
+    },
+  });
+}
+
+/** Applies a charge recompute: re-derives + writes corrected charges/net in one batch. */
+export function useApplyRecompute() {
+  const { db } = useDb();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<RecomputePreview> => {
+      const { profileId, trades } = await gatherRecomputeInput(db);
+      const preview = previewRecompute(profileId, trades);
+      const stmts = buildRecomputeStatements(preview.items);
+      for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
+      return preview;
     },
     onSuccess: () => qc.invalidateQueries(),
   });

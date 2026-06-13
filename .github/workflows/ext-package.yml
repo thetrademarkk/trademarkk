@@ -1,0 +1,44 @@
+name: Extension Package
+
+# Builds the MV3 extension and uploads the Chrome Web Store upload zip as a CI
+# artifact. This NEVER publishes to the store — the actual submission needs the
+# owner's $5 Chrome Web Store developer account and is done by hand. Kept fast
+# (cached npm install, vite-only build — no `next build`) and independent of the
+# `verify` workflow so the two never block each other.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "scripts/ext-package.mjs"
+      - ".github/workflows/ext-package.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # `npm install` (not `npm ci`): the lockfile is generated on Windows, so
+      # platform-optional native deps (@emnapi/*) are absent on the Linux runner
+      # — install tolerates that drift. Same rationale as the verify workflow.
+      - run: npm install --no-audit --no-fund
+      # Validate + build + zip in one step (ext:package runs ext:build first).
+      - run: npm run ext:package
+      # Surface the manifest version so the artifact name is traceable.
+      - id: ver
+        run: echo "version=$(node -p "require('./extension/public/manifest.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trademarkk-extension-v${{ steps.ver.outputs.version }}
+          path: extension/dist/trademarkk-extension-v*.zip
+          if-no-files-found: error
+          retention-days: 30
