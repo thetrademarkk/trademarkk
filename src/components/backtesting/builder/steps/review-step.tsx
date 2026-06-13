@@ -38,7 +38,10 @@ export function ReviewStep({
   const payload = React.useMemo(() => builderDataPayload(), []);
   const snapshot = payload.kind === "fixture" ? payload.snapshot : null;
 
-  const onRun = () => run(adaptDraftForGoldenRun(draft), payload);
+  // The EXACT strategy fed to the engine — also what Save/Share persists, so a
+  // saved run round-trips to the same definition that produced it.
+  const ranStrategy = React.useMemo(() => adaptDraftForGoldenRun(draft), [draft]);
+  const onRun = () => run(ranStrategy, payload);
 
   return (
     <div className="space-y-5" data-testid="bt-step-review">
@@ -120,6 +123,7 @@ export function ReviewStep({
             error={error}
             emptyReason={emptyReason}
             snapshot={snapshot}
+            strategy={ranStrategy}
             onEdit={() => onEdit("legs")}
             onReRun={onRun}
           />

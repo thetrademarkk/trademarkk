@@ -28,13 +28,30 @@ import { parseEditHistory, type PostEditSnapshot } from "@/features/community/ed
 import { planSymbolSync } from "@/features/community/cashtags";
 import { normalizeQuoteBody, resolveReshareTarget } from "@/features/community/reshare";
 
+/**
+ * The notification type union. Community kinds first; BT-09 (D6) adds
+ * `backtest_done` / `backtest_failed`. Additive — existing callers pass the
+ * same string literals and keep type-checking.
+ */
+export type NotificationType =
+  | "like"
+  | "comment"
+  | "reply"
+  | "follow"
+  | "mention"
+  | "reshare"
+  | "backtest_done"
+  | "backtest_failed";
+
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
   userId: string;
   actorId: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare";
+  type: NotificationType;
   postId?: string | null;
   commentId?: string | null;
+  /** Set for backtest_done / backtest_failed → the backtest_runs.id (D6). */
+  backtestId?: string | null;
 }) {
   if (input.userId === input.actorId) return;
   await platformDb
@@ -46,6 +63,7 @@ export async function notify(input: {
       type: input.type,
       postId: input.postId ?? null,
       commentId: input.commentId ?? null,
+      backtestId: input.backtestId ?? null,
       createdAt: new Date().toISOString(),
     })
     .catch(() => undefined); // notifications must never break the action

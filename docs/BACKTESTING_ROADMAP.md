@@ -94,8 +94,15 @@ merged to main.
       running-with-skeletons / partial-low-coverage / error / done). +14 vitest
       (suite 1402 → 1416) + new `scripts/e2e-bt-results.mjs` (9/9). Reused the
       existing Recharts dep + react-virtual — NO new charting dep.
-- [ ] **BT-09 persistence** — `backtest_strategies` + `backtest_runs` platform
-      tables, login-nudge only at save/share, anonymous-run claim flow.
+- [x] **BT-09 persistence + share** ✅ (accumulated, pending batch deploy) —
+      `backtest_strategies` + `backtest_runs` platform tables (additive,
+      idempotent migration), the login-nudge ONLY at save/share (building +
+      running stay anonymous), the anonymous-run claim-on-login flow (held in
+      IndexedDB, POSTed once on auth — never re-run), and immutable public share
+      links at `/backtesting/r/[shareId]` (read-only for everyone, unguessable
+      nanoid, idempotent re-share). D6: a `backtest_id` column + the
+      `backtest_done` / `backtest_failed` notify types (additive). +28 vitest
+      (suite 1416 → 1444) + new `scripts/e2e-bt-persistence.mjs` (13/13).
 - [ ] **BT-08 data-proxy** — `/api/mkt/[...path]` range-proxy + duckdb-wasm data
       layer (the HF integration seam; needs the owner-provided HF dataset).
 - [ ] **BT-10..14** — presets, walk-forward+MC, compare-journal, BYOC (Pyodide),
@@ -152,3 +159,26 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   dep. All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, build (build
   page 85.1 kB static, worker + charts bundled, no SSR worker import), e2e-smoke
   36/36, mobile-audit clean.
+- 2026-06-14 — BT-09 PERSISTENCE + SHARE, accumulated (deploy-conserving).
+  Schema: `backtest_strategies` + `backtest_runs` (additive, idempotent migrate;
+  `backtest_runs.share_id` UNIQUE) + a `notifications.backtest_id` column and the
+  `backtest_done` / `backtest_failed` notify types (D6, additive — no existing
+  caller breaks). Pure layer `src/features/backtest/persist/*` (serialize: the
+  RunResult ↔ immutable stored-blob round-trip; share-id: 108-bit nanoid +
+  validator; held-run: IndexedDB claim glue; api: shared zod contracts). Server
+  module `src/server/backtest.ts` (saveRun/saveStrategy/getRunById/
+  getRunByShareId/shareRun idempotent/canViewRun/deleteRun) + 4 API routes under
+  `/api/backtest/*` (feedback-style guard chain) + the immutable public page
+  `/backtesting/r/[shareId]` (read-only report + point-in-time disclaimer, OG
+  meta). UI: a `SaveShareBar` wired into the results DoneState (login nudged ONLY
+  at Save/Share via the existing SignInGate; anonymous build/run never gated) +
+  an extracted `RunResultReport` shared verbatim with the share page. Account
+  delete now sweeps backtest rows. +28 vitest (suite 1416 → 1444: serialize
+  round-trip, share-id idempotency/unguessability, claim-not-re-run, notify-union
+  additivity, + a file-backed server integration test proving save/claim/
+  share-create/public-read + non-owner-cannot-mutate) + new
+  `scripts/e2e-bt-persistence.mjs` (13/13: anonymous run → Save nudge → claim →
+  idempotent share → no-auth read-only render + disclaimer + matching 6 stats,
+  360px, cleanup sweeps only the synthetic user). All LOCAL gates green: tsc,
+  ext:typecheck, next lint 0-warn, build (`/backtesting/r/[shareId]` dynamic, 4
+  API routes), e2e-smoke 36/36, mobile-audit clean.

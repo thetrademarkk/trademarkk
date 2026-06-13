@@ -254,6 +254,31 @@ const STATEMENTS = [
     site_name TEXT,
     fetched_at TEXT NOT NULL
   )`,
+  // ── Backtesting (BT-09): saved strategies + immutable run snapshots ──
+  // Public-universe data (like community) — lives centrally, never in the
+  // per-user journal DB. share_id is an unguessable opt-in public permalink.
+  `CREATE TABLE IF NOT EXISTS backtest_strategies (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    strategy_def TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS backtest_runs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
+    strategy_id TEXT,
+    run_result TEXT NOT NULL,
+    data_snapshot_id TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    share_id TEXT UNIQUE,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_runs_user ON backtest_runs (user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_runs_share ON backtest_runs (share_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_strats_user ON backtest_strategies (user_id, updated_at DESC)`,
 ];
 
 async function main() {
@@ -307,6 +332,9 @@ async function main() {
     `ALTER TABLE user ADD COLUMN verification_email_count_today INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE user ADD COLUMN last_otp_email_at INTEGER`,
     `ALTER TABLE user ADD COLUMN otp_email_count_today INTEGER NOT NULL DEFAULT 0`,
+    // ── Backtesting (BT-09, D6): link a backtest notification to its run.
+    // NULL for every existing community notification — additive, idempotent. ──
+    `ALTER TABLE notifications ADD COLUMN backtest_id TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

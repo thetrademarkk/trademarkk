@@ -11,22 +11,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { deriveQualityChips, type RunResult } from "@/features/backtest/shared/run-result";
+import type { RunResult } from "@/features/backtest/shared/run-result";
+import type { StrategyDef } from "@/features/backtest/shared/strategy-def";
 import { STATUS_LABEL, type BacktestStatus } from "@/features/backtest/shared/backtest-status";
 import type { BacktestProgress } from "@/features/backtest/hooks/use-backtest";
-import { buildVerdictHeadline, buildCoverageCaveat } from "@/features/backtest/results/verdict";
 import { usePrevRunStore } from "@/features/backtest/results/prev-run-store";
 import { toPrevRunSnapshot } from "@/features/backtest/results/stat-cards";
-import { buildBenchmark, type BenchmarkPoint } from "@/features/backtest/results/benchmark";
 import type { FixtureSnapshot } from "@/lib/backtest/engine/adapters/fixture-source";
-import { QualityChipRow } from "./quality-chip-row";
-import { VerdictStatStrip } from "./verdict-stat-strip";
-import { HeroEquityChart } from "./hero-equity-chart";
-import { EvidenceTabs } from "./evidence-tabs";
-import { TradeBlotter } from "./trade-blotter";
-
-/** Coverage below this reads as a PARTIAL (honest low-coverage) verdict. */
-const PARTIAL_COVERAGE = 0.4;
+import { RunResultReport } from "./run-result-report";
+import { SaveShareBar } from "@/components/backtesting/persist/save-share-bar";
 
 /**
  * The BT-07 RESULTS orchestrator: verdict → evidence → drill-down, with all 5
@@ -46,6 +39,7 @@ export function ResultsView({
   error,
   emptyReason,
   snapshot,
+  strategy,
   onEdit,
   onReRun,
 }: {
@@ -56,6 +50,8 @@ export function ResultsView({
   emptyReason: string | null;
   /** The fixture the run executed against — powers the benchmark overlay. */
   snapshot?: FixtureSnapshot | null;
+  /** The strategy that produced the run — enables Save/Share/claim. */
+  strategy?: StrategyDef | null;
   onEdit?: () => void;
   onReRun?: () => void;
 }) {
@@ -84,6 +80,7 @@ export function ResultsView({
       result={result}
       prevStats={prevStatsRef.current}
       snapshot={snapshot}
+      strategy={strategy}
       onEdit={onEdit}
       onReRun={onReRun}
     />
@@ -188,34 +185,20 @@ function DoneState({
   result,
   prevStats,
   snapshot,
+  strategy,
   onEdit,
   onReRun,
 }: {
   result: RunResult;
   prevStats: RunResult["stats"] | null;
   snapshot?: FixtureSnapshot | null;
+  /** The strategy that produced this run — needed to Save/claim it. */
+  strategy?: StrategyDef | null;
   onEdit?: () => void;
   onReRun?: () => void;
 }) {
-  const traded = result.blotter.filter((b) => b.legs.length > 0).length;
-  const chips = React.useMemo(
-    () => deriveQualityChips(result.coverage, traded),
-    [result.coverage, traded]
-  );
-  const headline = buildVerdictHeadline(result);
-  const caveat = buildCoverageCaveat(result);
-  const isPartial = result.coverage.overall < PARTIAL_COVERAGE;
-  const benchmark: BenchmarkPoint[] | null = React.useMemo(
-    () => (snapshot ? buildBenchmark(result, snapshot) : null),
-    [result, snapshot]
-  );
-
   return (
-    <div
-      className="space-y-6"
-      data-testid="bt-results-done"
-      data-partial={isPartial ? "true" : "false"}
-    >
+    <div className="space-y-6">
       {/* Iteration toolbar */}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {onEdit && (
@@ -230,41 +213,12 @@ function DoneState({
         )}
       </div>
 
-      {/* Tier 1 — verdict band */}
-      <section className="animate-slide-up space-y-3 rounded-2xl border bg-surface p-4 sm:p-5">
-        {isPartial && (
-          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-2.5 text-xs leading-5 text-warning">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
-            partial, indicative result, not a verdict.
-          </div>
-        )}
-        <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
-        <p className="text-sm leading-6" data-testid="bt-verdict-headline">
-          {headline}
-        </p>
-        {caveat && <p className="text-xs text-muted">{caveat}</p>}
-        <VerdictStatStrip run={result} prevStats={prevStats} />
-        <HeroEquityChart curve={result.equityCurve} benchmark={benchmark} />
-      </section>
+      {/* Save / Share / Notify — login is nudged ONLY here, never to build/run. */}
+      {strategy && <SaveShareBar result={result} strategy={strategy} />}
 
-      {/* Tier 2 — evidence */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Evidence</h2>
-        <EvidenceTabs run={result} />
-      </section>
-
-      {/* Tier 3 — drill-down */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Trade-by-trade</h2>
-        <TradeBlotter run={result} />
-      </section>
-
-      <p className="rounded-lg border bg-surface-2/40 p-3 text-[11px] leading-5 text-muted">
-        Backtests are hypothetical, use historical data with patchy options coverage, and exclude
-        liquidity/impact beyond modelled slippage. Past performance is not indicative of future
-        results.
-      </p>
+      {/* The full read-only report (coverage-honesty layer → verdict → evidence
+          → blotter). Shared verbatim with the public /backtesting/r/[shareId]. */}
+      <RunResultReport result={result} prevStats={prevStats} snapshot={snapshot} />
     </div>
   );
 }
