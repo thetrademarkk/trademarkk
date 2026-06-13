@@ -4,6 +4,7 @@ import { platformDb } from "@/server/db/platform";
 import { getSession } from "@/server/community";
 import { cached } from "@/server/cache";
 import { rateLimit } from "@/server/rate-limit";
+import { clientIp } from "@/server/client-ip";
 import { searchSnippet, SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from "@/features/community/search";
 import type { SearchResponse } from "@/features/community/types";
 
@@ -111,13 +112,11 @@ export async function GET(req: Request) {
   if (q.length < SEARCH_MIN_CHARS) return NextResponse.json(EMPTY);
 
   const session = await getSession();
-  const ip = (req.headers.get("x-forwarded-for") ?? "anon").split(",")[0]!.trim();
-  // Generous for a 250ms-debounced typeahead, hostile to scrapers.
-  const { allowed } = await rateLimit(
-    session ? `search:${session.user.id}` : `search:ip:${ip}`,
-    40,
-    10
-  );
+  // Generous for a 250ms-debounced typeahead, hostile to scrapers. Signed-in
+  // users get a roomier budget; anonymous scrapers are held to 20/10s.
+  const { allowed } = session
+    ? await rateLimit(`search:${session.user.id}`, 40, 10)
+    : await rateLimit(`search:ip:${clientIp(req)}`, 20, 10);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   try {

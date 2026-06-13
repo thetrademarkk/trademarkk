@@ -6,12 +6,14 @@ import { auth } from "./auth";
 import { platformDb } from "./db/platform";
 import {
   bookmarks,
+  commentLikes,
   comments,
   likes,
   notifications,
   postImages,
   posts,
   profiles,
+  reports,
 } from "./db/platform-schema";
 import type { AuthorView, PostView, TradeCard } from "@/features/community/types";
 import {
@@ -85,6 +87,13 @@ export async function notifyNewMentions(
     rows.map((r) => notify({ userId: r.userId, actorId, type: "mention", postId }))
   );
 }
+
+/**
+ * Escapes LIKE-pattern metacharacters so user input matches literally. Pair
+ * with `ESCAPE '\\'` on the SQL side. Matches the form used by the search and
+ * autocomplete routes (escape char is a single backslash). Exported for tests.
+ */
+export const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const RESERVED_USERNAMES = new Set([
   "admin",
@@ -268,7 +277,13 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
     );
   }
   if (q.authorUserId) conditions.push(eq(posts.userId, q.authorUserId));
-  if (q.tag) conditions.push(sql`${posts.tags} LIKE ${`%"${q.tag}"%`}`);
+  if (q.tag) {
+    // tags is a JSON array string; match the quoted element. The tag is escaped
+    // for LIKE metacharacters (and the route validates its grammar) so a value
+    // like `%` or `_` can't broaden the match into a wildcard scan.
+    const tagPattern = `%"${escapeLike(q.tag)}"%`;
+    conditions.push(sql`${posts.tags} LIKE ${tagPattern} ESCAPE '\\'`);
+  }
   if (q.scope === "following" && viewerId) {
     conditions.push(
       sql`${posts.userId} IN (SELECT following_id FROM follows WHERE follower_id = ${viewerId})`
@@ -330,14 +345,40 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   return { posts: await hydratePosts(page, viewerId), nextCursor };
 }
 
+/**
+ * Deletes a post and EVERYTHING that hangs off it — comments (and their likes),
+ * post likes, images, bookmarks, notifications referencing it, and any abuse
+ * reports targeting the post or its comments — atomically. Previously bookmarks,
+ * notifications and reports were left behind (orphaned rows: a deleted post
+ * could still surface in someone's saved feed or keep an unactionable report in
+ * the admin queue), and the multi-statement delete was non-transactional so a
+ * mid-cascade failure left the data half-deleted.
+ */
 export async function deletePostCascade(postId: string) {
-  await platformDb.delete(comments).where(eq(comments.postId, postId));
-  await platformDb.delete(likes).where(eq(likes.postId, postId));
-  await platformDb.delete(postImages).where(eq(postImages.postId, postId));
-  // A deleted post must not linger as anyone's profile pin.
-  await platformDb
-    .update(profiles)
-    .set({ pinnedPostId: null })
-    .where(eq(profiles.pinnedPostId, postId));
-  await platformDb.delete(posts).where(eq(posts.id, postId));
+  await platformDb.transaction(async (tx) => {
+    // Comment ids on this post — needed to purge their likes and reports too.
+    const commentRows = await tx
+      .select({ id: comments.id })
+      .from(comments)
+      .where(eq(comments.postId, postId));
+    const commentIds = commentRows.map((c) => c.id);
+
+    if (commentIds.length) {
+      await tx.delete(commentLikes).where(inArray(commentLikes.commentId, commentIds));
+      await tx
+        .delete(reports)
+        .where(and(eq(reports.targetType, "comment"), inArray(reports.targetId, commentIds)));
+    }
+    await tx.delete(comments).where(eq(comments.postId, postId));
+    await tx.delete(likes).where(eq(likes.postId, postId));
+    await tx.delete(postImages).where(eq(postImages.postId, postId));
+    await tx.delete(bookmarks).where(eq(bookmarks.postId, postId));
+    await tx.delete(notifications).where(eq(notifications.postId, postId));
+    await tx
+      .delete(reports)
+      .where(and(eq(reports.targetType, "post"), eq(reports.targetId, postId)));
+    // A deleted post must not linger as anyone's profile pin.
+    await tx.update(profiles).set({ pinnedPostId: null }).where(eq(profiles.pinnedPostId, postId));
+    await tx.delete(posts).where(eq(posts.id, postId));
+  });
 }

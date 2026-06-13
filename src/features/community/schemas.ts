@@ -71,11 +71,15 @@ export const updateProfileSchema = z.object({
     .regex(/^https?:\/\//i, "Enter a full URL (https://…)")
     .or(z.literal(""))
     .optional(),
-  /** Compressed data-url ≤ ~120KB; empty string removes the photo. */
+  /**
+   * Compressed data-url ≤ ~120KB; empty string removes the photo. The scheme is
+   * pinned to a base64 raster image (webp/png/jpeg) — `data:image/svg+xml` (which
+   * can carry script) and other data-url shapes are rejected.
+   */
   avatar: z
     .string()
     .max(160_000)
-    .refine((v) => v === "" || v.startsWith("data:image/"), "Invalid image")
+    .refine((v) => v === "" || /^data:image\/(webp|png|jpeg);base64,/.test(v), "Invalid image")
     .optional(),
   /** Preset cover-accent id only (no free hex); empty string clears it. */
   accent: z

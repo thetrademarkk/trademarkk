@@ -14,8 +14,16 @@ export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`token:${session.user.id}`, 30, 3600);
+  // At most 10 mints/hour, and never two within 10 minutes — a 7-day token is
+  // already long-lived, so anything faster is abuse (or a buggy client loop).
+  const { allowed } = await rateLimit(`token:${session.user.id}`, 10, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  const { allowed: notTooSoon } = await rateLimit(`token-burst:${session.user.id}`, 1, 600);
+  if (!notTooSoon)
+    return NextResponse.json(
+      { error: "A token was just issued — try again shortly" },
+      { status: 429 }
+    );
 
   const row = await platformDb
     .select()
@@ -25,7 +33,7 @@ export async function POST(req: Request) {
   if (!row) return NextResponse.json({ error: "No database provisioned" }, { status: 404 });
 
   try {
-    const token = await mintDbToken(row.dbName);
+    const token = await mintDbToken(row.dbName, session.user.id);
     return NextResponse.json({
       url: `https://${row.hostname}`,
       token,

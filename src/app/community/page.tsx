@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
 import { queryFeed } from "@/server/community";
 import type { FeedResponse } from "@/features/community/types";
 import { CommunityHomePage } from "./community-home";
+
+export const metadata: Metadata = {
+  title: "Community",
+  description:
+    "Share trades, journals and ideas with Indian FnO & intraday traders on TradeMarkk's community.",
+  alternates: { canonical: "/community" },
+  // Without an explicit url, this page inherits the homepage og:url from the root layout.
+  openGraph: { url: "/community" },
+};
 
 // ISR: the anonymous first feed page is baked into the static document so the
 // largest feed text paints at first paint (mobile LCP) instead of after

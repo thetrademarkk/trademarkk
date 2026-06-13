@@ -47,7 +47,21 @@ const synthKey = (t) =>
   0.16 * rnd() * Math.exp(-t / 0.0009) +
   0.17 * Math.sin(2 * Math.PI * 2700 * t) * Math.exp(-t / 0.0022);
 
-const BASE = "http://localhost:3100";
+const BASE = process.env.BASE_URL ?? "http://localhost:3100";
+// Demo credentials come from the environment (mirrors scripts/seed-demo-user.ts)
+// — never bake an account password into a public repo.
+const DEMO_EMAIL = process.env.DEMO_EMAIL;
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD;
+if (!DEMO_EMAIL || !DEMO_PASSWORD) {
+  console.error(
+    "Missing DEMO_EMAIL / DEMO_PASSWORD environment variables.\n" +
+      "Set both (seed the account first with scripts/seed-demo-user.ts) and retry:\n" +
+      "  DEMO_EMAIL=demo@example.com DEMO_PASSWORD=<secret> node scripts/demo-video.mjs"
+  );
+  process.exit(1);
+}
+// Optional click-sound source for post-production; synth-only audio if unset.
+const CLICK_SRC = process.env.DEMO_CLICK_AUDIO_PATH ?? "";
 const W = 1280,
   H = 720;
 mkdirSync("demo", { recursive: true });
@@ -61,11 +75,11 @@ const browser = await chromium.launch();
   await p.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
   await p.getByText("Start free — we host it").click();
   await p.getByRole("button", { name: /Already have an account/ }).click();
-  await p.getByPlaceholder("you@example.com").fill("demo@trademark.app");
+  await p.getByPlaceholder("you@example.com").fill(DEMO_EMAIL);
   await p
     .getByPlaceholder(/characters|password/i)
     .first()
-    .fill("Demo@12345");
+    .fill(DEMO_PASSWORD);
   await p.getByRole("button", { name: "Sign in", exact: true }).click();
   await p.waitForURL("**/app/dashboard", { timeout: 60000 });
   await p.getByText("Net P&L").first().waitFor({ timeout: 30000 });
@@ -343,26 +357,32 @@ console.log(`recorded ${(durMs / 1000).toFixed(1)}s, ${clicks.length} clicks`);
 }
 await browser.close();
 
-// ── Post: real click sound (from Downloads) + subtle synth key taps → mp4 ──
-const CLICK_SRC = "C:/Users/raash/Downloads/matthewvakaliuk73627-mouse-click-290204.mp3";
-execFileSync(
-  ffmpeg,
-  [
-    "-y",
-    "-i",
-    CLICK_SRC,
-    "-ac",
-    "1",
-    "-ar",
-    "48000",
-    "-af",
-    "silenceremove=start_periods=1:start_silence=0.01:start_threshold=-50dB,afade=t=out:st=0.18:d=0.05,loudnorm=I=-16:TP=-1.5,volume=0.85",
-    "-t",
-    "0.25",
-    "demo/click.wav",
-  ],
-  { stdio: "ignore" }
-);
+// ── Post: click sound + subtle synth key taps → mp4 ──
+// A real recorded click (DEMO_CLICK_AUDIO_PATH) sounds best; without one, fall
+// back to the built-in synthesized click so the script runs anywhere.
+if (CLICK_SRC) {
+  execFileSync(
+    ffmpeg,
+    [
+      "-y",
+      "-i",
+      CLICK_SRC,
+      "-ac",
+      "1",
+      "-ar",
+      "48000",
+      "-af",
+      "silenceremove=start_periods=1:start_silence=0.01:start_threshold=-50dB,afade=t=out:st=0.18:d=0.05,loudnorm=I=-16:TP=-1.5,volume=0.85",
+      "-t",
+      "0.25",
+      "demo/click.wav",
+    ],
+    { stdio: "ignore" }
+  );
+} else {
+  // Synthesized mouse-down/up "thock+tick" — no external asset required.
+  writeWav("demo/click.wav", 200, (t) => 0.85 * (synthDown(t) + synthUp(Math.max(0, t - 0.012))));
+}
 writeWav("demo/key.wav", 16, synthKey);
 writeFileSync("demo/clicks.json", JSON.stringify({ durMs, clicks, keys }));
 

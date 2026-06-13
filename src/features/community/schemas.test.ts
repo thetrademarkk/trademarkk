@@ -45,6 +45,27 @@ describe("updateProfileSchema", () => {
     expect(updateProfileSchema.safeParse({ username: "AB" }).success).toBe(false);
     expect(updateProfileSchema.safeParse({ username: "Nifty" }).success).toBe(false);
   });
+  it("accepts a base64 raster avatar data-url and the empty (remove) value", () => {
+    expect(updateProfileSchema.safeParse({ avatar: "data:image/webp;base64,AAAA" }).success).toBe(
+      true
+    );
+    expect(updateProfileSchema.safeParse({ avatar: "data:image/png;base64,AAAA" }).success).toBe(
+      true
+    );
+    expect(updateProfileSchema.safeParse({ avatar: "" }).success).toBe(true);
+  });
+  it("rejects non-raster / script-bearing avatar data-urls", () => {
+    // svg+xml can carry script; only webp/png/jpeg base64 are allowed.
+    expect(
+      updateProfileSchema.safeParse({ avatar: "data:image/svg+xml;base64,PHN2Zz4=" }).success
+    ).toBe(false);
+    expect(updateProfileSchema.safeParse({ avatar: "data:text/html,<script>" }).success).toBe(
+      false
+    );
+    expect(updateProfileSchema.safeParse({ avatar: "data:image/gif;base64,AAAA" }).success).toBe(
+      false
+    );
+  });
 });
 
 describe("startConversationSchema", () => {

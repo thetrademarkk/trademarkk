@@ -5,6 +5,7 @@ import { pageEvents, webVitals } from "@/server/db/platform-schema";
 import { getSession } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
+import { clientIp } from "@/server/client-ip";
 import { VITAL_METRICS, type VitalMetric } from "@/lib/pulse-stats";
 
 /**
@@ -33,8 +34,7 @@ export async function POST(req: Request) {
 
   // Anonymous write endpoint — cap batches per client so it can't flood the
   // platform DB (the client flushes at most once per page-hide).
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
-  const { allowed } = await rateLimit(`track:${ip}`, 60, 3600);
+  const { allowed } = await rateLimit(`track:ip:${clientIp(req)}`, 60, 3600);
   if (!allowed) return NextResponse.json({ ok: false }, { status: 429 });
 
   const body = (await req.json().catch(() => null)) as {
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
   const events: { path: string; ts: number }[] = [];
   if (Array.isArray(body?.events)) {
-    for (const e of body.events.slice(0, 100)) {
+    for (const e of body.events.slice(0, 50)) {
       if (typeof e?.path === "string" && e.path.length > 0 && e.path.length <= 200) {
         events.push({ path: e.path, ts: clampTs(e.ts) });
       }
@@ -76,6 +76,12 @@ export async function POST(req: Request) {
   }
 
   const session = await getSession().catch(() => null);
+  // Signed-in clients get a roomier, identity-scoped budget alongside the IP one
+  // (shared NAT/office IPs would otherwise throttle legitimate logged-in users).
+  if (session) {
+    const { allowed } = await rateLimit(`track:u:${session.user.id}`, 120, 3600);
+    if (!allowed) return NextResponse.json({ ok: false }, { status: 429 });
+  }
   const writes: Promise<unknown>[] = [];
   if (events.length > 0) {
     writes.push(

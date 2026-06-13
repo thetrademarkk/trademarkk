@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { getSession } from "@/server/community";
 import { cached } from "@/server/cache";
+import { rateLimit } from "@/server/rate-limit";
+import { clientIp } from "@/server/client-ip";
 import type { LeaderboardRow } from "@/features/community/types";
 
 /**
@@ -12,6 +14,10 @@ import type { LeaderboardRow } from "@/features/community/types";
  *   user's own DB; only voluntarily shared numbers appear here)
  */
 export async function GET(req: Request) {
+  // Light per-IP cap on a cached, public endpoint — enough to deter scraping.
+  const { allowed } = await rateLimit(`leaderboard:ip:${clientIp(req)}`, 10, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   const url = new URL(req.url);
   const board = url.searchParams.get("board") === "streak" ? "streak" : "contrib";
   const period = url.searchParams.get("period") === "all" ? "all" : "month";
