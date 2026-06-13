@@ -13,6 +13,7 @@ import { DbProvider } from "../lib/journal";
 import { BrandMark } from "./Brand";
 import { ByodConnect } from "./ByodConnect";
 import { GlanceStrip } from "./GlanceStrip";
+import { ImportLauncher } from "./ImportLauncher";
 import { RulesCard } from "./RulesCard";
 import { SettingsDrawer } from "./SettingsDrawer";
 import { TradeForm } from "./TradeForm";
@@ -133,6 +134,7 @@ export function App() {
         <DbProvider value={state.db}>
           <main className="panel-main">
             <TradeForm appUrl={appUrl} />
+            <ImportLauncher appUrl={appUrl} />
             <RulesCard appUrl={appUrl} />
           </main>
         </DbProvider>

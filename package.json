@@ -10,7 +10,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "ext:build": "vite build --config extension/vite.config.ts && vite build --config extension/vite.content.config.ts",
+    "ext:build": "vite build --config extension/vite.config.ts && vite build --config extension/vite.content.config.ts && vite build --config extension/vite.content-positions.config.ts",
     "ext:typecheck": "tsc -p extension --noEmit",
     "e2e": "node scripts/e2e-smoke.mjs",
     "migrate:platform": "tsx scripts/migrate-platform.ts",

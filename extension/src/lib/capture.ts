@@ -110,5 +110,74 @@ export async function disableCapture(adapter: BrokerCaptureAdapter): Promise<voi
   await chrome.scripting
     .unregisterContentScripts({ ids: [scriptId(adapter.id)] })
     .catch(() => undefined);
-  await chrome.permissions.remove({ origins: [adapter.originPattern] }).catch(() => undefined);
+  await releaseHostIfUnused(adapter.id, adapter.originPattern);
+}
+
+/* ── Positions/tradebook import: same opt-in registration, separate script ── */
+
+const positionsScriptId = (id: BrokerId) => `tm-positions-${id}`;
+
+/**
+ * Order-window capture and tradebook import for the same broker SHARE one host
+ * permission. Only return it once NEITHER feature is still registered for that
+ * broker, so toggling one off never silently breaks the other.
+ */
+async function releaseHostIfUnused(id: BrokerId, originPattern: string): Promise<void> {
+  try {
+    const remaining = await chrome.scripting.getRegisteredContentScripts({
+      ids: [scriptId(id), positionsScriptId(id)],
+    });
+    if (remaining.length > 0) return; // the other feature still needs the host
+  } catch {
+    return; // can't confirm → keep the grant rather than break a live feature
+  }
+  await chrome.permissions.remove({ origins: [originPattern] }).catch(() => undefined);
+}
+
+interface PositionsRegistrable {
+  id: BrokerId;
+  originPattern: string;
+  /** Built content-script bundle, relative to the extension dist root. */
+  contentScript: string;
+}
+
+export async function isImportEnabled(adapter: PositionsRegistrable): Promise<boolean> {
+  try {
+    const scripts = await chrome.scripting.getRegisteredContentScripts({
+      ids: [positionsScriptId(adapter.id)],
+    });
+    return scripts.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Asks for the broker origin (Chrome's own consent prompt) and registers the
+ * positions/tradebook import content script. Must be called from a user gesture.
+ */
+export async function enableImport(adapter: PositionsRegistrable): Promise<void> {
+  const origins = [adapter.originPattern];
+  const granted =
+    (await chrome.permissions.contains({ origins })) ||
+    (await chrome.permissions.request({ origins }));
+  if (!granted) throw new Error("Chrome permission for the broker site was declined.");
+  if (await isImportEnabled(adapter)) return;
+  await chrome.scripting.registerContentScripts([
+    {
+      id: positionsScriptId(adapter.id),
+      js: [adapter.contentScript],
+      matches: origins,
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+    },
+  ]);
+}
+
+/** Unregisters the import content script and returns the host permission. */
+export async function disableImport(adapter: PositionsRegistrable): Promise<void> {
+  await chrome.scripting
+    .unregisterContentScripts({ ids: [positionsScriptId(adapter.id)] })
+    .catch(() => undefined);
+  await releaseHostIfUnused(adapter.id, adapter.originPattern);
 }

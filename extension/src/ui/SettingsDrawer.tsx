@@ -2,8 +2,16 @@ import * as React from "react";
 import { ExternalLink, LogOut, X } from "lucide-react";
 import { captureAdapters } from "../brokers";
 import type { BrokerCaptureAdapter } from "../brokers/types";
+import { kitePositionsAdapter } from "../brokers/kite-positions";
 import { openAppTab, signOut } from "../lib/app-api";
-import { disableCapture, enableCapture, isCaptureEnabled } from "../lib/capture";
+import {
+  disableCapture,
+  disableImport,
+  enableCapture,
+  enableImport,
+  isCaptureEnabled,
+  isImportEnabled,
+} from "../lib/capture";
 import { DEFAULT_APP_URL, getAppUrl, normalizeAppUrl, setAppUrl } from "../lib/config";
 
 /**
@@ -121,6 +129,16 @@ export function SettingsDrawer({
           </p>
         </div>
 
+        <div className="section">
+          <span className="hint">Tradebook import</span>
+          <ImportToggle />
+          <p className="hint">
+            Reads your executed orders straight from the Kite Orders/Positions page so you can
+            import them in one click — deduped against your journal. Reads only the trade fields
+            (instrument, side, qty, price, time) — never balances or holdings.
+          </p>
+        </div>
+
         <div className="footer">
           <button type="button" className="btn-ghost" onClick={() => openAppTab(appUrl)}>
             <ExternalLink size={13} />
@@ -180,6 +198,64 @@ function CaptureToggle({ adapter }: { adapter: BrokerCaptureAdapter }) {
           role="switch"
           aria-checked={enabled === true}
           aria-label={`Capture on ${adapter.label}`}
+          className={`capture-switch${enabled ? " on" : ""}`}
+          onClick={toggle}
+          disabled={busy || enabled === null}
+        >
+          {enabled ? "On" : "Off"}
+        </button>
+      </div>
+      {error && (
+        <p className="hint" style={{ color: "var(--loss)" }} role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * Kite tradebook-import switch. Mirrors CaptureToggle: "enabled" is read from
+ * Chrome's content-script registration, and enabling runs inside the click
+ * gesture (chrome.permissions.request needs one).
+ */
+function ImportToggle() {
+  const adapter = kitePositionsAdapter;
+  const [enabled, setEnabled] = React.useState<boolean | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    void isImportEnabled(adapter).then(setEnabled);
+  }, [adapter]);
+
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (enabled) {
+        await disableImport(adapter);
+        setEnabled(false);
+      } else {
+        await enableImport(adapter);
+        setEnabled(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not update tradebook import");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="capture-row">
+        <span>{adapter.label}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled === true}
+          aria-label={`Tradebook import from ${adapter.label}`}
           className={`capture-switch${enabled ? " on" : ""}`}
           onClick={toggle}
           disabled={busy || enabled === null}

@@ -564,6 +564,180 @@ body.popup .state {
   text-align: center;
 }
 
+/* ── Import-from-broker entry point + modal ───────────────────── */
+.import-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 0;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  font-weight: 550;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.import-entry:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.import-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+  animation: rise 0.2s ease-out;
+}
+.import-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 650;
+}
+.import-head .brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.import-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+}
+.import-state p {
+  margin: 0;
+  font-size: 13px;
+}
+.import-state .hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  max-width: 260px;
+}
+.import-state-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--loss) 16%, transparent);
+  color: var(--loss);
+}
+.import-state-icon.ok {
+  background: color-mix(in srgb, var(--profit) 16%, transparent);
+  color: var(--profit);
+}
+.import-done-title {
+  font-weight: 650;
+  font-size: 14px;
+}
+.import-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.import-done-close {
+  width: auto;
+  padding: 7px 16px;
+}
+
+.import-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.import-select-actions {
+  display: inline-flex;
+  gap: 10px;
+}
+.import-rows {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.import-row:last-child {
+  border-bottom: none;
+}
+.import-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.import-row.is-existing {
+  opacity: 0.62;
+}
+.import-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.import-row-inst {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.import-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.import-row-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.import-row-pnl {
+  font-size: 12.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.import-row-pnl .profit {
+  color: var(--profit);
+}
+.import-row-pnl .loss {
+  color: var(--loss);
+}
+.import-row-pnl .warning {
+  color: var(--warning);
+}
+.import-cta {
+  flex-shrink: 0;
+}
+
 .note {
   font-size: 11.5px;
   color: var(--text-muted);
