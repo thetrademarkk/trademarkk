@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { comments, posts, profiles, reports } from "@/server/db/platform-schema";
+import { commentLikes, comments, posts, profiles, reports } from "@/server/db/platform-schema";
 import { deletePostCascade, getSession } from "@/server/community";
 import { isAdmin } from "@/server/blog";
 import { isAllowedOrigin } from "@/server/origin-check";
+import { rateLimit } from "@/server/rate-limit";
 
 /** Admin: report queue with a preview of the reported content. */
 export async function GET() {
   const session = await getSession();
   if (!isAdmin(session?.user.email))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { allowed } = await rateLimit(`admin:${session!.user.id}`, 60, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const rows = await platformDb.select().from(reports).orderBy(desc(reports.createdAt)).limit(100);
   const postIds = rows.filter((r) => r.targetType === "post").map((r) => r.targetId);
@@ -60,6 +64,9 @@ export async function POST(req: Request) {
   if (!isAdmin(session?.user.email))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const { allowed } = await rateLimit(`admin:${session!.user.id}`, 60, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   const parsed = z
     .object({ reportId: z.string().min(1).max(40), action: z.enum(["dismiss", "delete-content"]) })
     .safeParse(await req.json().catch(() => null));
@@ -79,10 +86,22 @@ export async function POST(req: Request) {
         .where(eq(comments.id, report.targetId))
         .get();
       if (c) {
-        await platformDb.delete(comments).where(eq(comments.id, report.targetId));
+        // Remove the comment with its replies + likes, and purge every report
+        // targeting any of those comments so the queue can't keep an
+        // unactionable row pointing at deleted content.
+        const replies = await platformDb
+          .select({ id: comments.id })
+          .from(comments)
+          .where(eq(comments.parentId, c.id));
+        const ids = [c.id, ...replies.map((r) => r.id)];
+        await platformDb.delete(commentLikes).where(inArray(commentLikes.commentId, ids));
+        await platformDb
+          .delete(reports)
+          .where(and(eq(reports.targetType, "comment"), inArray(reports.targetId, ids)));
+        await platformDb.delete(comments).where(inArray(comments.id, ids));
         await platformDb
           .update(posts)
-          .set({ commentCount: sql`MAX(0, ${posts.commentCount} - 1)` })
+          .set({ commentCount: sql`MAX(0, ${posts.commentCount} - ${ids.length})` })
           .where(eq(posts.id, c.postId));
       }
     }

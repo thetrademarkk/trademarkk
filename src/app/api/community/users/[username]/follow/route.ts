@@ -13,7 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ username: stri
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to follow traders" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`follow:${session.user.id}`, 30, 3600);
+  const { allowed } = await rateLimit(`follow:${session.user.id}`, 10, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const target = await platformDb

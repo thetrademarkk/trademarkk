@@ -18,9 +18,11 @@ import { chromium } from "playwright";
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const LOCAL = ["localhost", "127.0.0.1"].includes(new URL(BASE).hostname);
 const TS = Date.now();
-const ADMIN_EMAIL = "e2e-landing-admin@example.com";
+// Env-overridable; defaults are throwaway localhost values (the test server's
+// ADMIN_EMAILS must include ADMIN_EMAIL).
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "e2e-landing-admin@example.com";
 const USER_EMAIL = `e2e-landing-user-${TS}@example.com`;
-const PASSWORD = "e2e-Landing-12345";
+const PASSWORD = process.env.E2E_PASSWORD ?? "e2e-Landing-12345";
 const HJSON = { "Content-Type": "application/json", Origin: BASE };
 
 const issues = [];

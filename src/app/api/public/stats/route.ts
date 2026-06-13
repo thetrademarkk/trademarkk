@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { cached } from "@/server/cache";
+import { rateLimit } from "@/server/rate-limit";
+import { clientIp } from "@/server/client-ip";
 import { shapePublicStats, type PublicStats } from "@/lib/public-stats";
 
 /**
@@ -11,7 +13,12 @@ import { shapePublicStats, type PublicStats } from "@/lib/public-stats";
  * Cheap by construction: in-memory cache (10 min) + CDN s-maxage, so even a
  * traffic spike costs at most one DB round-trip per instance per 10 minutes.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  // The result is heavily cached, so a light per-IP cap is enough to keep a
+  // scraper from churning cold-cache DB round-trips.
+  const { allowed } = await rateLimit(`pubstats:ip:${clientIp(req)}`, 5, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   let stats: PublicStats;
   try {
     stats = await cached("public:stats", 600_000, async () => {

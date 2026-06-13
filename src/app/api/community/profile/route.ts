@@ -28,7 +28,7 @@ export async function PUT(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { allowed } = await rateLimit(`profile:${session.user.id}`, 20, 3600);
+  const { allowed } = await rateLimit(`profile:${session.user.id}`, 10, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const parsed = updateProfileSchema.safeParse(await req.json().catch(() => null));
