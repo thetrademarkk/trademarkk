@@ -55,6 +55,7 @@ import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
 import { ReputationChip } from "./reputation-chip";
+import { FeaturedAwardChip } from "./award-badges";
 import { SentimentChip } from "./sentiment-toggle";
 import { EditPostForm } from "./edit-post-form";
 import { EditedMarker } from "./edit-history-dialog";
@@ -225,6 +226,8 @@ export function PostCard({
               {post.author.displayName}
             </Link>
             <ReputationChip tier={post.author.reputationTier} />
+            {/* One tiny featured achievement badge (rank-20) — subtle, max one. */}
+            <FeaturedAwardChip awards={post.author.awards} />
           </span>
           <p className="text-xs text-muted">
             <Link href={`/community/u/${post.author.username}`} className="hover:text-accent">

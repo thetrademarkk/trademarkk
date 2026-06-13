@@ -383,6 +383,14 @@ async function main() {
     // every type is enabled (the default — existing users see no behaviour
     // change). `notify()` consults this at emit time and skips opted-out types.
     `ALTER TABLE profiles ADD COLUMN notification_prefs TEXT`,
+    // ── Achievement awards / badges cache (see features/community/awards.ts) ──
+    // A compact JSON array of EARNED badge-ids, computed in the SAME pass as the
+    // reputation cache from the SAME earned signal bundle and refreshed LAZILY on
+    // the same 6h stale read (no extra cron). Pure cache — recomputable from
+    // scratch. NULL = never computed (compute on read). Badges reflect community
+    // participation only, never trading skill / P&L; banned/flagged members earn
+    // none.
+    `ALTER TABLE profiles ADD COLUMN awards TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

@@ -72,6 +72,12 @@ import {
   type ReputationTier,
 } from "@/features/community/reputation";
 import {
+  evaluateAwards,
+  parseStoredAwards,
+  serializeAwards,
+  type AwardId,
+} from "@/features/community/awards";
+import {
   DEFAULT_SUGGESTION_LIMIT,
   rankFollowSuggestions,
   type FollowCandidate,
@@ -512,6 +518,10 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
         // rides along with the profile row we already fetched, so the author chip
         // adds NO extra query on the hot feed path.
         reputationTier: normalizeTier(a.reputationTier),
+        // The member's earned achievement-AWARD ids (rank-20) ride along on the
+        // SAME profile row — the feed picks ONE subtle featured badge client-side
+        // (no extra query). Empty for banned/flagged members (the set is empty).
+        awards: parseStoredAwards(a.awards),
       },
     ])
   );
@@ -1553,6 +1563,12 @@ const REPUTATION_TTL_MS = 6 * 60 * 60 * 1000; // 6h — standing changes slowly
 export interface ReputationView extends ReputationResult {
   tierLabel: string;
   tierBlurb: string;
+  /**
+   * Achievement-AWARD badge ids the member has earned (rank-20), computed in the
+   * SAME pass as the reputation tier from the SAME earned signal bundle. A banned
+   * / quality-flagged member's set is empty. Participation only — never P&L.
+   */
+  awards: AwardId[];
 }
 
 /**
@@ -1681,6 +1697,11 @@ function reputationCacheStale(computedAt: string | null | undefined): boolean {
 export async function getReputation(userId: string): Promise<ReputationView> {
   const signals = await collectReputationSignals(userId);
   const result = computeReputation(signals, userId);
+  // Achievement awards (rank-20) are computed in the SAME pass, from the SAME
+  // earned signal bundle — one aggregation feeds both the tier and the badges.
+  // A banned / quality-flagged member's set is empty (the gate lives in
+  // `evaluateAwards`), so a sanctioned account can never display badges.
+  const awards = evaluateAwards(signals);
   // Best-effort denormalized refresh — never block/throw the read on a write.
   try {
     const row = await platformDb
@@ -1695,6 +1716,8 @@ export async function getReputation(userId: string): Promise<ReputationView> {
           reputationScore: result.score,
           reputationTier: result.tier,
           reputationComputedAt: new Date().toISOString(),
+          // Fold the recomputed badge set into the SAME write — no extra cron.
+          awards: serializeAwards(awards),
         })
         .where(eq(profiles.userId, userId));
     }
@@ -1702,7 +1725,7 @@ export async function getReputation(userId: string): Promise<ReputationView> {
     /* caching is a pure optimization — ignore write failures */
   }
   const meta = tierMeta(result.tier);
-  return { ...result, tierLabel: meta.label, tierBlurb: meta.blurb };
+  return { ...result, tierLabel: meta.label, tierBlurb: meta.blurb, awards };
 }
 
 /* ── "Who to follow" suggestions (rank-17) ──────────────────────────────────────

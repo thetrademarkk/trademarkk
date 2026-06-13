@@ -2,6 +2,7 @@ import type { ReactionCounts, ReactionKind } from "./reactions";
 import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
 import type { Sentiment } from "./sentiment";
 import type { ReputationTier } from "./reputation";
+import type { AwardId } from "./awards";
 
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
@@ -32,6 +33,12 @@ export interface AuthorView {
    * to the author name. Omitted when unknown/not yet computed (renders nothing).
    */
   reputationTier?: ReputationTier;
+  /**
+   * The author's earned achievement-AWARD ids (rank-20). The author chip shows
+   * ONE subtle featured (rarest) badge from this set. Omitted/empty when none —
+   * banned/flagged members have an empty set. Participation only, never P&L.
+   */
+  awards?: AwardId[];
 }
 
 /**
@@ -163,6 +170,12 @@ export interface ProfileView {
    * breakdown. Null when it couldn't be computed (the UI then renders nothing).
    */
   reputation: ProfileReputation | null;
+  /**
+   * Earned achievement-AWARD badge ids (rank-20), computed from the SAME earned
+   * signal bundle as the reputation tier. Drives the profile badges row + the
+   * Achievements section. Empty for a banned/flagged member. Participation only.
+   */
+  awards: AwardId[];
 }
 
 /** The reputation block surfaced on a profile (tier + transparent breakdown). */

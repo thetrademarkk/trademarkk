@@ -146,6 +146,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
             components: reputation.components,
           }
         : null,
+      // Earned achievement-AWARD ids (rank-20) — same pass as reputation. Empty
+      // for a member whose standing couldn't be computed or who earned none.
+      awards: reputation?.awards ?? [],
     },
     pinnedPost,
     posts: pinnedId ? userPosts.filter((p) => p.id !== pinnedId) : userPosts,

@@ -101,6 +101,16 @@ export const profiles = sqliteTable("profiles", {
   reputationTier: text("reputation_tier"),
   reputationComputedAt: text("reputation_computed_at"),
   /**
+   * Denormalized achievement-AWARDS cache (see features/community/awards.ts) — a
+   * compact JSON array of the EARNED badge-ids (e.g. `["one-year","well-received"]`).
+   * Computed in the SAME pass as the reputation cache from the SAME earned signal
+   * bundle, refreshed LAZILY on the same 6h stale read (no extra cron). Like the
+   * reputation columns these are pure caches — recomputable from scratch any time.
+   * NULL = never computed yet. Badges reflect community participation only, NEVER
+   * trading skill / P&L; a banned or quality-flagged member's set is empty.
+   */
+  awards: text("awards"),
+  /**
    * Per-type in-app notification preferences (see
    * features/community/notification-prefs.ts). A compact JSON map of ONLY the
    * types the user has switched OFF (e.g. `{"follow":false}`); NULL/absent means
