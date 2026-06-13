@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Composer,
   Feed,
+  ForYouFeed,
   InlineComposer,
   SUGGESTED_TAGS,
   TrendingBoard,
@@ -60,9 +61,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       /* storage blocked — back link falls back to the plain feed */
     }
   }, [tag, search]);
-  const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
+  // `foryou` is a distinct mode (it doesn't map to a sort/scope); the rest of
+  // the tabs select a (sort, scope) pair on the standard feed.
+  const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope; foryou: boolean }>({
     sort: "latest",
     scope: "all",
+    foryou: false,
   });
   const [composeOpen, setComposeOpen] = React.useState(false);
   const { data: session } = useSession();
@@ -75,18 +79,28 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
       : SUGGESTED_TAGS.map((t) => ({ tag: t, count: 0 }));
 
-  const tabs: { id: string; label: string; sort: FeedSort; scope: FeedScope }[] = [
-    { id: "latest", label: "Latest", sort: "latest", scope: "all" },
-    { id: "top", label: "Top this week", sort: "top", scope: "all" },
-    { id: "following", label: "Following", sort: "latest", scope: "following" },
-    // Watchlist (watched symbols OR followed authors) — only meaningful signed in.
-    ...(signedIn
-      ? [{ id: "watchlist", label: "Watchlist", sort: "latest", scope: "watchlist" } as const]
-      : []),
-    { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
-  ];
-  const activeTab =
-    tabs.find((t) => t.sort === view.sort && t.scope === view.scope)?.id ?? "latest";
+  const tabs: { id: string; label: string; sort: FeedSort; scope: FeedScope; foryou?: boolean }[] =
+    [
+      // "For You" is the OPTIONAL first tab (signed-in only). Latest stays the
+      // DEFAULT active tab so the feed never silently becomes a filter bubble.
+      ...(signedIn
+        ? [{ id: "foryou", label: "For You", sort: "latest", scope: "all", foryou: true } as const]
+        : []),
+      { id: "latest", label: "Latest", sort: "latest", scope: "all" },
+      { id: "top", label: "Top this week", sort: "top", scope: "all" },
+      { id: "following", label: "Following", sort: "latest", scope: "following" },
+      // Watchlist (watched symbols OR followed authors) — only meaningful signed in.
+      ...(signedIn
+        ? [{ id: "watchlist", label: "Watchlist", sort: "latest", scope: "watchlist" } as const]
+        : []),
+      { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
+    ];
+  const activeTab = view.foryou
+    ? "foryou"
+    : (tabs.find((t) => !t.foryou && t.sort === view.sort && t.scope === view.scope)?.id ??
+      "latest");
+  const selectTab = (t: { sort: FeedSort; scope: FeedScope; foryou?: boolean }) =>
+    setView({ sort: t.sort, scope: t.scope, foryou: Boolean(t.foryou) });
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[190px_minmax(0,1fr)_250px]">
@@ -100,7 +114,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             {tabs.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setView({ sort: t.sort, scope: t.scope })}
+                onClick={() => selectTab(t)}
                 aria-pressed={activeTab === t.id}
                 className={cn(
                   "block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
@@ -201,7 +215,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setView({ sort: t.sort, scope: t.scope })}
+              onClick={() => selectTab(t)}
               aria-pressed={activeTab === t.id}
               className={cn(
                 "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
@@ -212,7 +226,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             </button>
           ))}
         </div>
-        {(tag || search) && (
+        {!view.foryou && (tag || search) && (
           <div className="mb-3 flex items-center gap-2 text-sm">
             {tag && (
               <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
@@ -232,17 +246,21 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             </button>
           </div>
         )}
-        <Feed
-          sort={view.sort}
-          tag={tag}
-          search={search}
-          scope={view.scope}
-          // Server-rendered first page only fits the default view; every other
-          // combination fetches as before.
-          initialFeed={
-            view.sort === "latest" && view.scope === "all" && !tag && !search ? initialFeed : null
-          }
-        />
+        {view.foryou ? (
+          <ForYouFeed enabled={signedIn} />
+        ) : (
+          <Feed
+            sort={view.sort}
+            tag={tag}
+            search={search}
+            scope={view.scope}
+            // Server-rendered first page only fits the default view; every other
+            // combination fetches as before.
+            initialFeed={
+              view.sort === "latest" && view.scope === "all" && !tag && !search ? initialFeed : null
+            }
+          />
+        )}
       </section>
 
       {/* ── Right rail ── */}

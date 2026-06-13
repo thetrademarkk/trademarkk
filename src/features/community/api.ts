@@ -86,6 +86,53 @@ export function useFeed(
   });
 }
 
+/* ── For You (interest feed + cold-start starter follows) ──────────────────── */
+
+/**
+ * The signed-in viewer's "For You" interest feed — a single page of recent posts
+ * re-ranked by a transparent interest score (engaged tags/symbols + followed &
+ * 2nd-degree authors + a global hot-score prior). Cold-start viewers fall back to
+ * the global Top feed server-side so the tab is never empty. Not infinite —
+ * deeper browsing belongs in Latest/Top. Enabled only when signed in.
+ */
+export function useForYou(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-foryou"],
+    queryFn: () => request<FeedResponse>("/api/community/foryou"),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export interface StarterAuthor {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  reason: string;
+}
+export interface StarterSuggestionsResponse {
+  show: boolean;
+  tags: { tag: string; count: number }[];
+  authors: StarterAuthor[];
+}
+
+/**
+ * Cold-start "starter follows" — seed tags + popular authors a low-signal viewer
+ * can follow so their personalized feeds aren't empty. `show` is false for a
+ * well-connected viewer (the UI then renders nothing). Enabled only when signed
+ * in; cached a few minutes since it's a slowly-changing discovery surface.
+ */
+export function useStarterSuggestions(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-starter-suggestions"],
+    queryFn: () => request<StarterSuggestionsResponse>("/api/community/suggestions"),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 /**
  * Unified header-search typeahead — traders + topics + posts in one call.
  * `keepPreviousData` holds the last results on screen between keystrokes so

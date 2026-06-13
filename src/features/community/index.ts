@@ -1,4 +1,6 @@
 export { Feed } from "./components/feed";
+export { ForYouFeed } from "./components/for-you-feed";
+export { StarterSuggestions } from "./components/starter-suggestions";
 export { PostCard } from "./components/post-card";
 export { Composer } from "./components/composer";
 export { InlineComposer } from "./components/inline-composer";

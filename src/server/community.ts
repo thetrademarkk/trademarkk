@@ -11,6 +11,7 @@ import {
   commentLikes,
   comments,
   followedTags,
+  follows,
   likes,
   notifications,
   postImages,
@@ -27,6 +28,19 @@ import {
   resolveReactionCounts,
   topFeedScore,
 } from "@/features/community/reactions";
+import {
+  buildInterestProfile,
+  isColdStart,
+  rankForYou,
+  type ForYouCandidate,
+} from "@/features/community/foryou";
+import {
+  buildStarterAuthors,
+  buildStarterTags,
+  shouldShowStarter,
+  type SuggestedAuthor,
+  type SuggestedTag,
+} from "@/features/community/starter-suggestions";
 import { parseEditHistory, type PostEditSnapshot } from "@/features/community/edit-window";
 import { planSymbolSync } from "@/features/community/cashtags";
 import { MAX_FOLLOWED_TAGS, normalizeTag } from "@/features/community/followed-tags";
@@ -536,6 +550,302 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   const nextCursor =
     q.sort === "latest" && rows.length > limit ? (page[page.length - 1]?.createdAt ?? null) : null;
   return { posts: await hydratePosts(page, viewerId), nextCursor };
+}
+
+/* ── For You (interest feed + cold start) ──────────────────────────────────── */
+
+/** How far back the For-You candidate scan reaches (recent posts only). */
+const FORYOU_WINDOW_DAYS = 14;
+/** Cap on engaged posts scanned for tag/symbol signals (cheapness guard). */
+const FORYOU_ENGAGED_SCAN = 60;
+/** Cap on the candidate window pulled for re-ranking (cheapness guard). */
+const FORYOU_CANDIDATE_CAP = 150;
+
+/**
+ * Builds the viewer's weighted interest profile from cheap, indexed signals:
+ *  - followed tags / watched symbols (explicit, strongest);
+ *  - tags & symbols carried by posts the viewer liked / bookmarked / authored
+ *    (implicit engagement) — scanned over a capped recent set;
+ *  - authors the viewer follows (1st-degree) + authors followed by those they
+ *    follow (2nd-degree, capped).
+ * The heavy lifting is six small indexed reads; the pure `buildInterestProfile`
+ * folds them into weighted maps with documented precedence.
+ */
+async function buildViewerInterestProfile(viewerId: string) {
+  // The set of posts the viewer has engaged with (liked OR bookmarked OR
+  // authored), capped — drives the implicit tag/symbol signals.
+  const engagedPostIds = (
+    await platformDb.all<{ id: string }>(
+      sql`SELECT id FROM (
+            SELECT post_id AS id, created_at FROM likes WHERE user_id = ${viewerId}
+            UNION
+            SELECT post_id AS id, created_at FROM bookmarks WHERE user_id = ${viewerId}
+            UNION
+            SELECT id, created_at FROM posts WHERE user_id = ${viewerId}
+          )
+          ORDER BY created_at DESC
+          LIMIT ${FORYOU_ENGAGED_SCAN}`
+    )
+  ).map((r) => String(r.id));
+
+  const [
+    followedTagRows,
+    watchedRows,
+    followRows,
+    secondDegreeRows,
+    engagedSymbolRows,
+    engagedTagRows,
+  ] = await Promise.all([
+    platformDb
+      .select({ tag: followedTags.tag })
+      .from(followedTags)
+      .where(eq(followedTags.userId, viewerId)),
+    platformDb
+      .select({ symbol: watchedSymbols.symbol })
+      .from(watchedSymbols)
+      .where(eq(watchedSymbols.userId, viewerId)),
+    platformDb
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, viewerId)),
+    // 2nd-degree: authors followed by the people the viewer follows, excluding
+    // the viewer and anyone they already follow directly (those are 1st-degree).
+    platformDb.all<{ id: string }>(
+      sql`SELECT DISTINCT f2.following_id AS id
+          FROM follows f1
+          JOIN follows f2 ON f2.follower_id = f1.following_id
+          WHERE f1.follower_id = ${viewerId}
+            AND f2.following_id != ${viewerId}
+            AND f2.following_id NOT IN (
+              SELECT following_id FROM follows WHERE follower_id = ${viewerId}
+            )
+          LIMIT 200`
+    ),
+    engagedPostIds.length
+      ? platformDb
+          .select({ symbol: postSymbols.symbol })
+          .from(postSymbols)
+          .where(inArray(postSymbols.postId, engagedPostIds))
+      : Promise.resolve([] as { symbol: string }[]),
+    engagedPostIds.length
+      ? platformDb.select({ tags: posts.tags }).from(posts).where(inArray(posts.id, engagedPostIds))
+      : Promise.resolve([] as { tags: string | null }[]),
+  ]);
+
+  const engagedTags: string[] = [];
+  for (const r of engagedTagRows) {
+    const arr = parseJson<string[]>(r.tags);
+    if (arr) for (const t of arr) engagedTags.push(t);
+  }
+
+  return buildInterestProfile({
+    followedTags: followedTagRows.map((r) => r.tag),
+    watchedSymbols: watchedRows.map((r) => r.symbol),
+    followedAuthors: followRows.map((r) => r.followingId),
+    secondDegreeAuthors: secondDegreeRows.map((r) => String(r.id)),
+    engagedTags,
+    engagedSymbols: engagedSymbolRows.map((r) => r.symbol),
+  });
+}
+
+/**
+ * Loads each candidate post's tag list + symbol list so they can be scored
+ * against the interest profile. One indexed scan of `post_symbols` for the page
+ * of candidate ids; tags come from the rows we already pulled.
+ */
+async function loadCandidateFacets(
+  rows: PostRow[]
+): Promise<Map<string, { tags: string[]; symbols: string[] }>> {
+  const out = new Map<string, { tags: string[]; symbols: string[] }>();
+  for (const r of rows) out.set(r.id, { tags: parseJson<string[]>(r.tags) ?? [], symbols: [] });
+  if (rows.length === 0) return out;
+  const symbolRows = await platformDb
+    .select({ postId: postSymbols.postId, symbol: postSymbols.symbol })
+    .from(postSymbols)
+    .where(
+      inArray(
+        postSymbols.postId,
+        rows.map((r) => r.id)
+      )
+    );
+  for (const s of symbolRows) out.get(s.postId)?.symbols.push(s.symbol);
+  return out;
+}
+
+/**
+ * The "For You" feed: recent posts re-ranked by a transparent interest score
+ * (see features/community/foryou.ts) that combines the viewer's engaged
+ * tags/symbols, followed + 2nd-degree authors, and a recency-decayed global
+ * hot-score prior. Block-aware, excludes the viewer's own posts, deduped (one
+ * row per post), capped per author. A viewer with NO signals (`isColdStart`)
+ * falls back to the global Top feed so the tab is never empty.
+ *
+ * For-You is single-page (no infinite cursor) — it returns the top `limit`
+ * posts in one shot; deeper browsing belongs in Latest/Top. Requires a viewer.
+ */
+export async function queryForYou(
+  viewerId: string,
+  limit = 15
+): Promise<{ posts: PostView[]; nextCursor: null }> {
+  const profile = await buildViewerInterestProfile(viewerId);
+
+  // Cold start: no signals at all → the global Top feed (block-aware) is the
+  // honest, non-empty fallback. The onboarding starter suggestions (a separate
+  // surface) nudge the viewer to build signals.
+  if (isColdStart(profile)) {
+    const top = await queryFeed(
+      { sort: "top", cursor: null, tag: null, scope: "all", limit },
+      viewerId
+    );
+    return { posts: top.posts, nextCursor: null };
+  }
+
+  const since = new Date(Date.now() - FORYOU_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
+  const conditions = [
+    sql`${posts.createdAt} >= ${since}`,
+    // Exclude the viewer's own posts — For-You is for discovery, not a mirror.
+    sql`${posts.userId} != ${viewerId}`,
+    // Reshares with empty bodies add noise to a discovery feed; show originals.
+    sql`${posts.quotePostId} IS NULL`,
+    // Block-aware: blocked authors never enter the candidate set.
+    sql`${posts.userId} NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})`,
+  ];
+  // Pull a recent candidate window cheaply (newest first), then re-rank in JS by
+  // the interest score. Bounded by FORYOU_CANDIDATE_CAP for cost.
+  const candidates = (await platformDb
+    .select()
+    .from(posts)
+    .where(and(...conditions))
+    .orderBy(desc(posts.createdAt))
+    .limit(FORYOU_CANDIDATE_CAP)) as PostRow[];
+
+  if (candidates.length === 0) {
+    // Nothing recent to personalize → fall back to Top so the tab isn't empty.
+    const top = await queryFeed(
+      { sort: "top", cursor: null, tag: null, scope: "all", limit },
+      viewerId
+    );
+    return { posts: top.posts, nextCursor: null };
+  }
+
+  const facets = await loadCandidateFacets(candidates);
+  const now = Date.now();
+  const forYouCandidates: ForYouCandidate[] = candidates.map((r) => {
+    const f = facets.get(r.id) ?? { tags: [], symbols: [] };
+    return {
+      id: r.id,
+      authorId: r.userId,
+      tags: f.tags,
+      symbols: f.symbols,
+      hotScore: topFeedScore(
+        resolveReactionCounts(r.reactions, r.likeCount),
+        r.commentCount,
+        (now - new Date(r.createdAt).getTime()) / 3_600_000
+      ),
+    };
+  });
+
+  const ranked = rankForYou(forYouCandidates, profile).slice(0, limit);
+  const byId = new Map(candidates.map((r) => [r.id, r]));
+  const page = ranked
+    .map((s) => byId.get(s.candidate.id))
+    .filter((r): r is PostRow => r !== undefined);
+
+  return { posts: await hydratePosts(page, viewerId), nextCursor: null };
+}
+
+/* ── Cold-start starter suggestions ────────────────────────────────────────── */
+
+/** The onboarding starter-follows surface: a few seed tags + popular authors. */
+export interface StarterSuggestions {
+  /** Whether the surface should be shown (thin social graph). */
+  show: boolean;
+  tags: SuggestedTag[];
+  authors: SuggestedAuthor[];
+}
+
+/**
+ * Derives cold-start "starter follows" for a low-signal viewer — seed tags from
+ * the trending board (+ curated fallback) and popular authors from the
+ * contributor leaderboard, both excluding what the viewer already follows / is.
+ * NO new schema: everything is derived from existing trending + leaderboard data.
+ * Returns `show:false` for a well-connected viewer (the UI then renders nothing).
+ */
+export async function getStarterSuggestions(viewerId: string): Promise<StarterSuggestions> {
+  try {
+    const [followedTagRows, followRows, watchedRows, me] = await Promise.all([
+      platformDb
+        .select({ tag: followedTags.tag })
+        .from(followedTags)
+        .where(eq(followedTags.userId, viewerId)),
+      platformDb
+        .select({ followingId: follows.followingId })
+        .from(follows)
+        .where(eq(follows.followerId, viewerId)),
+      platformDb
+        .select({ symbol: watchedSymbols.symbol })
+        .from(watchedSymbols)
+        .where(eq(watchedSymbols.userId, viewerId)),
+      platformDb
+        .select({ username: profiles.username })
+        .from(profiles)
+        .where(eq(profiles.userId, viewerId))
+        .get(),
+    ]);
+
+    const followedTagList = followedTagRows.map((r) => r.tag);
+    const show = shouldShowStarter({
+      follows: followRows.length,
+      followedTags: followedTagList.length,
+      watchedSymbols: watchedRows.length,
+    });
+    if (!show) return { show: false, tags: [], authors: [] };
+
+    // Resolve the usernames the viewer already follows (to exclude from author
+    // suggestions) and the trending topics + leaderboard (the suggestion sources).
+    const followingIds = followRows.map((r) => r.followingId);
+    const [followedUsernameRows, trending, leaderboard] = await Promise.all([
+      followingIds.length
+        ? platformDb
+            .select({ username: profiles.username })
+            .from(profiles)
+            .where(inArray(profiles.userId, followingIds))
+        : Promise.resolve([] as { username: string }[]),
+      // Trending topics over 7d as seed tags — block-unaware is fine here (this
+      // is a curated discovery surface, not a personalized feed).
+      queryTrending("7d", null),
+      // Top contributors this month (reuse the leaderboard's contrib query).
+      platformDb.all<{ username: string; displayName: string; avatar: string | null }>(
+        sql`SELECT p.username AS username, p.display_name AS displayName, p.avatar AS avatar
+            FROM profiles p
+            JOIN (
+              SELECT user_id, COUNT(*) AS posts FROM posts GROUP BY user_id
+            ) po ON po.user_id = p.user_id
+            ORDER BY po.posts DESC LIMIT 12`
+      ),
+    ]);
+
+    const followedUsernames = followedUsernameRows.map((r) => r.username);
+    return {
+      show: true,
+      tags: buildStarterTags(
+        trending.topics.map((t) => ({ tag: t.key, count: t.posts })),
+        followedTagList
+      ),
+      authors: buildStarterAuthors(
+        leaderboard.map((r) => ({
+          username: String(r.username),
+          displayName: String(r.displayName),
+          avatar: (r.avatar as string) ?? null,
+        })),
+        followedUsernames,
+        me?.username ?? null
+      ),
+    };
+  } catch {
+    // A suggestions surface must never error the page — degrade to hidden.
+    return { show: false, tags: [], authors: [] };
+  }
 }
 
 /**

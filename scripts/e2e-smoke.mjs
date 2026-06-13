@@ -101,6 +101,21 @@ await step("community feed renders; post cards expose the reshare control", asyn
   }
 });
 
+await step("For-You + starter-suggestions endpoints respond", async () => {
+  // Signed-out callers get the safe fallback shape (For-You is a signed-in tab;
+  // the signed-in ranking is covered by scripts/e2e-foryou.mjs).
+  const fy = await page.request.get(`${BASE}/api/community/foryou`, { headers: { origin: BASE } });
+  if (fy.status() !== 200) throw new Error(`/foryou status ${fy.status()}`);
+  const fyData = await fy.json();
+  if (!Array.isArray(fyData.posts)) throw new Error("/foryou missing posts array");
+  const sg = await page.request.get(`${BASE}/api/community/suggestions`, {
+    headers: { origin: BASE },
+  });
+  if (sg.status() !== 200) throw new Error(`/suggestions status ${sg.status()}`);
+  const sgData = await sg.json();
+  if (typeof sgData.show !== "boolean") throw new Error("/suggestions missing show flag");
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
