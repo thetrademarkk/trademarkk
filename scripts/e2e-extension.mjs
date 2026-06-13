@@ -241,6 +241,66 @@ await step("trade appears in the web journal with correct values", async () => {
   }
 });
 
+// ── Pre-trade plan capture ─────────────────────────────────────────────────
+// The "Plan a trade" tab logs a trade BEFORE entry: it writes an OPEN trade
+// carrying planned_entry / planned_sl / planned_target via the SAME shared
+// save-statements path, so the row reconciles with the journal's discipline-v2
+// plan-adherence metric the moment the user fills the actual entry/exit. We
+// plan an EQ delivery (CNC) HDFCBANK long and assert the open row + the three
+// planned levels render on the web trade-detail's "Plan vs actual" card.
+const PLAN_SYMBOL = "HDFCBANK";
+await step("plan: the Plan-a-trade tab captures a pre-trade plan", async () => {
+  await panel.bringToFront();
+  // Return to the hero flow, then switch to the Plan tab (distinct from Log).
+  await panel.getByRole("button", { name: "Log another" }).click();
+  await panel.getByRole("tab", { name: "Plan a trade" }).click();
+  await panel.getByText("Before you enter").waitFor({ timeout: 15000 });
+
+  await panel.getByLabel("Instrument", { exact: true }).fill(PLAN_SYMBOL);
+  // EQ + CNC delivery — the segment/product the plan form captures explicitly.
+  await panel.getByLabel("Segment", { exact: true }).selectOption("EQ");
+  await panel.getByLabel("Product", { exact: true }).selectOption("CNC");
+  await panel.getByLabel("Qty", { exact: true }).fill("50");
+  await panel.getByLabel("Planned entry", { exact: true }).fill("1600");
+  await panel.getByLabel("Stop loss", { exact: true }).fill("1560");
+  await panel.getByLabel("Target", { exact: true }).fill("1700");
+  await panel.getByRole("button", { name: "Save plan" }).click();
+  await panel.getByText(`${PLAN_SYMBOL} planned`).waitFor({ timeout: 30000 });
+  await panel.getByRole("button", { name: "View in journal" }).waitFor({ timeout: 5000 });
+});
+
+await step("plan: an open trade with planned levels lands in the web journal", async () => {
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  const row = appTab.locator("tr", { hasText: PLAN_SYMBOL }).first();
+  await row.waitFor({ timeout: 30000 });
+  // Open the trade-detail to read the "Plan vs actual" card (proves planned_*
+  // were written; discipline-v2 reads the same three columns).
+  await row.click(); // quick-view dialog
+  await appTab.getByRole("link", { name: /Open full view/ }).click();
+  await appTab.waitForURL("**/app/trades/**", { timeout: 30000 });
+  await appTab.getByText("Plan vs actual").waitFor({ timeout: 30000 });
+  // The three planned levels render in the "Plan vs actual" card — proof the
+  // planned_entry / planned_sl / planned_target columns were written (the same
+  // columns the discipline-v2 plan-adherence metric reads).
+  const body = await appTab.locator("body").textContent();
+  for (const needle of ["1600.00", "1560.00", "1700.00"]) {
+    if (!body.includes(needle)) {
+      throw new Error(`Plan vs actual missing planned level ${needle}`);
+    }
+  }
+  // Still an OPEN trade — no actual exit until the user executes the plan. The
+  // detail header carries a lowercase "open" status badge.
+  await appTab.getByText("open", { exact: true }).first().waitFor({ timeout: 10000 });
+});
+
+await step("plan: returning to the Log tab restores the quick log", async () => {
+  await panel.bringToFront();
+  await panel.getByRole("button", { name: "Plan another" }).click();
+  await panel.getByRole("tab", { name: "Log a trade" }).click();
+  await panel.getByText("Quick log").waitFor({ timeout: 15000 });
+});
+
 // ── Chart screenshot capture → attach to trade ─────────────────────────────
 // Real chrome.tabs.captureVisibleTab needs a real broker/chart tab + a user
 // gesture Playwright can't supply, so we stub it in the panel page to return a
@@ -255,8 +315,11 @@ const FIXTURE_PNG =
 
 await step("screenshot: capture button stages a removable preview", async () => {
   await panel.bringToFront();
-  // Return to the quick-log form after the first trade's success screen.
-  await panel.getByRole("button", { name: "Log another" }).click();
+  // Land on a fresh quick-log form. The preceding pre-trade-plan steps already
+  // returned to the Log tab's empty form, but if a success screen is showing
+  // (when run standalone), dismiss it with "Log another" first.
+  const logAnother = panel.getByRole("button", { name: "Log another" });
+  if (await logAnother.isVisible().catch(() => false)) await logAnother.click();
   await panel.getByLabel("Instrument", { exact: true }).waitFor({ timeout: 15000 });
 
   // Stub the Chrome capture API on the panel page (the real one is gesture/host
@@ -350,7 +413,10 @@ await step("badge: shows the unticked-rule count once the day has a trade", asyn
 let firstRule = "";
 await step("rule checks off from the panel", async () => {
   await panel.bringToFront();
-  await panel.getByRole("button", { name: "Log another" }).click();
+  // The rules card is always rendered below the form; dismiss any success
+  // screen so it's in view (tolerant of the panel's current state).
+  const logAnother = panel.getByRole("button", { name: "Log another" });
+  if (await logAnother.isVisible().catch(() => false)) await logAnother.click();
   await panel.getByText(/\/\d+ followed/).waitFor({ timeout: 15000 });
   firstRule = (await panel.locator(".rule-text").first().textContent()).trim();
   await panel.locator(".rule-btn").first().click(); // "Followed" on rule 1
