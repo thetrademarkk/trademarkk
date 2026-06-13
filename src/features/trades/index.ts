@@ -16,7 +16,10 @@ export {
   useSaveTrade,
   useDeleteTrade,
   useAddAttachment,
+  useRecomputePreview,
+  useApplyRecompute,
 } from "./queries";
+export type { RecomputePreview, RecomputeItem } from "./recompute";
 export { describeInstrument } from "./types";
 export type {
   TradeRow,

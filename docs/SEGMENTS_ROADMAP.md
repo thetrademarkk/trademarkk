@@ -40,7 +40,7 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-01** Segment×Product model + per-(segment,product) charge engine + trader-type-aware conditional form
 - [x] **SEG-02** Charge-engine golden tests for every (segment,product) combo
 - [x] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
-- [ ] **SEG-04** Backfill product for existing trades + recompute-charges action
+- [x] **SEG-04** Backfill product for existing trades + recompute-charges action
 - [ ] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
 - [ ] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
 - [ ] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m)
@@ -97,3 +97,27 @@ behaviour, so existing P&L never regresses.
   Feature e2e (`e2e-seg-ingest`): a crafted Fyers CSV (EQ CNC + EQ MIS + FUT +
   MCX + USDINR) imports with each row's segment/product asserted and delivery >
   intraday charges proven, zero console errors.
+
+- **SEG-04** (Shipped 2026-06-13) - backfill verification + a user-facing
+  **"Recompute charges"** maintenance action. Trades logged before SEG-01 had
+  charges computed by the old engine, which applied the INTRADAY STT branch to
+  every equity trade, so delivery/swing (CNC/BTST/STBT) trades carried the wrong
+  charge + net P&L. New pure `src/features/trades/recompute.ts`
+  (`previewRecompute` / `recomputeTradeCharges` / `buildRecomputeStatements`)
+  re-runs the current per-(segment,product) engine over a user's CLOSED trades,
+  matching `deriveTradeNumbers` leg-by-leg (multi-leg trades sum their
+  `trade_legs`; single-leg trades use the trade row). Paise-correct,
+  PREVIEW-first (count + total delta), gated behind an explicit in-app confirm,
+  and idempotent (a row already carrying the engine value is left alone, so a
+  second run writes nothing). It only updates `charges` and
+  `net_pnl = gross_pnl - newCharges` - never entry/exit/gross. NULL-product
+  equity rows the v4 backfill couldn't classify are charged as MIS (no silent
+  delivery guess) and surfaced so the user can set the product. Settings gains a
+  new "Recompute charges" card (`RecomputeChargesSection`) that explains the
+  delivery-STT fix, previews the delta, confirms, applies in one batch and shows
+  the result; works across hosted/BYOD/local. +14 vitest (delivery charge drops
+  vs stale intraday, idempotency, preview delta math, NULL-product handling,
+  FnO product-independent, multi-leg summing, statements shape). Feature e2e
+  (`e2e-seg-recompute`): seed a stale delivery EQ trade, preview shows the delta
+  in the confirm dialog, confirm corrects charges + net (gross preserved),
+  re-run is a no-op; 360px clean, zero console errors.
