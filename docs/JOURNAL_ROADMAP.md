@@ -54,4 +54,4 @@
 - [x] 2026-06-13 — Share-as-image trade & report cards — consolidated to main (PR-less)
 - [x] 2026-06-13 — Goals & risk limits (guardrail banners + weekly goals widget) — consolidated to main (PR-less)
 - [x] 2026-06-13 — Indian tax & reporting pack (FY turnover/speculative split/charges/realised-P&L, CSV+Excel+print) — PR #46
-- [x] 2026-06-13 — More statistics pack (hold-duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size; n>=5 gate per bucket) — PR #PENDING
+- [x] 2026-06-13 — More statistics pack (hold-duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size; n>=5 gate per bucket) — PR #49
