@@ -147,12 +147,10 @@ await step("Run from Review surfaces a RunResult Net P&L headline", async () => 
   await page.getByTestId("bt-run").click();
   await page.getByTestId("bt-result").waitFor({ timeout: 30000 });
   await page.locator('[data-status="done"]').waitFor({ timeout: 30000 });
-  const pnl = page
-    .locator('[data-testid="bt-result"]')
-    .getByText("Net P&L", { exact: true })
-    .first();
-  await pnl.waitFor({ timeout: 10000 });
-  const txt = (await pnl.locator("xpath=following-sibling::div[1]").textContent())?.trim() ?? "";
+  await page.getByTestId("bt-results-done").waitFor({ timeout: 30000 });
+  const tile = page.locator('[data-stat-key="netPnl"]').first();
+  await tile.waitFor({ timeout: 10000 });
+  const txt = (await tile.locator(".font-money").first().textContent())?.trim() ?? "";
   if (!/[\d]/.test(txt)) throw new Error(`Net P&L did not render a number: "${txt}"`);
 });
 

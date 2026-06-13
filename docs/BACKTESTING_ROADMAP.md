@@ -74,8 +74,26 @@ merged to main.
       bottom-sheet. Review's Run drives the BT-05 worker against the committed
       golden slice and shows the RunResult headline inline. +48 vitest + new
       `e2e-bt-builder`. New dep: `@radix-ui/react-slider`.
-- [ ] **BT-07 results** — verdict → evidence → drill-down, tap-to-derive charges,
-      coverage chips everywhere, virtualized blotter → trade-quick-view modal.
+- [x] **BT-07 results** ✅ (accumulated, pending batch deploy) — the results UI:
+      verdict → evidence → drill-down, rendered inline after Run on
+      `/backtesting/build` (matches the BT-06 run flow). Tier 1 = a NEUTRAL
+      template headline (D10, descriptive never evaluative) + a `QualityChipRow`
+      (coverage / substituted / illiquid / excluded / sample / filled-bar fraction) + 6 `StatCards` in R24 lead order (Net P&L → Win% → Max DD → Expectancy →
+      Profit Factor → Sharpe) + a `HeroEquityChart` (Recharts ComposedChart: equity
+      area + underwater drawdown on a shared axis + opt-in NIFTY buy-&-hold overlay).
+      TAP-TO-DERIVE: tapping Net P&L expands the honest gross → net waterfall
+      (the `computeCharges` breakdown, re-derived CENT-FOR-CENT vs the engine's
+      stored charges). Tier 2 = lazy Radix tabs (Returns monthly-heatmap with
+      hatched no-data cells — never a faked 0; Risk drawdown-periods + the MC cone
+      reusing `src/lib/montecarlo` via `mc-cone`, gated at MIN_TRADES=30; Calendar
+      weekday grid + expiry-vs-non-expiry). Tier 3 = a `@tanstack/react-virtual`
+      blotter (amber `*` substitute/illiquid rows + legend, CSV export) whose rows
+      open a backtest trade-quick-view modal reusing the journal modal idiom. The
+      iteration loop ("change one thing" → Legs) ghosts the previous run via
+      per-stat deltas (zustand+localStorage `tmk.bt.prevrun`). 5 states (empty /
+      running-with-skeletons / partial-low-coverage / error / done). +14 vitest
+      (suite 1402 → 1416) + new `scripts/e2e-bt-results.mjs` (9/9). Reused the
+      existing Recharts dep + react-virtual — NO new charting dep.
 - [ ] **BT-09 persistence** — `backtest_strategies` + `backtest_runs` platform
       tables, login-nudge only at save/share, anonymous-run claim flow.
 - [ ] **BT-08 data-proxy** — `/api/mkt/[...path]` range-proxy + duckdb-wasm data
@@ -120,3 +138,17 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   `@radix-ui/react-slider`. All LOCAL gates green: tsc, ext:typecheck, next lint
   0-warn, build (build page 67.9 kB static, worker bundled), e2e-smoke 36/36,
   mobile-audit clean incl. `/backtesting/build`.
+- 2026-06-14 — BT-07 RESULTS UI (verdict → evidence → drill-down), accumulated
+  (deploy-conserving). Pure layer in `src/features/backtest/results/*` (verdict
+  neutral-template, stat-cards + per-stat deltas, charges-derive cent-for-cent
+  gross→net waterfall, monthly-grid hatched-not-zero, calendar-buckets, equity/
+  underwater series, blotter-csv, benchmark, prev-run store) + UI in
+  `src/components/backtesting/results/*` (results-view orchestrator with 5 states,
+  quality-chip-row, verdict-stat-strip tap-to-derive, hero-equity-chart Recharts
+  ComposedChart, lazy evidence-tabs, virtualized trade-blotter, backtest
+  trade-quick-view). Wired inline into the BT-06 Review step. +14 vitest (suite
+  1402 → 1416) + new `scripts/e2e-bt-results.mjs` (9/9) + retargeted e2e-bt-run /
+  e2e-bt-builder. Reused Recharts + `@tanstack/react-virtual` — NO new charting
+  dep. All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, build (build
+  page 85.1 kB static, worker + charts bundled, no SSR worker import), e2e-smoke
+  36/36, mobile-audit clean.

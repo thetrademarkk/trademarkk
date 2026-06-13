@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Loader2, Pencil, Play, Square, TriangleAlert } from "lucide-react";
+import { Loader2, Pencil, Play, Square, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatINR, formatNumber } from "@/lib/utils";
 import { useBacktestRunner } from "@/components/backtesting/backtest-runner-provider";
@@ -12,14 +12,15 @@ import {
   builderDataPayload,
 } from "@/features/backtest/builder/run-adapter";
 import type { StrategyDef, WizardStep } from "@/features/backtest/builder/types";
-import { SampleResultCard } from "../../../../app/backtesting/sample-result-card";
+import { ResultsView } from "@/components/backtesting/results/results-view";
 
 /**
  * Step 5 — Review & run. Read-only recap of the whole strategy with inline
  * "edit" jumps, an overfitting disclaimer, and the big Run button. Run is
- * anonymous-allowed and drives the LAYOUT-owned worker runner (BT-05). The full
- * BT-07 results UI is the next item — here we surface the RunResult headline
- * inline (the SampleResultCard already renders the real result shape).
+ * anonymous-allowed and drives the LAYOUT-owned worker runner (BT-05). Once a run
+ * is started the full BT-07 ResultsView renders inline (verdict → evidence →
+ * drill-down, with the 5 run states), and "Change one thing" jumps back to the
+ * Legs step so the next run is compared against this one (per-stat deltas).
  */
 export function ReviewStep({
   draft,
@@ -32,7 +33,12 @@ export function ReviewStep({
   const active = isActive(status);
   const meta = INDEX_META[draft.market.symbol];
 
-  const onRun = () => run(adaptDraftForGoldenRun(draft), builderDataPayload());
+  // Keep the data payload so the results benchmark overlay can read the same
+  // fixture the engine ran against (no extra data fetch).
+  const payload = React.useMemo(() => builderDataPayload(), []);
+  const snapshot = payload.kind === "fixture" ? payload.snapshot : null;
+
+  const onRun = () => run(adaptDraftForGoldenRun(draft), payload);
 
   return (
     <div className="space-y-5" data-testid="bt-step-review">
@@ -102,20 +108,21 @@ export function ReviewStep({
         </span>
       </div>
 
-      {status === "error" && (
-        <p className="flex items-center gap-2 text-sm text-loss" data-testid="bt-error">
-          <AlertTriangle className="h-4 w-4" aria-hidden />
-          {error ?? "The backtest failed to run."}
-        </p>
-      )}
-      {status === "empty" && (
-        <p className="text-sm text-muted" data-testid="bt-empty">
-          {emptyReason ?? "No tradeable days in this range."}
-        </p>
-      )}
-      {status === "done" && result && (
-        <div data-testid="bt-result">
-          <SampleResultCard run={result} />
+      {/* The full BT-07 results UI (verdict → evidence → drill-down) renders once
+          a run has been started. "Change one thing" jumps back to Legs (ghosting
+          the prev run via the per-stat deltas); Re-run replays the same draft. */}
+      {status !== "idle" && (
+        <div data-testid="bt-result" className="pt-1">
+          <ResultsView
+            status={status}
+            result={result}
+            progress={progress}
+            error={error}
+            emptyReason={emptyReason}
+            snapshot={snapshot}
+            onEdit={() => onEdit("legs")}
+            onReRun={onRun}
+          />
         </div>
       )}
     </div>
