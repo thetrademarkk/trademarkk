@@ -24,7 +24,8 @@ const FOOTER_GROUPS: {
     links: [
       { href: "/blog", label: "Blog" },
       { href: "/faq", label: "FAQ" },
-      { href: "/faq", label: "Privacy & your data" },
+      { href: "/privacy", label: "Privacy" },
+      { href: "/terms", label: "Terms" },
       { href: "/compare/tradezella-alternative", label: "TradeZella alternative" },
     ],
   },
