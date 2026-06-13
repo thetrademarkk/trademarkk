@@ -49,8 +49,35 @@ behaviour, so existing P&L never regresses.
 - [ ] **SEG-10** Lot-size modelling for derivatives (optional)
 - [ ] **SEG-11** Extension capture carries product + exchange (+ MCX/CDS adapters)
 - [ ] **SEG-12** Community surfaces respect new segments/products
+- [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-CHG** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  money-critical exchange/segment charge coverage. Added an **Exchange** dimension
+  (`NSE`/`BSE`/`MCX`/`NCDEX`) with a back-compat `resolveExchange(segment, exchange)`
+  (undefined/empty/unknown → the segment default: EQ/FUT/OPT/CDS → NSE, COMM → MCX),
+  so every pre-SEG-CHG trade charges byte-identically. `ChargeProfile` now carries a
+  per-exchange transaction-charge map (`exchangeTxn`) read by the engine.
+  **Bugs fixed:** MCX commodity-futures txn 0.00266%→**0.0021%** (post-SEBI uniform);
+  commodity-options now bill the **0.0418%** option txn rate (was wrongly using the
+  futures rate, ~20x understated) + the option stamp 0.003% + flat ₹20 brokerage;
+  CDS-futures txn 0.00009%→**0.00035%** (was ~4x too low) + a dedicated currency stamp
+  **0.0001%** (was reusing the futures 0.002%, ~20x too high). **Added:** CDS **options**
+  branch (0.0311% premium txn, still zero STT/CTT); **BSE** equity 0.00375% / futures **0%**
+  / options 0.0325%; **NCDEX** agri-futures 0.003% / non-agri 0.0058% / options 0.03%;
+  a `sebiPerCroreAgri` ₹1/cr slab for agri commodities. Import & recompute classify
+  agri via the SEBI **Rule-3** exempt list (whole-base match, NOT substring — Guar SEED
+  exempt vs Guar GUM not; oilcakes/refined oils/AGRIDEX excluded). `exchange` +
+  commodity/currency option + agri threaded through `computeCharges` at every call site
+  (csv buildTrade, utils.deriveTradeNumbers, recompute, tax/turnover). STT/CTT/stamp/GST
+  stay exchange-agnostic in `statutory`; the zero profile zeroes every new field.
+  Accepted omission (rare): exercise-leg CTT/STT on physical delivery/exercise.
+  GOLDEN TABLE redone — buggy locked COMM/CDS rows corrected + 6 new rows (NSE CDS
+  option, NCDEX agri & Guar-Gum futures, BSE futures/options/equity) at hand-computed
+  paise totals, plus exchange back-compat + agri Rule-3 + per-exchange unit tests.
+  Full local gates green: tsc, ext:typecheck, next lint (0 warnings), vitest 1211,
+  next build, e2e-smoke 34/34 (0 console errors), mobile-audit clean.
 
 - **SEG-01** — journal-DB **v4** migration (`product` column + holding-pattern
   backfill, idempotent), widened `Segment` (EQ/FUT/OPT/COMM/CDS) + new `Product`

@@ -10,6 +10,7 @@
  */
 
 import { computeCharges, type Product, type Segment } from "@/lib/charges/charges";
+import { classifyAgriCommodity } from "@/features/trades/instrument-parse";
 import { getChargeProfile } from "@/config/brokers";
 import { sameIstDate } from "./fy";
 
@@ -20,6 +21,10 @@ export interface TaxTrade {
   symbol: string;
   segment: Segment;
   product?: Product | null;
+  /** Exchange (SEG-CHG) — optional; resolveExchange falls back per segment. */
+  exchange?: string | null;
+  /** Set for an option leg — distinguishes a COMM/CDS option from a future. */
+  option_type?: "CE" | "PE" | null;
   direction: "long" | "short";
   qty: number;
   avg_entry: number;
@@ -218,10 +223,14 @@ export function chargesBreakdown(
     const c = computeCharges(profile, {
       segment: t.segment,
       product: t.product ?? null,
+      exchange: t.exchange ?? null,
       qty: t.qty,
       entryPrice: t.avg_entry,
       exitPrice: exit,
       direction: t.direction,
+      commodityOption: t.segment === "COMM" && t.option_type != null,
+      agriCommodity: t.segment === "COMM" && classifyAgriCommodity(t.symbol),
+      isOption: t.segment === "CDS" && t.option_type != null,
     });
     brokerage += c.brokerage;
     stt += c.stt;

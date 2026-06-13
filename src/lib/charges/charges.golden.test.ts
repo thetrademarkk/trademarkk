@@ -3,28 +3,32 @@ import { computeCharges, type ChargeBreakdown, type TradeForCharges } from "./ch
 import { getChargeProfile } from "@/config/brokers";
 
 /**
- * SEG-02 — Charge-engine GOLDEN TABLE.
+ * SEG-02 / SEG-CHG — Charge-engine GOLDEN TABLE.
  *
- * This file locks the exact money math of the per-(segment, product) charge
- * engine (SEG-01) against values computed BY HAND below, so the engine can
- * never silently drift. Every expected number is in RUPEES, rounded to paise
- * (2 dp), exactly as `computeCharges` returns. Each row documents its formula
- * as a comment so a human can re-verify against zerodha.com/charges and the
- * statutory rate sheet.
+ * This file locks the exact money math of the per-(segment, product, exchange)
+ * charge engine against values computed BY HAND below, so the engine can never
+ * silently drift. Every expected number is in RUPEES, rounded to paise (2 dp),
+ * exactly as `computeCharges` returns. Each row documents its formula as a
+ * comment so a human can re-verify against zerodha.com/charges and the statutory
+ * rate sheet.
  *
  * Statutory rates (fractions, verified June 2026 / Budget 2026):
  *   STT  — eq intraday 0.025% sell · eq delivery 0.1% BOTH sides ·
  *          futures 0.05% sell · options 0.15% sell premium
  *   CTT  — commodity non-agri future 0.01% sell · option 0.05% premium sell ·
  *          agri EXEMPT · NO STT on commodities · currency (CDS) NO STT/CTT
- *   NSE txn — options 0.03553% · futures 0.00183% · equity 0.00307% (on premium/
- *             turnover); commodity (MCX) 0.00266% · currency 0.00009% placeholders
- *   SEBI ₹10 / crore of turnover
+ *   Exchange txn (per EXCHANGE — SEG-CHG, on premium/turnover):
+ *     NSE  eq 0.00307% · fut 0.00183% · opt 0.03553% · cds-fut 0.00035% · cds-opt 0.0311%
+ *     BSE  eq 0.00375% · fut 0% · opt 0.0325%
+ *     MCX  commodity fut 0.0021% (uniform) · commodity opt 0.0418%
+ *     NCDEX commodity agri-fut 0.003% · non-agri/processed fut 0.0058% · opt 0.03%
+ *   SEBI ₹10 / crore (₹1 / crore for AGRI commodities)
  *   GST  18% on (brokerage + exchange txn + SEBI)   [NOT on STT/stamp/DP]
- *   stamp (BUY side) — opt/eq-intraday 0.003% · futures/commodity/currency 0.002% ·
- *                      eq-delivery 0.015%
+ *   stamp (BUY side) — opt/eq-intraday/commodity-opt 0.003% · futures/commodity-fut 0.002% ·
+ *                      eq-delivery 0.015% · currency 0.0001%
  *   DP   ₹15.34 (incl. GST) per scrip on an equity DELIVERY (CNC) sell
- *   Zerodha brokerage: ₹20 or 0.03% per order (whichever lower); ₹0 on eq delivery
+ *   Zerodha brokerage: ₹20 or 0.03% per order (whichever lower); ₹0 on eq delivery;
+ *                      flat ₹20 on options (incl. commodity options)
  *   Upstox  brokerage: ₹20 or 0.1% eq per order; charges brokerage on delivery too
  *   "No charges (manual)" zero profile: every component 0
  *
@@ -62,17 +66,21 @@ interface GoldenRow {
 const eq = { qty: 100, entryPrice: 500, exitPrice: 510, direction: "long" as const };
 // COMM: 100 @ ₹1,000 → ₹1,010 (buy 100,000 · sell 101,000 · total 201,000).
 const comm = { qty: 100, entryPrice: 1000, exitPrice: 1010, direction: "long" as const };
-// CDS: 1,000 @ ₹83 → ₹83.5 (buy 83,000 · sell 83,500 · total 166,500).
+// CDS future: 1,000 @ ₹83 → ₹83.5 (buy 83,000 · sell 83,500 · total 166,500).
 const cds = { qty: 1000, entryPrice: 83, exitPrice: 83.5, direction: "long" as const };
+// CDS option: 1,000 @ ₹2 → ₹2.5 premium (buy 2,000 · sell 2,500 · total 4,500).
+const cdsOpt = { qty: 1000, entryPrice: 2, exitPrice: 2.5, direction: "long" as const };
 // FUT: 75 @ ₹24,000 → ₹24,100 (buy 18,00,000 · sell 18,07,500 · total 36,07,500).
 const fut = { qty: 75, entryPrice: 24000, exitPrice: 24100, direction: "long" as const };
 // OPT: 75 @ ₹100 → ₹120 premium (buy 7,500 · sell 9,000 · total 16,500).
 const opt = { qty: 75, entryPrice: 100, exitPrice: 120, direction: "long" as const };
+// BSE OPT: 75 @ ₹100 → ₹120 premium (same fixture; only exchange differs).
+const bseOpt = { qty: 75, entryPrice: 100, exitPrice: 120, direction: "long" as const };
 
 const GOLDEN: GoldenRow[] = [
-  // ───────────────────────────── ZERODHA ─────────────────────────────
+  // ───────────────────────────── ZERODHA (NSE) ─────────────────────────────
   {
-    name: "Zerodha · EQ + MIS (intraday)",
+    name: "Zerodha · EQ + MIS (intraday) · NSE",
     profile: zerodha,
     trade: { segment: "EQ", product: "MIS", ...eq },
     formula:
@@ -92,7 +100,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Zerodha · EQ + CNC (delivery)",
+    name: "Zerodha · EQ + CNC (delivery) · NSE",
     profile: zerodha,
     trade: { segment: "EQ", product: "CNC", ...eq },
     formula:
@@ -111,7 +119,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Zerodha · EQ + BTST (delivery basis, no DP)",
+    name: "Zerodha · EQ + BTST (delivery basis, no DP) · NSE",
     profile: zerodha,
     trade: { segment: "EQ", product: "BTST", ...eq },
     formula:
@@ -129,7 +137,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Zerodha · EQ + STBT (delivery basis, no DP)",
+    name: "Zerodha · EQ + STBT (delivery basis, no DP) · NSE",
     profile: zerodha,
     trade: { segment: "EQ", product: "STBT", ...eq },
     formula: "identical to BTST — delivery STT 101, stamp 7.50, no DP · total 112.28",
@@ -145,7 +153,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Zerodha · FUT + NRML (carry) — regression guard",
+    name: "Zerodha · FUT + NRML (carry) · NSE — regression guard",
     profile: zerodha,
     trade: { segment: "FUT", product: "NRML", ...fut },
     formula:
@@ -165,7 +173,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Zerodha · OPT + NRML — regression guard",
+    name: "Zerodha · OPT + NRML · NSE — regression guard",
     profile: zerodha,
     trade: { segment: "OPT", product: "NRML", ...opt },
     formula:
@@ -184,80 +192,199 @@ const GOLDEN: GoldenRow[] = [
       total: 67.86,
     },
   },
+  // ───────── MCX commodity (SEG-CHG: txn 0.0021% fut / 0.0418% opt; agri exempt + ₹1/cr) ─────────
   {
-    name: "Zerodha · COMM future (non-agri) — CTT 0.01%, NO STT",
+    name: "Zerodha · COMM future (non-agri) · MCX — CTT 0.01%, exch 0.0021%, NO STT",
     profile: zerodha,
     trade: { segment: "COMM", product: "NRML", ...comm },
     formula:
       "brokerage 20×2=40 (cap 100,500×0.03%=30.15 > 20 → flat) · CTT 101,000×0.01%=10.10 (sell) · " +
-      "exch 201,000×0.00266%=5.3466→5.35 · SEBI 201,000/1cr×10=0.201→0.20 · " +
-      "GST (40+5.35+0.20)×18%=8.199→8.20 · stamp 100,000×0.002%=2 · total 40+10.10+5.35+0.20+8.20+2=65.85",
+      "exch 201,000×0.0021%=4.221→4.22 · SEBI 201,000/1cr×10=0.201→0.20 · " +
+      "GST (40+4.22+0.20)×18%=7.9956→8.00 · stamp 100,000×0.002%=2 · total 40+10.10+4.22+0.20+8.00+2=64.52",
     expected: {
       brokerage: 40,
       stt: 10.1,
-      exchange: 5.35,
+      exchange: 4.22,
       sebi: 0.2,
-      gst: 8.2,
+      gst: 8,
       stampDuty: 2,
       dpCharge: 0,
-      total: 65.85,
+      total: 64.52,
     },
   },
   {
-    name: "Zerodha · COMM option (non-agri) — CTT 0.05% on premium",
+    name: "Zerodha · COMM option (non-agri) · MCX — CTT 0.05%, exch 0.0418% premium, stamp 0.003%",
     profile: zerodha,
     trade: { segment: "COMM", product: "NRML", commodityOption: true, ...comm },
-    formula: "CTT 101,000×0.05%=50.50 (sell premium) · rest as COMM future · total 106.25",
+    formula:
+      "brokerage flat 20×2=40 (option → no % cap) · CTT 101,000×0.05%=50.50 (sell premium) · " +
+      "exch 201,000×0.0418%=84.018→84.02 · SEBI 0.20 · GST (40+84.02+0.20)×18%=22.3596→22.36 · " +
+      "stamp 100,000×0.003%=3 · total 40+50.50+84.02+0.20+22.36+3=200.08",
     expected: {
       brokerage: 40,
       stt: 50.5,
-      exchange: 5.35,
+      exchange: 84.02,
       sebi: 0.2,
-      gst: 8.2,
-      stampDuty: 2,
+      gst: 22.36,
+      stampDuty: 3,
       dpCharge: 0,
-      total: 106.25,
+      total: 200.08,
     },
   },
   {
-    name: "Zerodha · COMM agri — CTT EXEMPT (zero transaction tax)",
+    name: "Zerodha · COMM agri · MCX — CTT EXEMPT, SEBI ₹1/cr",
     profile: zerodha,
     trade: { segment: "COMM", product: "NRML", agriCommodity: true, ...comm },
-    formula: "agri ⇒ CTT 0 · everything else as COMM future · total 40+0+5.35+0.20+8.20+2=55.75",
+    formula:
+      "agri ⇒ CTT 0, SEBI 201,000/1cr×1=0.0201→0.02 · brokerage 40 · exch 201,000×0.0021%=4.22 · " +
+      "GST (40+4.22+0.02)×18%=7.9596→7.96 · stamp 2 · total 40+0+4.22+0.02+7.96+2=54.20",
     expected: {
       brokerage: 40,
       stt: 0,
-      exchange: 5.35,
-      sebi: 0.2,
-      gst: 8.2,
+      exchange: 4.22,
+      sebi: 0.02,
+      gst: 7.96,
       stampDuty: 2,
       dpCharge: 0,
-      total: 55.75,
+      total: 54.2,
+    },
+  },
+  // ───────── NCDEX commodity (SEG-CHG: agri-fut 0.003% / non-agri 0.0058%) ─────────
+  {
+    name: "Zerodha · COMM agri future · NCDEX — exch 0.003%, CTT-exempt, SEBI ₹1/cr",
+    profile: zerodha,
+    trade: { segment: "COMM", product: "NRML", agriCommodity: true, exchange: "NCDEX", ...comm },
+    formula:
+      "agri ⇒ CTT 0 · exch 201,000×0.003%=6.03 · SEBI 201,000/1cr×1=0.0201→0.02 · brokerage 40 · " +
+      "GST (40+6.03+0.02)×18%=8.289→8.29 · stamp 100,000×0.002%=2 · total 40+0+6.03+0.02+8.29+2=56.34",
+    expected: {
+      brokerage: 40,
+      stt: 0,
+      exchange: 6.03,
+      sebi: 0.02,
+      gst: 8.29,
+      stampDuty: 2,
+      dpCharge: 0,
+      total: 56.34,
     },
   },
   {
-    name: "Zerodha · CDS (currency) — NO STT/CTT (zero tax line)",
+    name: "Zerodha · COMM non-agri future (Guar Gum) · NCDEX — exch 0.0058%, CTT 0.01%, SEBI ₹10/cr",
+    profile: zerodha,
+    trade: { segment: "COMM", product: "NRML", exchange: "NCDEX", ...comm },
+    formula:
+      "non-agri ⇒ CTT 101,000×0.01%=10.10 · exch 201,000×0.0058%=11.658→11.66 · SEBI 0.20 · brokerage 40 · " +
+      "GST (40+11.66+0.20)×18%=9.3348→9.33 · stamp 2 · total 40+10.10+11.66+0.20+9.33+2=73.29",
+    expected: {
+      brokerage: 40,
+      stt: 10.1,
+      exchange: 11.66,
+      sebi: 0.2,
+      gst: 9.33,
+      stampDuty: 2,
+      dpCharge: 0,
+      total: 73.29,
+    },
+  },
+  // ───────── Currency (CDS) — SEG-CHG: fut exch 0.00035%, opt 0.0311%, stamp 0.0001% ─────────
+  {
+    name: "Zerodha · CDS future · NSE — NO STT/CTT, exch 0.00035%, stamp 0.0001%",
     profile: zerodha,
     trade: { segment: "CDS", product: "NRML", ...cds },
     formula:
       "transaction tax 0 (CDS carries neither STT nor CTT) · brokerage flat 20×2=40 · " +
-      "exch 166,500×0.00009%=0.149→0.15 · SEBI 166,500/1cr×10=0.1665→0.17 · " +
-      "GST (40+0.15+0.17)×18%=7.2576→7.26 · stamp 83,000×0.002%=1.66 · " +
-      "total 40+0+0.15+0.17+7.26+1.66=49.23",
+      "exch 166,500×0.00035%=0.58275→0.58 · SEBI 166,500/1cr×10=0.1665→0.17 · " +
+      "GST (40+0.58+0.17)×18%=7.3350→7.33 · stamp 83,000×0.0001%=0.083→0.08 · " +
+      "total 40+0+0.58+0.17+7.33+0.08=48.16 (un-rounded sum 48.17→ rounded once)",
     expected: {
       brokerage: 40,
       stt: 0,
-      exchange: 0.15,
+      exchange: 0.58,
       sebi: 0.17,
-      gst: 7.26,
-      stampDuty: 1.66,
+      gst: 7.33,
+      stampDuty: 0.08,
       dpCharge: 0,
-      total: 49.23,
+      total: 48.17,
+    },
+  },
+  {
+    name: "Zerodha · CDS option · NSE — exch 0.0311% premium, NO STT/CTT",
+    profile: zerodha,
+    trade: { segment: "CDS", product: "NRML", isOption: true, ...cdsOpt },
+    formula:
+      "tax 0 · brokerage flat 40 · exch 4,500×0.0311%=1.3995→1.40 · SEBI 4,500/1cr×10=0.0045→0.00 · " +
+      "GST (40+1.40+0.00)×18%=7.452→7.45 · stamp 2,000×0.0001%=0.002→0.00 · total 40+1.40+0+7.45+0=48.86",
+    expected: {
+      brokerage: 40,
+      stt: 0,
+      exchange: 1.4,
+      sebi: 0,
+      gst: 7.45,
+      stampDuty: 0,
+      dpCharge: 0,
+      total: 48.86,
+    },
+  },
+  // ───────── BSE (SEG-CHG: eq 0.00375% · fut 0% · opt 0.0325%) ─────────
+  {
+    name: "Zerodha · FUT + NRML · BSE — exch 0 (BSE futures free)",
+    profile: zerodha,
+    trade: { segment: "FUT", product: "NRML", exchange: "BSE", ...fut },
+    formula:
+      "brokerage 40 · STT 903.75 (sell) · exch 36,07,500×0%=0 · SEBI 3.61 · " +
+      "GST (40+0+3.61)×18%=7.8498→7.85 · stamp 36 · total 40+903.75+0+3.61+7.85+36=991.21",
+    expected: {
+      brokerage: 40,
+      stt: 903.75,
+      exchange: 0,
+      sebi: 3.61,
+      gst: 7.85,
+      stampDuty: 36,
+      dpCharge: 0,
+      total: 991.21,
+    },
+  },
+  {
+    name: "Zerodha · OPT + NRML · BSE — exch 0.0325% premium",
+    profile: zerodha,
+    trade: { segment: "OPT", product: "NRML", exchange: "BSE", ...bseOpt },
+    formula:
+      "brokerage flat 40 · STT 9,000×0.15%=13.50 (sell premium) · exch 16,500×0.0325%=5.3625→5.36 · " +
+      "SEBI 0.02 · GST (40+5.36+0.02)×18%=8.1684→8.17 · stamp 7,500×0.003%=0.225→0.23 · " +
+      "total 40+13.50+5.36+0.02+8.17+0.23=67.28 (un-rounded sum 67.27→ rounded once)",
+    expected: {
+      brokerage: 40,
+      stt: 13.5,
+      exchange: 5.36,
+      sebi: 0.02,
+      gst: 8.17,
+      stampDuty: 0.23,
+      dpCharge: 0,
+      total: 67.27,
+    },
+  },
+  {
+    name: "Zerodha · EQ + MIS · BSE — exch 0.00375%",
+    profile: zerodha,
+    trade: { segment: "EQ", product: "MIS", exchange: "BSE", ...eq },
+    formula:
+      "brokerage 30.30 · STT 51,000×0.025%=12.75 (sell) · exch 101,000×0.00375%=3.7875→3.79 · " +
+      "SEBI 0.10 · GST (30.30+3.79+0.10)×18%=6.1542→6.15 · stamp 50,000×0.003%=1.50 · " +
+      "total 30.30+12.75+3.79+0.10+6.15+1.50=54.59",
+    expected: {
+      brokerage: 30.3,
+      stt: 12.75,
+      exchange: 3.79,
+      sebi: 0.1,
+      gst: 6.15,
+      stampDuty: 1.5,
+      dpCharge: 0,
+      total: 54.59,
     },
   },
   // ───────────────────────────── UPSTOX (charges brokerage on delivery) ─────────────────────────────
   {
-    name: "Upstox · EQ + MIS (intraday) — flat ₹20 brokerage",
+    name: "Upstox · EQ + MIS (intraday) · NSE — flat ₹20 brokerage",
     profile: upstox,
     trade: { segment: "EQ", product: "MIS", ...eq },
     formula:
@@ -275,7 +402,7 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
-    name: "Upstox · EQ + CNC (delivery) — still charges brokerage + DP",
+    name: "Upstox · EQ + CNC (delivery) · NSE — still charges brokerage + DP",
     profile: upstox,
     trade: { segment: "EQ", product: "CNC", ...eq },
     formula:
@@ -358,6 +485,38 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
+    name: "Zero profile · COMM agri · NCDEX — every component 0",
+    profile: zero,
+    trade: { segment: "COMM", product: "NRML", agriCommodity: true, exchange: "NCDEX", ...comm },
+    formula: "all rates 0 (incl. agri SEBI & NCDEX txn) ⇒ every line 0",
+    expected: {
+      brokerage: 0,
+      stt: 0,
+      exchange: 0,
+      sebi: 0,
+      gst: 0,
+      stampDuty: 0,
+      dpCharge: 0,
+      total: 0,
+    },
+  },
+  {
+    name: "Zero profile · FUT · BSE — every component 0",
+    profile: zero,
+    trade: { segment: "FUT", product: "NRML", exchange: "BSE", ...fut },
+    formula: "all rates 0 (incl. BSE txn) ⇒ every line 0",
+    expected: {
+      brokerage: 0,
+      stt: 0,
+      exchange: 0,
+      sebi: 0,
+      gst: 0,
+      stampDuty: 0,
+      dpCharge: 0,
+      total: 0,
+    },
+  },
+  {
     name: "Zero profile · CDS — every component 0",
     profile: zero,
     trade: { segment: "CDS", product: "NRML", ...cds },
@@ -375,7 +534,7 @@ const GOLDEN: GoldenRow[] = [
   },
 ];
 
-describe("SEG-02 golden charge table — (segment × product × broker)", () => {
+describe("SEG-02/SEG-CHG golden charge table — (segment × product × exchange × broker)", () => {
   for (const row of GOLDEN) {
     it(`${row.name}`, () => {
       const actual = computeCharges(row.profile, row.trade);
@@ -397,19 +556,121 @@ describe("SEG-02 golden charge table — (segment × product × broker)", () => 
     });
   }
 
-  it("covers every meaningful (segment, product) cell + the three broker classes", () => {
+  it("covers every meaningful (segment, product, exchange) cell + the three broker classes", () => {
     // Documents the matrix breadth so a dropped row is obvious in review.
     const cells = new Set(
       GOLDEN.map(
         (r) =>
           `${r.profile.id}:${r.trade.segment}:${r.trade.product ?? "null"}` +
-          `:${r.trade.commodityOption ? "opt" : ""}:${r.trade.agriCommodity ? "agri" : ""}`
+          `:${r.trade.exchange ?? "default"}` +
+          `:${r.trade.commodityOption ? "comOpt" : ""}:${r.trade.isOption ? "ccyOpt" : ""}` +
+          `:${r.trade.agriCommodity ? "agri" : ""}`
       )
     );
     expect(cells.size).toBe(GOLDEN.length); // no accidental duplicate row
     // Zerodha (zero-brokerage delivery), Upstox (charges delivery), zero (manual) all present.
     const brokers = new Set(GOLDEN.map((r) => r.profile.id));
     expect(brokers).toEqual(new Set(["zerodha", "upstox", "zero"]));
+    // Every exchange exercised.
+    const exchanges = new Set(GOLDEN.map((r) => r.trade.exchange ?? "default"));
+    expect(exchanges).toEqual(new Set(["default", "NCDEX", "BSE"]));
+  });
+});
+
+describe("SEG-CHG — exchange back-compat (undefined exchange == the segment default, paise-identical)", () => {
+  it("NSE EQ: exchange=undefined === exchange='NSE'", () => {
+    const legacy = computeCharges(zerodha, { segment: "EQ", product: "MIS", ...eq });
+    const nse = computeCharges(zerodha, { segment: "EQ", product: "MIS", exchange: "NSE", ...eq });
+    expectBreakdownEqual(legacy, nse);
+  });
+  it("FUT: exchange=undefined === exchange='NSE'", () => {
+    const legacy = computeCharges(zerodha, { segment: "FUT", product: "NRML", ...fut });
+    const nse = computeCharges(zerodha, {
+      segment: "FUT",
+      product: "NRML",
+      exchange: "NSE",
+      ...fut,
+    });
+    expectBreakdownEqual(legacy, nse);
+  });
+  it("OPT: exchange=undefined === exchange='NSE'", () => {
+    const legacy = computeCharges(zerodha, { segment: "OPT", product: "NRML", ...opt });
+    const nse = computeCharges(zerodha, {
+      segment: "OPT",
+      product: "NRML",
+      exchange: "NSE",
+      ...opt,
+    });
+    expectBreakdownEqual(legacy, nse);
+  });
+  it("COMM: exchange=undefined === exchange='MCX' (segment default is MCX)", () => {
+    const legacy = computeCharges(zerodha, { segment: "COMM", product: "NRML", ...comm });
+    const mcx = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      exchange: "MCX",
+      ...comm,
+    });
+    expectBreakdownEqual(legacy, mcx);
+  });
+  it("CDS: exchange=undefined === exchange='NSE'", () => {
+    const legacy = computeCharges(zerodha, { segment: "CDS", product: "NRML", ...cds });
+    const nse = computeCharges(zerodha, {
+      segment: "CDS",
+      product: "NRML",
+      exchange: "NSE",
+      ...cds,
+    });
+    expectBreakdownEqual(legacy, nse);
+  });
+  it("empty-string and unknown free-text exchange fall back to the segment default", () => {
+    const base = computeCharges(zerodha, { segment: "EQ", product: "MIS", ...eq });
+    for (const x of ["", "  ", "WHATEVER"]) {
+      expectBreakdownEqual(
+        computeCharges(zerodha, { segment: "EQ", product: "MIS", exchange: x, ...eq }),
+        base
+      );
+    }
+  });
+  it("broker free-text exchanges normalise (NSE_EQ→NSE, BFO→BSE, ncdex→NCDEX)", () => {
+    const nseEq = computeCharges(zerodha, {
+      segment: "EQ",
+      product: "MIS",
+      exchange: "NSE_EQ",
+      ...eq,
+    });
+    const nse = computeCharges(zerodha, { segment: "EQ", product: "MIS", exchange: "NSE", ...eq });
+    expectBreakdownEqual(nseEq, nse);
+
+    const bfo = computeCharges(zerodha, {
+      segment: "FUT",
+      product: "NRML",
+      exchange: "BFO",
+      ...fut,
+    });
+    const bse = computeCharges(zerodha, {
+      segment: "FUT",
+      product: "NRML",
+      exchange: "BSE",
+      ...fut,
+    });
+    expectBreakdownEqual(bfo, bse);
+
+    const lower = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      agriCommodity: true,
+      exchange: "ncdex",
+      ...comm,
+    });
+    const ncdex = computeCharges(zerodha, {
+      segment: "COMM",
+      product: "NRML",
+      agriCommodity: true,
+      exchange: "NCDEX",
+      ...comm,
+    });
+    expectBreakdownEqual(lower, ncdex);
   });
 });
 

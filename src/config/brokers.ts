@@ -6,14 +6,53 @@
  * and the Budget 2026 STT revision (effective 1 Apr 2026):
  *   STT: options 0.15% sell-side premium · futures 0.05% sell · eq intraday 0.025% sell
  *        · eq delivery 0.1% BOTH sides
- *   CTT (commodities, MCX): non-agri futures 0.01% sell · options 0.05% premium sell
+ *   CTT (commodities, MCX/NCDEX): non-agri futures 0.01% sell · options 0.05% premium sell
  *        · agri commodities exempt. Currency derivatives (CDS): NO STT/CTT.
- *   NSE txn: options 0.03553% premium · futures 0.00183% · equity 0.00307%
- *   SEBI ₹10/crore · GST 18% on (brokerage + txn + SEBI) · stamp (buy): opt/eq-intraday
- *        0.003%, fut 0.002%, eq-delivery 0.015%
+ *   Exchange txn (per EXCHANGE — SEG-CHG):
+ *        NSE  eq 0.00307% · fut 0.00183% · opt 0.03553% premium · cds-fut 0.00035% · cds-opt 0.0311%
+ *        BSE  eq 0.00375% · fut 0% · opt 0.0325% premium
+ *        MCX  commodity fut 0.0021% (uniform post-1-Oct-2024) · commodity opt 0.0418% premium
+ *        NCDEX commodity agri-fut 0.003% · non-agri/processed fut 0.0058% · opt 0.03%
+ *   SEBI ₹10/crore (₹1/crore for AGRI commodities) · GST 18% on (brokerage + txn + SEBI)
+ *   stamp (buy): opt/eq-intraday 0.003%, fut/commodity-fut 0.002%, commodity-opt 0.003%,
+ *        eq-delivery 0.015%, currency 0.0001%
  *   DP charge: ~₹15.34 (incl. GST) per scrip on the SELL of a delivery (CNC) holding.
  * Percentages are fractions (0.0015 = 0.15%).
  */
+
+/**
+ * Exchange dimension (SEG-CHG). Only the exchange *transaction* charge and the
+ * agri-SEBI rate vary by exchange; STT/CTT/stamp/GST are statutory and identical
+ * everywhere. EQ/FUT/OPT default to NSE, COMM to MCX, CDS to NSE — so a trade
+ * whose exchange is unknown (every pre-SEG-CHG row) charges byte-identically to
+ * before.
+ */
+export type Exchange = "NSE" | "BSE" | "MCX" | "NCDEX";
+
+/**
+ * The exchange transaction-charge rates for one exchange, as fractions of
+ * turnover (premium turnover for options). A rate of 0 is a real "free" rate
+ * (e.g. BSE futures), distinct from "this exchange does not list this product".
+ */
+export interface ExchangeTxnRates {
+  /** Cash equity (intraday + delivery share the same exchange txn rate). */
+  equity: number;
+  /** NSE/BSE index & stock futures. */
+  future: number;
+  /** NSE/BSE options — on premium turnover. */
+  option: number;
+  /** Commodity (MCX/NCDEX) futures, non-agri. */
+  commodityFuture: number;
+  /** Commodity futures, AGRI (NCDEX agri carries a lower slab; MCX uniform = same as non-agri). */
+  commodityFutureAgri: number;
+  /** Commodity options — on premium turnover. */
+  commodityOption: number;
+  /** Currency (CDS) futures. */
+  currencyFuture: number;
+  /** Currency (CDS) options — on premium turnover. */
+  currencyOption: number;
+}
+
 export interface ChargeProfile {
   id: string;
   label: string;
@@ -35,18 +74,27 @@ export interface ChargeProfile {
   cttFuturePct: number;
   /** CTT: commodity (non-agri) options — SELL side premium. */
   cttOptionPct: number;
-  /** Exchange transaction charges (NSE) — options on premium. */
+  /**
+   * Per-exchange transaction charges (SEG-CHG). Keyed by {@link Exchange}; the
+   * engine resolves the trade's exchange (defaulting per segment for legacy
+   * rows) and reads the right product rate. The flat `exchange*Pct` fields below
+   * remain as the documented NSE rates and seed the NSE entry.
+   */
+  exchangeTxn: Record<Exchange, ExchangeTxnRates>;
+  /** NSE exchange transaction charges — options on premium. (Legacy flat fields, = exchangeTxn.NSE.) */
   exchangeOptionPct: number;
   exchangeFuturePct: number;
   exchangeEquityPct: number;
   /**
-   * Exchange transaction charges for commodity (MCX) & currency (CDS). Default
-   * to the equity rate as a conservative placeholder; brokers may override.
+   * NSE commodity (MCX) & currency (CDS) flat rates — kept for documentation /
+   * back-compat; the engine now reads {@link exchangeTxn}.
    */
   exchangeCommodityPct: number;
   exchangeCurrencyPct: number;
-  /** SEBI charges per crore of turnover. */
+  /** SEBI charges per crore of turnover (non-agri). */
   sebiPerCrore: number;
+  /** SEBI charges per crore of turnover for AGRI commodities (₹1/cr vs ₹10/cr). */
+  sebiPerCroreAgri: number;
   /** GST on (brokerage + exchange + SEBI). */
   gstPct: number;
   /** Stamp duty — BUY side. */
@@ -55,6 +103,8 @@ export interface ChargeProfile {
   stampEquityIntradayBuyPct: number;
   /** Stamp duty — equity delivery (CNC) BUY side (0.015%). */
   stampEquityDeliveryBuyPct: number;
+  /** Stamp duty — currency (CDS) BUY side (0.0001%). */
+  stampCurrencyBuyPct: number;
   /** Depository (DP) charge per scrip on a delivery sell — flat ₹ incl. GST. */
   dpChargePerScrip: number;
   /**
@@ -65,6 +115,52 @@ export interface ChargeProfile {
   zeroBrokerageDelivery: boolean;
 }
 
+// Per-exchange transaction-charge rates (SEG-CHG). Statutory across brokers —
+// set by each exchange, identical for everyone. Fractions of turnover.
+const exchangeTxn: Record<Exchange, ExchangeTxnRates> = {
+  NSE: {
+    equity: 0.0000307, // 0.00307%
+    future: 0.0000183, // 0.00183%
+    option: 0.0003553, // 0.03553% premium
+    commodityFuture: 0.000021, // (NSE does not list commodities; placeholder = MCX)
+    commodityFutureAgri: 0.000021,
+    commodityOption: 0.000418,
+    currencyFuture: 0.0000035, // 0.00035%
+    currencyOption: 0.000311, // 0.0311% premium
+  },
+  BSE: {
+    equity: 0.0000375, // 0.00375%
+    future: 0, // BSE index futures carry NO exchange transaction charge
+    option: 0.000325, // 0.0325% premium
+    commodityFuture: 0.000021,
+    commodityFutureAgri: 0.000021,
+    commodityOption: 0.000418,
+    currencyFuture: 0.0000035,
+    currencyOption: 0.000311,
+  },
+  MCX: {
+    // Post SEBI true-to-label (1 Oct 2024) MCX uses ONE uniform commodity rate.
+    equity: 0.0000307,
+    future: 0.0000183,
+    option: 0.0003553,
+    commodityFuture: 0.000021, // 0.0021% (uniform, all commodities)
+    commodityFutureAgri: 0.000021,
+    commodityOption: 0.000418, // 0.0418% premium
+    currencyFuture: 0.0000035,
+    currencyOption: 0.000311,
+  },
+  NCDEX: {
+    equity: 0.0000307,
+    future: 0.0000183,
+    option: 0.0003553,
+    commodityFuture: 0.000058, // 0.0058% non-agri / processed
+    commodityFutureAgri: 0.00003, // 0.003% agri futures
+    commodityOption: 0.0003, // ~₹30/lakh on premium
+    currencyFuture: 0.0000035,
+    currencyOption: 0.000311,
+  },
+};
+
 // Statutory charges are identical across brokers (set by govt/exchanges).
 const statutory = {
   sttOptionSellPct: 0.0015, // 0.15% on premium (sell) — Budget 2026
@@ -73,22 +169,45 @@ const statutory = {
   sttEquityDeliveryPct: 0.001, // 0.1% on BOTH buy + sell turnover (delivery)
   cttFuturePct: 0.0001, // 0.01% commodity non-agri futures (sell)
   cttOptionPct: 0.0005, // 0.05% commodity options premium (sell)
-  exchangeOptionPct: 0.0003553, // NSE 0.03553% on premium
-  exchangeFuturePct: 0.0000183, // NSE 0.00183%
-  exchangeEquityPct: 0.0000307, // NSE 0.00307%
-  exchangeCommodityPct: 0.0000266, // MCX ~0.00266% (non-agri futures), placeholder
-  exchangeCurrencyPct: 0.0000009, // NSE CDS ~0.00009%, placeholder
+  exchangeTxn,
+  exchangeOptionPct: exchangeTxn.NSE.option,
+  exchangeFuturePct: exchangeTxn.NSE.future,
+  exchangeEquityPct: exchangeTxn.NSE.equity,
+  exchangeCommodityPct: exchangeTxn.MCX.commodityFuture,
+  exchangeCurrencyPct: exchangeTxn.NSE.currencyFuture,
   sebiPerCrore: 10,
+  sebiPerCroreAgri: 1, // ₹1/crore for agri commodities
   gstPct: 0.18,
   stampOptionBuyPct: 0.00003, // 0.003% (buy)
   stampFutureBuyPct: 0.00002, // 0.002% (buy)
   stampEquityIntradayBuyPct: 0.00003, // 0.003% (buy)
   stampEquityDeliveryBuyPct: 0.00015, // 0.015% (buy) — delivery
+  stampCurrencyBuyPct: 0.000001, // 0.0001% (buy) — currency
 };
 
 // Most modern discount brokers charge ZERO brokerage on equity delivery and a
 // flat ~₹15.34 (incl. GST) DP charge per scrip on the delivery sell.
 const delivery = { dpChargePerScrip: 15.34, zeroBrokerageDelivery: true };
+
+// An all-zero exchange-txn map for the manual "No charges" profile.
+const zeroExchangeTxn: Record<Exchange, ExchangeTxnRates> = {
+  NSE: zeroRates(),
+  BSE: zeroRates(),
+  MCX: zeroRates(),
+  NCDEX: zeroRates(),
+};
+function zeroRates(): ExchangeTxnRates {
+  return {
+    equity: 0,
+    future: 0,
+    option: 0,
+    commodityFuture: 0,
+    commodityFutureAgri: 0,
+    commodityOption: 0,
+    currencyFuture: 0,
+    currencyOption: 0,
+  };
+}
 
 // Brokerage differs per broker (from each broker's pricing page, June 2026).
 export const CHARGE_PROFILES: ChargeProfile[] = [
@@ -166,17 +285,20 @@ export const CHARGE_PROFILES: ChargeProfile[] = [
     sttEquityDeliveryPct: 0,
     cttFuturePct: 0,
     cttOptionPct: 0,
+    exchangeTxn: zeroExchangeTxn,
     exchangeOptionPct: 0,
     exchangeFuturePct: 0,
     exchangeEquityPct: 0,
     exchangeCommodityPct: 0,
     exchangeCurrencyPct: 0,
     sebiPerCrore: 0,
+    sebiPerCroreAgri: 0,
     gstPct: 0,
     stampOptionBuyPct: 0,
     stampFutureBuyPct: 0,
     stampEquityIntradayBuyPct: 0,
     stampEquityDeliveryBuyPct: 0,
+    stampCurrencyBuyPct: 0,
     dpChargePerScrip: 0,
     zeroBrokerageDelivery: false,
   },
