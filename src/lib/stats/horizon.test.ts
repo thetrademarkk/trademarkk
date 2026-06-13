@@ -6,6 +6,7 @@ import {
   horizonMix,
   shouldGateIntradayPanels,
   tradingStyle,
+  dashboardEmphasis,
   type HorizonTradeLike,
 } from "./horizon";
 
@@ -297,5 +298,34 @@ describe("tradingStyle", () => {
     const style = tradingStyle([]);
     expect(style.dominant).toBeNull();
     expect(style.summary).toContain("Not enough");
+  });
+});
+
+describe("dashboardEmphasis", () => {
+  const positional = (n: number) =>
+    Array.from({ length: n }, () =>
+      mk({ product: "CNC", opened_at: "2025-06-02T05:00:00Z", closed_at: "2025-06-20T05:00:00Z" })
+    );
+  const intraday = (n: number) => Array.from({ length: n }, () => mk({ product: "MIS" }));
+
+  it("leans positional when multi-day ≥ 70% of a meaningful sample", () => {
+    expect(dashboardEmphasis(horizonMix([...positional(7), ...intraday(3)]))).toBe("positional");
+  });
+
+  it("leans intraday when same-day ≥ 70% of a meaningful sample", () => {
+    expect(dashboardEmphasis(horizonMix([...intraday(8), ...positional(2)]))).toBe("intraday");
+  });
+
+  it("stays balanced for a mixed book (neither side dominant)", () => {
+    expect(dashboardEmphasis(horizonMix([...intraday(5), ...positional(5)]))).toBe("balanced");
+  });
+
+  it("stays balanced for a thin journal (< GATE_MIN_TRADES) — never hides anything", () => {
+    // 100% positional but only 3 closed trades → too little data to adapt.
+    expect(dashboardEmphasis(horizonMix(positional(3)))).toBe("balanced");
+  });
+
+  it("is balanced with no data", () => {
+    expect(dashboardEmphasis(horizonMix([]))).toBe("balanced");
   });
 });

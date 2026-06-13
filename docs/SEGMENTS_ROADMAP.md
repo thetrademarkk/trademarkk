@@ -42,7 +42,7 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
 - [x] **SEG-04** Backfill product for existing trades + recompute-charges action
 - [x] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
-- [ ] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
+- [x] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
 - [ ] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m)
 - [ ] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data
 - [ ] **SEG-09** Filters, table & grouping for segment/product/holding-period
@@ -132,6 +132,7 @@ behaviour, so existing P&L never regresses.
   `holdingPeriodBuckets` (count + net P&L + win rate per horizon, MIN_SAMPLE>=5
   gate via `enough`), `horizonMix` (fractions + multi-day share),
   `shouldGateIntradayPanels` (data-driven: gate only when multi-day >= 70% of
+
   > =5 classifiable trades - thin journals never hide anything), and
   > `tradingStyle` ("Mostly positional - 68% of trades held >7 days" / "Mixed
   > style" / empty state). UI: a "Holding period" card + "Your trading style"
@@ -147,3 +148,33 @@ behaviour, so existing P&L never regresses.
   > -> "Mostly positional" + positional bucket real / intraday suppressed +
   > panels labelled intraday-only + tilt checks gated; a mostly-intraday CSV ->
   > panels ungated; thin single-trade honesty; 360px clean, zero console errors.
+
+- **SEG-06** (Shipped 2026-06-14, accumulated - pending batch deploy) -
+  trader-type-adaptive dashboard + position-hold calendar. New pure
+  `src/lib/stats/open-positions.ts` (`openPositions`/`openPositionsSummary`:
+  still-open trades with IST days-held via `istCalendarDaysOpen` + cost-basis
+  exposure = |qty x avg entry|, paise-correct, NEVER marked-to-market - no live
+  prices; longest/avg/over-a-week roll-ups) and `dashboardEmphasis(mix)` added
+  to `horizon.ts` (intraday / positional / balanced, mirroring the SEG-05
+  intraday-panel gate's >=5-trade + 70% thresholds so a thin/mixed book stays
+  balanced and hides nothing). The dashboard reorders by emphasis: a
+  predominantly-positional/swing book promotes an "Open positions" card +
+  "Holding period" card above the equity curve and relabels the 7th KPI tile to
+  the open-positions count; intraday/balanced books keep the day-focused layout
+  with open positions kept (not hidden) below. New pure
+  `src/lib/calendar/position-spans.ts` (`spanCoverage`: a closed swing/positional
+  trade marks every IST day open->close as `held`, a still-open trade marks
+  open->today as `open`, intraday round-trips get NO span; `spanMonthSummary`
+  splits a hold across month boundaries) drives a horizon-aware `MonthHeatmap` -
+  a hold bar under every day a position was live (muted = closed multi-day,
+  accent = open) plus a legend - while P&L stays exactly on the close day so
+  nothing is double-counted. lucide icons (Layers/Timer/CalendarRange), no emoji,
+  explicit "No open positions" empty state, 360px clean. +22 vitest (days-held +
+  exposure + summary roll-up; span mapping incl. month boundary + overlap + open
+  spans; emphasis predicate by style incl. thin-journal balance; no-P&L-double-
+  count guard). Feature e2e (`e2e-seg-dashboard`): a positional CSV -> open-
+  positions card (count/exposure/days) promoted above the equity curve + style
+  verdict + calendar hold/open spans + month-total not double-counted; an
+  intraday CSV -> day-focused layout + "No open positions"; thin journal stays
+  balanced; 360px clean, zero console errors. 14/14 e2e, smoke 34/34,
+  mobile-audit clean.

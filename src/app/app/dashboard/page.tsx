@@ -4,8 +4,12 @@ import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
-import { KpiRow, RecentTrades, Greeting } from "@/features/dashboard";
-import { TradingStyleSummary } from "@/features/analytics/components/horizon-stats";
+import { KpiRow, RecentTrades, Greeting, OpenPositionsCard } from "@/features/dashboard";
+import {
+  TradingStyleSummary,
+  HoldingPeriodCard,
+} from "@/features/analytics/components/horizon-stats";
+import { horizonMix, dashboardEmphasis } from "@/lib/stats/horizon";
 import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
 import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
@@ -57,50 +61,93 @@ export default function DashboardPage() {
   }
 
   const now = new Date();
-  const monthPnl = dailyPnl(closedOnly(allTrades ?? []));
+  const allClosed = closedOnly(allTrades ?? []);
+  const monthPnl = dailyPnl(allClosed);
+  // The dashboard adapts to the trader's holding style: positional/swing users
+  // get open-positions + holding emphasis, intraday users keep the day-focused
+  // arrangement, and a thin/mixed journal degrades to the balanced layout.
+  const emphasis = dashboardEmphasis(horizonMix(allClosed));
+  const positional = emphasis === "positional";
+
+  // Daily checklist / expensive-habit nudge — an intraday-trader staple. Held
+  // high for intraday/balanced, demoted (not removed) for positional users.
+  const dailyChecklist = (
+    <DailyChecklist
+      date={todayKey()}
+      compact
+      footer={<ExpensiveHabitNudge from={from} to={to} />}
+    />
+  );
+
+  const calendarCard = (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>{now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</CardTitle>
+        <Link href="/app/calendar" className="text-xs text-accent hover:underline">
+          Calendar →
+        </Link>
+      </CardHeader>
+      <CardContent>
+        <MonthHeatmap
+          year={now.getFullYear()}
+          month={now.getMonth()}
+          dailyPnl={monthPnl}
+          journaledDates={new Set(journalDates)}
+          trades={allTrades ?? []}
+          onSelect={(date) => router.push(`/app/calendar?date=${date}`)}
+          compact
+        />
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-4">
       <Greeting />
       <RiskGuardrailBanner />
-      <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
-      <TradingStyleSummary trades={closedOnly(allTrades ?? [])} compact />
+      <KpiRow trades={trades} adherencePct={adherence?.overallPct} emphasis={emphasis} />
+      <TradingStyleSummary trades={allClosed} compact />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <EquityChart trades={trades} />
-        </div>
-        <DailyChecklist
-          date={todayKey()}
-          compact
-          footer={<ExpensiveHabitNudge from={from} to={to} />}
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>
-              {now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
-            </CardTitle>
-            <Link href="/app/calendar" className="text-xs text-accent hover:underline">
-              Calendar →
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <MonthHeatmap
-              year={now.getFullYear()}
-              month={now.getMonth()}
-              dailyPnl={monthPnl}
-              journaledDates={new Set(journalDates)}
-              onSelect={(date) => router.push(`/app/calendar?date=${date}`)}
-              compact
-            />
-          </CardContent>
-        </Card>
-        <MistakesPanel from={from} to={to} />
-        <RecentTrades trades={trades} />
-      </div>
+      {positional ? (
+        // Positional/swing lean: live carry + holding period come first; the
+        // equity curve and the intraday checklist drop below.
+        <>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <OpenPositionsCard trades={allTrades ?? []} />
+            </div>
+            <HoldingPeriodCard trades={allClosed} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <EquityChart trades={trades} />
+            </div>
+            {dailyChecklist}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {calendarCard}
+            <MistakesPanel from={from} to={to} />
+            <RecentTrades trades={trades} />
+          </div>
+        </>
+      ) : (
+        // Intraday / balanced: the day-focused layout, with open positions kept
+        // alongside recent trades rather than hidden.
+        <>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <EquityChart trades={trades} />
+            </div>
+            {dailyChecklist}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {calendarCard}
+            <MistakesPanel from={from} to={to} />
+            <RecentTrades trades={trades} />
+          </div>
+          <OpenPositionsCard trades={allTrades ?? []} />
+        </>
+      )}
 
       <WeeklyGoalsWidget />
     </div>

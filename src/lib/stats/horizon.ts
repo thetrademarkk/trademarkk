@@ -225,3 +225,27 @@ export function tradingStyle(trades: HorizonTradeLike[]): TradingStyle {
       : `Mixed style — ${pct}% ${styleWord}, the rest spread across other horizons.`;
   return { dominant, pct, summary, mix };
 }
+
+/**
+ * Which way the trader-type-adaptive dashboard should lean:
+ *  - `positional` — predominantly multi-day; surface OPEN positions + holding
+ *    period, de-emphasise the intraday day-stats.
+ *  - `intraday`   — predominantly same-day; keep the day-focused KPIs forward.
+ *  - `balanced`   — mixed, or too thin to judge; show everything (graceful
+ *    degradation — we never hard-remove a panel for a new/thin journal).
+ */
+export type DashboardEmphasis = "intraday" | "positional" | "balanced";
+
+/**
+ * Pick the dashboard emphasis from the holding-horizon mix. Mirrors the
+ * intraday-panel gate's thresholds so the dashboard and the analytics page tell
+ * the same story: a journal with < GATE_MIN_TRADES classifiable closed trades
+ * stays `balanced` (too little data), at/above MULTI_DAY_GATE_PCT multi-day it
+ * leans `positional`, and a symmetric intraday-dominant share leans `intraday`.
+ */
+export function dashboardEmphasis(mix: HorizonMix): DashboardEmphasis {
+  if (mix.total < GATE_MIN_TRADES) return "balanced";
+  if (mix.multiDayPct >= MULTI_DAY_GATE_PCT) return "positional";
+  if (mix.intradayPct >= MULTI_DAY_GATE_PCT) return "intraday";
+  return "balanced";
+}
