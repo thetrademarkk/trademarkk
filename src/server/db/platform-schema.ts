@@ -113,6 +113,10 @@ export const posts = sqliteTable("posts", {
   commentCount: integer("comment_count").notNull().default(0),
   shareCount: integer("share_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
+  /** Set the first time the post is edited; null = never edited. */
+  editedAt: text("edited_at"),
+  /** Append-only JSON array of pre-edit snapshots (see features/community/edit-window.ts). */
+  editHistory: text("edit_history"),
 });
 
 export const postImages = sqliteTable("post_images", {
@@ -132,6 +136,10 @@ export const comments = sqliteTable("comments", {
   parentId: text("parent_id"), // one-level threading (LinkedIn-style)
   likeCount: integer("like_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
+  /** Set the first time the comment is edited; null = never edited. */
+  editedAt: text("edited_at"),
+  /** Append-only JSON array of pre-edit snapshots (see features/community/edit-window.ts). */
+  editHistory: text("edit_history"),
 });
 
 export const commentLikes = sqliteTable(

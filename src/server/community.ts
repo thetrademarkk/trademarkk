@@ -19,6 +19,7 @@ import {
   resolveReactionCounts,
   topFeedScore,
 } from "@/features/community/reactions";
+import { parseEditHistory, type PostEditSnapshot } from "@/features/community/edit-window";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
@@ -43,17 +44,42 @@ export async function notify(input: {
     .catch(() => undefined); // notifications must never break the action
 }
 
+/** Extracts up to 5 unique @handles from text (mention grammar [a-z0-9_]{3,20}). */
+function extractHandles(text: string): string[] {
+  return [...new Set([...text.matchAll(/@([a-z0-9_]{3,20})/g)].map((m) => m[1]!))].slice(0, 5);
+}
+
 /** Notifies every @mentioned handle that exists (excluding the actor). */
 export async function notifyMentions(text: string, actorId: string, postId: string | null) {
-  const handles = [...new Set([...text.matchAll(/@([a-z0-9_]{3,20})/g)].map((m) => m[1]!))].slice(
-    0,
-    5
-  );
+  const handles = extractHandles(text);
   if (handles.length === 0) return;
   const rows = await platformDb
     .select({ userId: profiles.userId })
     .from(profiles)
     .where(inArray(profiles.username, handles));
+  await Promise.all(
+    rows.map((r) => notify({ userId: r.userId, actorId, type: "mention", postId }))
+  );
+}
+
+/**
+ * On an edit, notifies only handles NEWLY introduced (present in the new text
+ * but not the old) — re-notifying already-mentioned users on every keystroke
+ * fix would be spam.
+ */
+export async function notifyNewMentions(
+  oldText: string,
+  newText: string,
+  actorId: string,
+  postId: string | null
+) {
+  const before = new Set(extractHandles(oldText));
+  const added = extractHandles(newText).filter((h) => !before.has(h));
+  if (added.length === 0) return;
+  const rows = await platformDb
+    .select({ userId: profiles.userId })
+    .from(profiles)
+    .where(inArray(profiles.username, added));
   await Promise.all(
     rows.map((r) => notify({ userId: r.userId, actorId, type: "mention", postId }))
   );
@@ -136,6 +162,8 @@ interface PostRow {
   commentCount: number;
   shareCount: number;
   createdAt: string;
+  editedAt: string | null;
+  editHistory: string | null;
 }
 
 const parseJson = <T>(s: string | null): T | null => {
@@ -206,6 +234,8 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
       commentCount: r.commentCount,
       shareCount: r.shareCount,
       createdAt: r.createdAt,
+      editedAt: r.editedAt,
+      editHistory: parseEditHistory<PostEditSnapshot>(r.editHistory),
       likedByMe: myReaction !== null,
       myReaction,
       bookmarkedByMe: bookmarkedSet.has(r.id),

@@ -1,4 +1,5 @@
 import type { ReactionCounts, ReactionKind } from "./reactions";
+import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
 
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
@@ -39,6 +40,10 @@ export interface PostView {
   commentCount: number;
   shareCount: number;
   createdAt: string;
+  /** Set when the author has edited the post (drives the "Edited" marker); null otherwise. */
+  editedAt: string | null;
+  /** Append-only prior-version snapshots, oldest first (empty when never edited). */
+  editHistory: PostEditSnapshot[];
   /** True when the viewer has ANY reaction on this post (back-compat with old `likedByMe`). */
   likedByMe: boolean;
   /** The viewer's specific reaction, or null. `like` for legacy rows. */
@@ -79,6 +84,10 @@ export interface CommentView {
   likeCount: number;
   likedByMe: boolean;
   createdAt: string;
+  /** Set when the author has edited the comment; null otherwise. */
+  editedAt: string | null;
+  /** Append-only prior-version snapshots, oldest first (empty when never edited). */
+  editHistory: CommentEditSnapshot[];
   mine: boolean;
   author: AuthorView;
 }

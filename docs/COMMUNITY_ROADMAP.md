@@ -27,7 +27,7 @@ profile polish, header search v2) live in the "Shipped by the loop" log below.
 
 1. [x] **Richer reactions** — Like / Insightful / Respect / Celebrate (LinkedIn-style), one per user, hover/long-press picker, stacked summary, reaction-weighted Top-feed. _(2026-06-13, PR — this iteration)_
 2. [x] **@mention + $cashtag + #hashtag composer autocomplete** — inline typeahead in the composer & comment box; resolves handles/symbols/tags as you type. _(2026-06-13, PR #63)_
-3. [ ] **Edit posts/comments in a 15-min window** with an immutable edit history ("edited" marker + revision log).
+3. [x] **Edit posts/comments in a 15-min window** with an immutable edit history ("edited" marker + revision log). _(2026-06-13, PR #70)_
 4. [ ] **Decayed, cost-weighted Top-feed hot-score** — comments/reshares weigh more than reactions, recency decay, per-author diversity cap; deterministic, no ML.
 5. [ ] **Link OG unfurl preview cards** — SSRF-safe host allowlist for fetched links + own OG tags on posts.
 6. [ ] **$cashtag tagging + per-symbol stream pages** — NSE/BSE symbol master, `post_symbols` join, per-ticker page, not-advice banner, SEO. _[KILLER]_
@@ -50,3 +50,4 @@ profile polish, header search v2) live in the "Shipped by the loop" log below.
 - [x] 2026-06-12 — Notification grouping (LinkedIn-style rollups, scoped mark-read, /community/notifications page) — PR #36
 - [x] 2026-06-13 — Richer reactions (Like/Insightful/Respect/Celebrate; additive `likes.reaction` + denormalized `posts.reactions`; hover/long-press picker, stacked summary, weighted Top-feed) — PR (this iteration)
 - [x] 2026-06-13 — @mention + $cashtag + #hashtag composer autocomplete (caret-aware typeahead in the composer & comment box; block-aware @users + #tags via `GET /api/community/autocomplete`, curated in-repo $symbols client-side w/ free entry; keyboard-navigable listbox; rich-text linkifies all three; signed-in 360px header overflow fixed) — PR #63
+- [x] 2026-06-13 — Edit posts/comments in a 15-minute window + immutable edit history (author-only `PATCH /api/community/posts/[id]` & `/comments/[id]`, server-enforced window → 410 once closed, same zod re-validation + newly-added @mention re-extraction as create; additive `edited_at` + append-only `edit_history` JSON columns on posts & comments; owner "Edit" action with "N min left" hint, inline form reusing the composer, "Edited · view history" marker + read-only history dialog; optimistic edit with rollback; edits rate-limited 30/h) — PR #70

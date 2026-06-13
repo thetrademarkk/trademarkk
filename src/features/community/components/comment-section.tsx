@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Heart, Loader2, Reply, Trash2, UserRound } from "lucide-react";
+import { Heart, Loader2, Pencil, Reply, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { cn, timeAgo } from "@/lib/utils";
@@ -13,6 +13,7 @@ import {
   ApiError,
   useAddComment,
   useDeleteComment,
+  useEditComment,
   useMyProfile,
   useToggleCommentLike,
 } from "../api";
@@ -21,6 +22,10 @@ import type { CommentView } from "../types";
 import { CommunityAvatar } from "./avatar";
 import { RichText } from "./rich-text";
 import { SignInGate } from "./sign-in-gate";
+import { EditedMarker } from "./edit-history-dialog";
+import { useEditWindow } from "../use-edit-window";
+
+const COMMENT_EDIT_MAX = 2000;
 
 const COMMENT_MAX = 2000;
 
@@ -30,13 +35,48 @@ function CommentItem({
   onReply,
   onLike,
   onDelete,
+  onEdit,
 }: {
   comment: CommentView;
   isReply?: boolean;
   onReply: (c: CommentView) => void;
   onLike: (id: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string, body: string) => Promise<void>;
 }) {
+  const { editable: canEdit, minutesLeft } = useEditWindow(comment.createdAt);
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(comment.body);
+  const [saving, setSaving] = React.useState(false);
+  const editRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const startEdit = () => {
+    setDraft(comment.body);
+    setEditing(true);
+    requestAnimationFrame(() => {
+      const el = editRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    });
+  };
+
+  const saveEdit = async () => {
+    const next = draft.trim();
+    if (!next || next === comment.body) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      await onEdit(comment.id, next);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex gap-2.5">
       <Link
@@ -60,44 +100,111 @@ function CommentItem({
               {comment.author.displayName}
             </Link>{" "}
             · <time dateTime={comment.createdAt}>{timeAgo(comment.createdAt)}</time>
-          </p>
-          <p className="mt-0.5 whitespace-pre-wrap text-sm leading-6">
-            <RichText text={comment.body} />
-          </p>
-        </div>
-        <div className="mt-1 flex items-center gap-3 px-1 text-xs">
-          <button
-            aria-label={comment.likedByMe ? "Unlike comment" : "Like comment"}
-            aria-pressed={comment.likedByMe}
-            onClick={() => onLike(comment.id)}
-            className={cn(
-              "flex items-center gap-1 font-medium transition-colors",
-              comment.likedByMe ? "text-loss" : "text-muted hover:text-foreground"
+            {comment.editedAt && (
+              <>
+                {" · "}
+                <EditedMarker kind="comment" history={comment.editHistory} />
+              </>
             )}
-          >
-            <Heart className={cn("h-3.5 w-3.5", comment.likedByMe && "fill-current")} aria-hidden />
-            {comment.likeCount > 0 && (
-              <span className="font-money">{formatCount(comment.likeCount)}</span>
-            )}
-          </button>
-          {!isReply && (
-            <button
-              className="flex items-center gap-1 font-medium text-muted transition-colors hover:text-foreground"
-              onClick={() => onReply(comment)}
+          </p>
+          {editing ? (
+            <div
+              className="mt-1.5 space-y-2"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setEditing(false);
+                }
+              }}
             >
-              <Reply className="h-3.5 w-3.5" aria-hidden /> Reply
-            </button>
-          )}
-          {comment.mine && (
-            <button
-              aria-label="Delete comment"
-              onClick={() => onDelete(comment.id)}
-              className="ml-auto text-muted hover:text-loss"
-            >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden />
-            </button>
+              <ComposerTextarea
+                ref={editRef}
+                rows={2}
+                maxLength={COMMENT_EDIT_MAX}
+                value={draft}
+                onValueChange={setDraft}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void saveEdit();
+                  }
+                }}
+                aria-label="Edit comment"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={saveEdit}
+                  disabled={saving || !draft.trim() || draft.trim() === comment.body}
+                  aria-busy={saving}
+                >
+                  {saving && <Loader2 className="animate-spin" aria-hidden />}
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-6">
+              <RichText text={comment.body} />
+            </p>
           )}
         </div>
+        {!editing && (
+          <div className="mt-1 flex items-center gap-3 px-1 text-xs">
+            <button
+              aria-label={comment.likedByMe ? "Unlike comment" : "Like comment"}
+              aria-pressed={comment.likedByMe}
+              onClick={() => onLike(comment.id)}
+              className={cn(
+                "flex items-center gap-1 font-medium transition-colors",
+                comment.likedByMe ? "text-loss" : "text-muted hover:text-foreground"
+              )}
+            >
+              <Heart
+                className={cn("h-3.5 w-3.5", comment.likedByMe && "fill-current")}
+                aria-hidden
+              />
+              {comment.likeCount > 0 && (
+                <span className="font-money">{formatCount(comment.likeCount)}</span>
+              )}
+            </button>
+            {!isReply && (
+              <button
+                className="flex items-center gap-1 font-medium text-muted transition-colors hover:text-foreground"
+                onClick={() => onReply(comment)}
+              >
+                <Reply className="h-3.5 w-3.5" aria-hidden /> Reply
+              </button>
+            )}
+            {comment.mine && canEdit && (
+              <button
+                aria-label="Edit comment"
+                onClick={startEdit}
+                className="flex items-center gap-1 font-medium text-muted transition-colors hover:text-foreground"
+                title={minutesLeft > 0 ? `Editable for ${minutesLeft} more min` : undefined}
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
+              </button>
+            )}
+            {comment.mine && (
+              <button
+                aria-label="Delete comment"
+                onClick={() => onDelete(comment.id)}
+                className="ml-auto text-muted hover:text-loss"
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -111,6 +218,7 @@ function CommentItem({
 export function CommentSection({ postId, comments }: { postId: string; comments: CommentView[] }) {
   const addComment = useAddComment(postId);
   const deleteComment = useDeleteComment(postId);
+  const editComment = useEditComment(postId);
   const toggleLike = useToggleCommentLike(postId);
   const confirmDialog = useConfirm();
   const { data: session } = useSession();
@@ -148,6 +256,19 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
     toggleLike.mutate(id, {
       onError: (e) => e instanceof ApiError && e.status === 401 && setGateOpen(true),
     });
+
+  const editBody = async (id: string, body: string) => {
+    try {
+      await editComment.mutateAsync({ id, body });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 410) {
+        toast.error("The edit window for this comment has passed");
+        return;
+      }
+      toast.error(e instanceof Error ? e.message : "Could not save your edit");
+      throw e; // keep the editor open on a real failure
+    }
+  };
 
   return (
     <section aria-label="Comments" className="space-y-4">
@@ -235,6 +356,7 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
                   comment={c}
                   onReply={startReply}
                   onLike={like}
+                  onEdit={editBody}
                   onDelete={async (id) =>
                     (await confirmDialog({
                       title: "Delete this comment?",
@@ -254,6 +376,7 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
                         isReply
                         onReply={startReply}
                         onLike={like}
+                        onEdit={editBody}
                         onDelete={async (id) =>
                           (await confirmDialog({
                             title: "Delete this reply?",
