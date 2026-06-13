@@ -1,6 +1,6 @@
 /** Extension-side settings (chrome.storage.local). */
 
-export const DEFAULT_APP_URL = "https://trademark-smoky.vercel.app";
+export const DEFAULT_APP_URL = "https://thetrademarkk.com";
 
 /**
  * Normalizes a user-entered app URL to a bare origin.

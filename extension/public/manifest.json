@@ -22,6 +22,6 @@
     "default_path": "sidepanel.html"
   },
   "permissions": ["sidePanel", "storage", "scripting"],
-  "host_permissions": ["https://trademark-smoky.vercel.app/*", "http://localhost/*"],
+  "host_permissions": ["https://thetrademarkk.com/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"]
 }

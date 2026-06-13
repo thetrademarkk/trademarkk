@@ -3,8 +3,8 @@ import { normalizeAppUrl } from "./config";
 
 describe("normalizeAppUrl", () => {
   it("normalizes full https URLs to bare origins", () => {
-    expect(normalizeAppUrl("https://trademark-smoky.vercel.app/app/dashboard")).toBe(
-      "https://trademark-smoky.vercel.app"
+    expect(normalizeAppUrl("https://thetrademarkk.com/app/dashboard")).toBe(
+      "https://thetrademarkk.com"
     );
     expect(normalizeAppUrl(" https://my-fork.example.com ")).toBe("https://my-fork.example.com");
   });

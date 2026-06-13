@@ -3,7 +3,7 @@
  * sign up → provision real Turso DB → setup → add trade → sign out →
  * sign in → data persists → delete account (cleans up the provisioned DB).
  *
- *   BASE_URL=https://trademark-smoky.vercel.app node scripts/e2e-hosted.mjs
+ *   BASE_URL=https://thetrademarkk.com node scripts/e2e-hosted.mjs
  */
 import { chromium } from "playwright";
 
@@ -13,7 +13,9 @@ const PASSWORD = "e2e-Passw0rd-123";
 const issues = [];
 
 const browser = await chromium.launch();
-const page = await browser.newContext({ viewport: { width: 1380, height: 900 } }).then((c) => c.newPage());
+const page = await browser
+  .newContext({ viewport: { width: 1380, height: 900 } })
+  .then((c) => c.newPage());
 page.on("pageerror", (e) => issues.push(`[pageerror] ${String(e.message).slice(0, 200)}`));
 page.on("dialog", (d) => d.accept());
 
