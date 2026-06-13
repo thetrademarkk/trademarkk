@@ -234,6 +234,17 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows (follower_id)`,
   `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback (created_at)`,
+  // ── Link OG unfurl cache: one sanitized preview per unfurled URL (TTL refresh) ──
+  // url_hash PK = stable hash of the URL; all-empty meta rows are negative caches.
+  `CREATE TABLE IF NOT EXISTS link_unfurls (
+    url_hash TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    title TEXT,
+    description TEXT,
+    image TEXT,
+    site_name TEXT,
+    fetched_at TEXT NOT NULL
+  )`,
 ];
 
 async function main() {

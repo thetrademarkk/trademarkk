@@ -243,6 +243,24 @@ export const dmMessages = sqliteTable("dm_messages", {
   read: integer("read").notNull().default(0), // recipient has seen it
 });
 
+/**
+ * Cache of OG/twitter link previews ("unfurls"). One row per unfurled URL,
+ * keyed by a stable hash of the URL so a hot link is fetched once and reused.
+ * All text fields are sanitized (plain text, never HTML). A row with all-empty
+ * meta is a NEGATIVE cache entry (the link had nothing to show / was unsafe) —
+ * still keyed by the URL so we don't re-fetch a dud on every view. `fetchedAt`
+ * drives TTL refresh (see features/community/unfurl.ts). Additive + idempotent.
+ */
+export const linkUnfurls = sqliteTable("link_unfurls", {
+  urlHash: text("url_hash").primaryKey(),
+  url: text("url").notNull(),
+  title: text("title"),
+  description: text("description"),
+  image: text("image"),
+  siteName: text("site_name"),
+  fetchedAt: text("fetched_at").notNull(),
+});
+
 /** User-submitted product feedback (bug reports, ideas). */
 export const feedback = sqliteTable("feedback", {
   id: text("id").primaryKey(),
