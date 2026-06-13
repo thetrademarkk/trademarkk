@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, unique } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, unique } from "drizzle-orm/sqlite-core";
 
 /**
  * Platform DB schema — auth + db-mapping metadata ONLY. Journal data never lives here.
@@ -237,6 +237,21 @@ export const pageEvents = sqliteTable("page_events", {
   id: text("id").primaryKey(),
   path: text("path").notNull(),
   userId: text("user_id"), // signed-in users only; anonymous views have null
+  createdAt: text("created_at").notNull(),
+});
+
+/**
+ * First-party field web-vitals samples (Core Web Vitals measured on real
+ * visits via the `web-vitals` lib). Deliberately PII-free: metric + value +
+ * normalized path only — no user id, no IP, no fingerprinting. Vercel exposes
+ * no stable REST API for its Web Analytics / Speed Insights data, so the
+ * public Pulse page charts these instead.
+ */
+export const webVitals = sqliteTable("web_vitals", {
+  id: text("id").primaryKey(),
+  metric: text("metric").notNull(), // LCP | CLS | INP | FCP | TTFB
+  value: real("value").notNull(), // ms for timing metrics; unitless score for CLS
+  path: text("path").notNull(),
   createdAt: text("created_at").notNull(),
 });
 

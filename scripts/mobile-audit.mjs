@@ -6,6 +6,7 @@ const WIDTHS = [360, 390];
 const PUBLIC = [
   "/",
   "/features",
+  "/pulse",
   "/faq",
   "/docs",
   "/blog",

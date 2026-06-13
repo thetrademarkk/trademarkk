@@ -2,11 +2,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 import { auth } from "@/server/auth";
 import { isAdmin } from "@/server/blog";
 import { Logo } from "@/components/shared/logo";
 import { QueryProvider } from "@/providers/query-provider";
-import { AdminPanel } from "./admin-panel";
+import { AdminShell } from "./admin-shell";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 
@@ -28,15 +29,25 @@ export default async function AdminPage() {
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-2 px-4">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4">
           <Logo />
-          <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted">Admin</span>
-          <span className="ml-auto text-xs text-muted">{session.user.email}</span>
+          <span className="flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Admin
+          </span>
+          <div className="ml-auto flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center gap-1 text-xs text-muted hover:text-foreground"
+            >
+              View site <ExternalLink className="h-3 w-3" aria-hidden />
+            </Link>
+            <span className="hidden text-xs text-muted sm:inline">{session.user.email}</span>
+          </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
         <QueryProvider>
-          <AdminPanel />
+          <AdminShell />
         </QueryProvider>
       </main>
     </div>

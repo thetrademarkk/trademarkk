@@ -65,6 +65,7 @@ await step("landing renders (hero + stats + CTA)", async () => {
 
 for (const [path, marker] of [
   ["/features", /feature/i],
+  ["/pulse", /Platform Pulse/i],
   ["/faq", /question|FAQ/i],
   ["/docs", /Documentation/i],
   ["/blog", /blog|article/i],
@@ -215,7 +216,7 @@ await step("rules: add + inline edit + toggle", async () => {
 
 // ── Admin (signed-in admin) ──
 console.log("— Admin —");
-await step("admin auth → all 4 tabs render", async () => {
+await step("admin auth → all 4 sections render", async () => {
   // Admin email matches ADMIN_EMAILS on the test server. Sign up, or sign in
   // if the account already exists from a prior run (idempotent).
   await go("/community");
@@ -248,12 +249,13 @@ await step("admin auth → all 4 tabs render", async () => {
   }
 
   await go("/admin");
-  await page.getByRole("tab", { name: "Blog submissions" }).waitFor({ timeout: 15000 });
-  for (const t of ["Reports", "Feedback", "Analytics"]) {
-    await page.getByRole("tab", { name: t }).click();
+  // Redesigned shell: sidebar sections instead of tabs; Overview is default.
+  await page.getByText("Total users").waitFor({ timeout: 15000 });
+  const nav = page.getByRole("navigation", { name: "Admin sections" });
+  for (const t of ["Moderation", "Blog review", "Feedback", "Overview"]) {
+    await nav.getByRole("button", { name: t }).click();
     await page.waitForTimeout(500);
   }
-  await page.getByText("Total users").waitFor({ timeout: 15000 });
 });
 
 await browser.close();

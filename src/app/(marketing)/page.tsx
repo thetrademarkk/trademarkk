@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { siteConfig, jsonLdScript } from "@/config/site";
 import { HeroShowcase } from "./_components/hero-showcase";
 import { CursorEffects } from "./_components/cursor-effects";
-import { MetricsStrip } from "./_components/metrics-strip";
 import { DemoVideo } from "./_components/demo-video";
 import { FeatureBento } from "./_components/feature-bento";
 import { ModeExplorer } from "./_components/mode-explorer";
@@ -42,6 +41,13 @@ const jsonLd = {
 };
 
 const BROKERS = ["Zerodha", "Upstox", "Angel One", "Dhan", "Fyers", "Groww"];
+
+const STATS = [
+  { value: "₹0", label: "cost, forever" },
+  { value: "<15s", label: "to log a trade" },
+  { value: "3", label: "storage modes" },
+  { value: "100%", label: "open source · MIT" },
+];
 
 const STEPS = [
   {
@@ -136,10 +142,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Live platform metrics ── */}
-      <section className="border-t bg-surface/30" aria-label="Live platform metrics">
-        <div className="mx-auto w-full max-w-5xl px-4 py-10">
-          <MetricsStrip />
+      {/* ── Stats band ── */}
+      <section className="border-t bg-surface/30" aria-label="At a glance">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-2 px-4 py-8 md:grid-cols-4 md:divide-x md:divide-border">
+          {STATS.map((s) => (
+            <div key={s.label} className="px-4 py-2 text-center">
+              <p className="font-money text-2xl font-bold text-foreground md:text-3xl">{s.value}</p>
+              <p className="micro-label mt-1">{s.label}</p>
+            </div>
+          ))}
         </div>
       </section>
 

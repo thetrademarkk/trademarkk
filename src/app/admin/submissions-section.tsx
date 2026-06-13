@@ -2,16 +2,13 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Loader2, Newspaper, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RichContent } from "@/components/ui/rich-editor";
-import { timeAgo } from "@/lib/utils";
-import { AnalyticsTab } from "./analytics-tab";
-import { FeedbackTab } from "./feedback-tab";
-import { ReportsTab } from "./reports-tab";
+import { EmptyState } from "@/components/shared/empty-state";
+import { cn, timeAgo } from "@/lib/utils";
 
 interface Submission {
   id: string;
@@ -24,42 +21,11 @@ interface Submission {
   authorHandle: string | null;
 }
 
-/** Top-level admin: Submissions | Feedback | Analytics. */
-export function AdminPanel() {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Admin</h1>
-        <p className="mt-1 text-sm text-muted">
-          Blog review, content reports, user feedback, and platform analytics.
-        </p>
-      </div>
-      <Tabs defaultValue="submissions">
-        <TabsList>
-          <TabsTrigger value="submissions">Blog submissions</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-          <TabsTrigger value="feedback">Feedback</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-        <TabsContent value="submissions">
-          <SubmissionsTab />
-        </TabsContent>
-        <TabsContent value="reports">
-          <ReportsTab />
-        </TabsContent>
-        <TabsContent value="feedback">
-          <FeedbackTab />
-        </TabsContent>
-        <TabsContent value="analytics">
-          <AnalyticsTab />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
+const STATUSES = ["pending", "approved", "rejected"] as const;
 
-function SubmissionsTab() {
-  const [status, setStatus] = React.useState("pending");
+/** Blog review queue: community submissions → approve to publish, or reject. */
+export function SubmissionsSection() {
+  const [status, setStatus] = React.useState<(typeof STATUSES)[number]>("pending");
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -84,6 +50,7 @@ function SubmissionsTab() {
     onSuccess: (action) => {
       toast.success(action === "approve" ? "Published" : "Rejected");
       void qc.invalidateQueries({ queryKey: ["admin-submissions"] });
+      void qc.invalidateQueries({ queryKey: ["admin-overview"] });
     },
     onError: () => toast.error("Action failed"),
   });
@@ -91,21 +58,38 @@ function SubmissionsTab() {
   const submissions = data?.submissions ?? [];
 
   return (
-    <div className="space-y-5">
-      <Tabs value={status} onValueChange={setStatus}>
-        <TabsList>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected</TabsTrigger>
-        </TabsList>
-      </Tabs>
+    <div className="space-y-4">
+      <div className="flex gap-1.5" role="tablist" aria-label="Submission status">
+        {STATUSES.map((s) => (
+          <button
+            key={s}
+            role="tab"
+            aria-selected={status === s}
+            onClick={() => setStatus(s)}
+            className={cn(
+              "cursor-pointer rounded-full border px-3 py-1.5 text-xs capitalize transition-colors",
+              status === s
+                ? "border-accent/40 bg-accent/12 font-medium text-accent"
+                : "text-muted hover:text-foreground"
+            )}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
 
       {isLoading ? (
         <Skeleton className="h-40 rounded-xl" />
       ) : submissions.length === 0 ? (
-        <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted">
-          No {status} submissions.
-        </p>
+        <EmptyState
+          icon={Newspaper}
+          title={`No ${status} submissions`}
+          description={
+            status === "pending"
+              ? "Community blog submissions waiting for review will appear here."
+              : undefined
+          }
+        />
       ) : (
         <div className="space-y-4">
           {submissions.map((s) => (

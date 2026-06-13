@@ -146,6 +146,15 @@ const STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_page_events_time ON page_events (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_page_events_path ON page_events (path)`,
+  // ── First-party field web vitals (PII-free; charted on the public /pulse page) ──
+  `CREATE TABLE IF NOT EXISTS web_vitals (
+    id TEXT PRIMARY KEY,
+    metric TEXT NOT NULL,
+    value REAL NOT NULL,
+    path TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_web_vitals_metric_time ON web_vitals (metric, created_at DESC)`,
   // ── Community v2: threading, comment likes, bookmarks, follows, notifications ──
   `CREATE TABLE IF NOT EXISTS comment_likes (
     comment_id TEXT NOT NULL,

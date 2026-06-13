@@ -5,7 +5,7 @@ import { POSTS } from "@/content/posts";
 // Only the public marketing surface is in the sitemap — /app/* is private.
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = siteConfig.url;
-  const staticPages = ["", "/features", "/docs", "/faq", "/blog", "/changelog", "/compare/tradezella-alternative"];
+  const staticPages = ["", "/features", "/pulse", "/docs", "/faq", "/blog", "/changelog", "/compare/tradezella-alternative"];
   return [
     ...staticPages.map((path) => ({
       url: `${base}${path}`,

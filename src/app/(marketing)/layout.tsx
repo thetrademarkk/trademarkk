@@ -14,6 +14,7 @@ const FOOTER_GROUPS: {
     links: [
       { href: "/features", label: "Features" },
       { href: "/community", label: "Community" },
+      { href: "/pulse", label: "Pulse" },
       { href: "/docs", label: "Docs" },
       { href: "/changelog", label: "Changelog" },
     ],

@@ -1,37 +1,21 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Check, Loader2, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/shared/empty-state";
 import { timeAgo } from "@/lib/utils";
-
-interface ReportRow {
-  id: string;
-  targetType: "post" | "comment";
-  targetId: string;
-  reason: string | null;
-  createdAt: string;
-  reporter: string;
-  targetPreview: string | null;
-  postId: string | null;
-}
+import { useAdminReports } from "./use-admin-overview";
 
 /** Moderation queue: review reported content, dismiss or remove it. */
-export function ReportsTab() {
+export function ReportsSection() {
   const qc = useQueryClient();
   const confirmDialog = useConfirm();
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin-reports"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/reports");
-      if (!res.ok) throw new Error("Failed to load reports");
-      return (await res.json()) as { reports: ReportRow[] };
-    },
-  });
+  const { data, isLoading } = useAdminReports();
 
   const act = useMutation({
     mutationFn: async (input: { reportId: string; action: "dismiss" | "delete-content" }) => {
@@ -55,9 +39,11 @@ export function ReportsTab() {
 
   if (reports.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed py-12 text-center text-sm text-muted">
-        No open reports.
-      </p>
+      <EmptyState
+        icon={ShieldCheck}
+        title="Moderation queue is clear"
+        description="No open reports. New reports from the community land here."
+      />
     );
   }
 
