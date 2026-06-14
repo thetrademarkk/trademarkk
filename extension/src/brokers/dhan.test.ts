@@ -86,6 +86,13 @@ describe("normalizeDhanInstrumentText", () => {
 });
 
 describe("normalizeDhanExchange", () => {
+  it("reads MCX / CDS / NCD commodity & currency exchange tokens", () => {
+    expect(normalizeDhanExchange("MCX")).toBe("MCX");
+    expect(normalizeDhanExchange("MCX • Commodity")).toBe("MCX");
+    expect(normalizeDhanExchange("CDS")).toBe("CDS");
+    expect(normalizeDhanExchange("NCD")).toBe("NCD");
+  });
+
   it("recognizes a bare exchange code", () => {
     expect(normalizeDhanExchange("NSE")).toBe("NSE");
     expect(normalizeDhanExchange("nfo")).toBe("NFO");
@@ -244,6 +251,50 @@ describe("assembleDhanCapture", () => {
       segment: "OPT",
       strike: 24500,
       optionType: "CE",
+    });
+  });
+
+  it("MCX commodity future → COMM segment, MCX exchange read from styling", () => {
+    const c = assembleDhanCapture({
+      ...baseFields,
+      symbolText: "CRUDEOIL24JUNFUT",
+      exchangeText: "MCX • Commodity",
+      qtyText: "100",
+      priceText: "6540",
+    });
+    expect(c).toMatchObject({ side: "buy", qty: 100, price: 6540, exchange: "MCX" });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      agri: false,
+    });
+  });
+
+  it("NCDEX agri commodity (spaced security name) → COMM flagged agri", () => {
+    const c = assembleDhanCapture({
+      ...baseFields,
+      symbolText: "NCDEX: GUARSEED10",
+      exchangeText: "NCD",
+      qtyText: "10",
+      priceText: "5125",
+    });
+    // The contract parser still classifies the agri commodity from its base.
+    expect(parseContractName(c!.symbol)).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("CDS currency future → CDS segment with the CDS exchange", () => {
+    const c = assembleDhanCapture({
+      ...baseFields,
+      symbolText: "USDINR24JUNFUT",
+      exchangeText: "CDS",
+      qtyText: "1",
+      priceText: "83.4525",
+    });
+    expect(c).toMatchObject({ exchange: "CDS", price: 83.4525 });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      agri: false,
     });
   });
 });

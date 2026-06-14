@@ -44,6 +44,10 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [saved, setSaved] = React.useState<SavedTrade | null>(null);
   const [capturedFrom, setCapturedFrom] = React.useState<PendingCapture | null>(null);
+  // The broker-reported exchange (NSE/MCX/NCDEX/CDS/…) for the captured order.
+  // Carried through to buildQuickTradeValues so a bare MCX/NCDEX commodity or a
+  // CDS currency captured by symbol alone still lands in the right segment.
+  const [capturedExchange, setCapturedExchange] = React.useState<string | null>(null);
   // A captured + compressed chart screenshot, attached to the trade on save.
   const [screenshot, setScreenshot] = React.useState<string | null>(null);
   const [capturing, setCapturing] = React.useState(false);
@@ -64,6 +68,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
       setEntry(c.price != null ? String(c.price) : "");
       setExit("");
       setCapturedFrom(c);
+      setCapturedExchange(c.exchange);
     };
     void takePendingCapture().then((c) => c && apply(c));
     const off = onPendingCapture(apply);
@@ -88,6 +93,7 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
     setError(null);
     setSaved(null);
     setCapturedFrom(null);
+    setCapturedExchange(null);
     setScreenshot(null);
     requestAnimationFrame(() => instrumentRef.current?.focus());
   };
@@ -116,6 +122,9 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
     const result = buildQuickTradeValues({
       accountId: effectiveAccountId,
       instrument,
+      // Only honour the captured exchange while the instrument is still the
+      // captured one — once the user retypes, trust the symbol alone.
+      exchange: capturedFrom && instrument.trim() === capturedFrom.symbol ? capturedExchange : null,
       side,
       qty,
       entry,
@@ -215,7 +224,10 @@ export function TradeForm({ appUrl }: { appUrl: string }) {
           <button
             type="button"
             aria-label="Dismiss broker capture"
-            onClick={() => setCapturedFrom(null)}
+            onClick={() => {
+              setCapturedFrom(null);
+              setCapturedExchange(null);
+            }}
           >
             <X size={11} />
           </button>

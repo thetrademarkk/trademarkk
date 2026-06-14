@@ -180,6 +180,81 @@ describe("recomputeTradeCharges", () => {
   });
 });
 
+describe("recomputeTradeCharges — commodity CTT (SEG-09)", () => {
+  it("a COMM option carries MORE CTT than the same-size COMM future (0.05% vs 0.01% sell)", () => {
+    const opt = trade({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      product: "NRML",
+      strike: 6500,
+      option_type: "CE",
+      qty: 100,
+      avg_entry: 120,
+      avg_exit: 160,
+    });
+    const fut = trade({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      product: "NRML",
+      strike: null,
+      option_type: null,
+      qty: 100,
+      avg_entry: 6500,
+      avg_exit: 6600,
+    });
+    const optCharges = recomputeTradeCharges(profile, opt, chargeLegsForTrade(opt, []));
+    const futCharges = recomputeTradeCharges(profile, fut, chargeLegsForTrade(fut, []));
+    // Both correct, and distinct branches (option premium CTT vs future CTT).
+    expect(optCharges).toBeGreaterThan(0);
+    expect(futCharges).toBeGreaterThan(0);
+    expect(optCharges).not.toBe(futCharges);
+  });
+
+  it("an agri commodity (NCDEX/KAPAS) is CTT-exempt → lower charges than a non-agri commodity", () => {
+    const agri = trade({
+      symbol: "DHANIYA",
+      segment: "COMM",
+      product: "NRML",
+      strike: null,
+      option_type: null,
+      qty: 100,
+      avg_entry: 7000,
+      avg_exit: 7100,
+    });
+    const nonAgri = trade({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      product: "NRML",
+      strike: null,
+      option_type: null,
+      qty: 100,
+      avg_entry: 7000,
+      avg_exit: 7100,
+    });
+    const agriCharges = recomputeTradeCharges(profile, agri, chargeLegsForTrade(agri, []));
+    const nonAgriCharges = recomputeTradeCharges(profile, nonAgri, chargeLegsForTrade(nonAgri, []));
+    // Agri skips CTT, so it is strictly cheaper on identical turnover.
+    expect(agriCharges).toBeLessThan(nonAgriCharges);
+  });
+
+  it("agri MCX contracts (COTTON/CARDAMOM) are also CTT-exempt", () => {
+    const cotton = trade({
+      symbol: "COTTON",
+      segment: "COMM",
+      product: "NRML",
+      strike: null,
+      option_type: null,
+      qty: 100,
+      avg_entry: 1500,
+      avg_exit: 1550,
+    });
+    const gold = trade({ ...cotton, symbol: "GOLD" });
+    expect(recomputeTradeCharges(profile, cotton, chargeLegsForTrade(cotton, []))).toBeLessThan(
+      recomputeTradeCharges(profile, gold, chargeLegsForTrade(gold, []))
+    );
+  });
+});
+
 describe("previewRecompute", () => {
   it("flags only trades whose charges change; reports paise-exact delta totals", () => {
     // A delivery EQ stored with a STALE (intraday) charge → will change.

@@ -29,6 +29,12 @@ export interface ParsedInstrument {
   optionType: "CE" | "PE" | null;
   /** ISO yyyy-mm-dd when the name carries a full date, else null. */
   expiry: string | null;
+  /**
+   * True for an agricultural commodity (CTT-exempt). Only meaningful when
+   * segment === "COMM"; always false otherwise. Drives the charge engine's
+   * `agriCommodity` flag so NCDEX agri + MCX agri (KAPAS/COTTON) skip CTT.
+   */
+  agri: boolean;
 }
 
 const MONTHS: Record<string, number> = {
@@ -57,6 +63,7 @@ const eq = (symbol: string): ParsedInstrument => ({
   strike: null,
   optionType: null,
   expiry: null,
+  agri: false,
 });
 
 /** The four NSE/BSE INR currency pairs (CDS segment). */
@@ -86,37 +93,100 @@ const COMMODITY_BASES = [
   "KAPAS",
 ];
 
+/**
+ * NCDEX agricultural commodity contract bases (CTT-exempt). NCDEX trades agri
+ * commodities; broker security names omit the exchange tag, so a bare DHANIYA /
+ * GUARSEED / JEERA must still classify as a (agri) COMM. Matched by prefix so
+ * lot-size suffixed variants (GUARSEED10, GUARGUM5) classify too. The agri MCX
+ * contracts (KAPAS/COTTON/CARDAMOM/MENTHAOIL) are CTT-exempt as well and are
+ * flagged via AGRI_BASES below — they stay in COMMODITY_BASES for segment
+ * classification but carry agri: true.
+ */
+const NCDEX_AGRI_BASES = [
+  "DHANIYA",
+  "GUARSEED",
+  "GUARGUM",
+  "JEERA",
+  "JEERAUNJHA",
+  "TURMERIC",
+  "WHEAT",
+  "BARLEY",
+  "CASTOR",
+  "CASTORSEED",
+  "COCUD",
+  "SOYBEAN",
+  "SYBEANIDR",
+  "SOYABEAN",
+  "RMSEED",
+  "MUSTARDSEED",
+  "CHANA",
+  "MAIZE",
+  "MAIZERABI",
+  "PADDY",
+  "COTTONSEED",
+  "COTTONSEEDOILCAKE",
+  "KAPASKHALI",
+  "PEPPER",
+  "CORIANDER",
+  "ISABGUL",
+  "ISABGULSEED",
+];
+
+/** MCX commodities that are themselves agricultural (CTT-exempt). */
+const MCX_AGRI_BASES = ["KAPAS", "COTTON", "CARDAMOM", "MENTHAOIL"];
+
 /** Agri commodities (CTT-exempt) — informational; charge engine takes agri flag separately. */
-const isCommodityBase = (sym: string) => COMMODITY_BASES.some((b) => sym.startsWith(b));
+const startsWithAny = (sym: string, bases: readonly string[]) =>
+  bases.some((b) => sym.startsWith(b));
+
+/** An MCX (non-agri or agri) commodity base, e.g. CRUDEOIL, GOLDM, KAPAS. */
+const isMcxCommodityBase = (sym: string) => startsWithAny(sym, COMMODITY_BASES);
+/** An NCDEX agri commodity base, e.g. DHANIYA, GUARSEED10, JEERA. */
+const isNcdexAgriBase = (sym: string) => startsWithAny(sym, NCDEX_AGRI_BASES);
+/** Any recognised commodity base (MCX commodity or NCDEX agri). */
+const isCommodityBase = (sym: string) => isMcxCommodityBase(sym) || isNcdexAgriBase(sym);
+/** Agri (CTT-exempt) commodity: every NCDEX commodity + the agri MCX contracts. */
+const isAgriBase = (sym: string) => isNcdexAgriBase(sym) || startsWithAny(sym, MCX_AGRI_BASES);
+
+/**
+ * Internal pre-classification parse: every shape EXCEPT the agri flag, which
+ * `reclassifySegment` (the single funnel) derives once it knows the segment.
+ */
+type RawParse = Omit<ParsedInstrument, "agri">;
 
 /**
  * Reclassifies an equity/F&O parse into COMM (MCX commodity) or CDS (currency)
  * when the exchange prefix or symbol base says so, preserving strike/optionType
  * /expiry. `exchange` is the stripped prefix (MCX/CDS/NSE/…) or "".
  */
-function reclassifySegment(p: ParsedInstrument, exchange: string): ParsedInstrument {
+function reclassifySegment(p: RawParse, exchange: string): ParsedInstrument {
   const isCurrency = exchange === "CDS" || CURRENCY_PAIRS.has(p.symbol);
-  const isCommodity = exchange === "MCX" || isCommodityBase(p.symbol);
-  if (!isCurrency && !isCommodity) return p;
+  // NCDEX / MCX prefixes (or a recognised commodity base) make it a commodity.
+  const isNcdex = exchange === "NCDEX" || exchange === "NCD" || exchange === "NCO";
+  const isCommodity = exchange === "MCX" || isNcdex || isCommodityBase(p.symbol);
+  if (!isCurrency && !isCommodity) return { ...p, agri: false };
   // Currency wins only if the base is an actual INR pair OR the prefix is CDS and
   // it isn't a known commodity (avoids an MCX symbol that merely contains "INR").
   const segment: ParsedInstrument["segment"] = isCurrency && !isCommodity ? "CDS" : "COMM";
-  return { ...p, segment };
+  // Agri (CTT-exempt) only applies to commodities: an NCDEX prefix, an NCDEX
+  // agri base, or an agri MCX contract (KAPAS/COTTON/CARDAMOM/MENTHAOIL).
+  const agri = segment === "COMM" && (isNcdex || isAgriBase(p.symbol));
+  return { ...p, segment, agri };
 }
 
 export function parseContractName(raw: string): ParsedInstrument {
   let s = raw.trim().toUpperCase().replace(/\s+/g, " ");
   if (!s) return eq(s);
-  const prefix = s.match(/^(NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCO):/); // Fyers/exchange prefix
+  const prefix = s.match(/^(NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCDEX|NCD|NCO):/); // Fyers/exchange prefix
   const exchange = prefix?.[1] ?? "";
-  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCO):/, "");
+  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCDEX|NCD|NCO):/, "");
   const series = s.match(/^([A-Z0-9&.-]+?)-(?:EQ|BE|BZ|SM|ST|A|B|T|XT)$/); // Fyers series suffix
   if (series) return reclassifySegment(eq(series[1]!), exchange);
   const parsed = s.includes(" ") ? parseSpacedName(s) : parseCompactName(s);
   return reclassifySegment(parsed, exchange);
 }
 
-function parseCompactName(s: string): ParsedInstrument {
+function parseCompactName(s: string): RawParse {
   // Monthly option: BANKNIFTY24JUN52000CE (decimal strikes for currency pairs)
   let m = s.match(new RegExp(`^(.+?)(\\d{2})(?:${MONTH_RE})(\\d+(?:\\.\\d+)?)(CE|PE)$`));
   if (m) {
@@ -154,7 +224,7 @@ function parseCompactName(s: string): ParsedInstrument {
   return eq(s);
 }
 
-function parseSpacedName(s: string): ParsedInstrument {
+function parseSpacedName(s: string): RawParse {
   const tokens = s.split(" ").map((t) => (t === "CALL" ? "CE" : t === "PUT" ? "PE" : t));
   const { expiry, used } = extractExpiry(tokens);
   const numAt = (i: number) => {

@@ -69,9 +69,16 @@ function guessInstrument(symbol: string, expiry: string | null) {
       segment: "FUT" as const,
       strike: null,
       optionType: null,
+      agri: false,
     };
   }
-  return { symbol: p.symbol, segment: p.segment, strike: p.strike, optionType: p.optionType };
+  return {
+    symbol: p.symbol,
+    segment: p.segment,
+    strike: p.strike,
+    optionType: p.optionType,
+    agri: p.agri,
+  };
 }
 
 export function rowsToFills(rows: Record<string, string>[], map: ColumnMapping): RawFill[] {
@@ -176,6 +183,9 @@ function buildTrade(
         segment: first.segment,
         strike: first.strike ?? null,
         optionType: first.optionType ?? null,
+        // Agri (CTT-exempt) is symbol-derived even when the broker already
+        // mapped the segment, so an MCX/NCDEX agri commodity is charged right.
+        agri: first.segment === "COMM" && parseContractName(first.symbol).agri,
       }
     : guessInstrument(first.symbol, first.expiry ?? null);
   const closed = exits.length > 0;
@@ -211,6 +221,10 @@ function buildTrade(
       exitPrice: x.price,
       direction,
       orders: entries.length + exits.length,
+      // Commodity CTT (SEG-09): an option carries CTT on the sell premium,
+      // an agri commodity is CTT-exempt. Both derived from the parsed symbol.
+      commodityOption: inst.segment === "COMM" && inst.optionType != null,
+      agriCommodity: inst.segment === "COMM" && inst.agri,
     }).total;
   }
   const ts = new Date().toISOString();
