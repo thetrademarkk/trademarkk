@@ -107,7 +107,7 @@ import {
  * plus `(string & {})` for autocomplete on known members while tolerating any
  * future type. notify()'s preference check defaults unknown types to on.
  */
-export type NotifyType =
+export type NotificationType =
   | "like"
   | "comment"
   | "reply"
@@ -115,11 +115,10 @@ export type NotifyType =
   | "mention"
   | "reshare"
   | "backtest_done"
-  | "backtest_failed"
-  | (string & {});
+  | "backtest_failed";
 
-/** Back-compat alias: the backtest lane + notify-union.test import this name. */
-export type NotificationType = NotifyType;
+/** Open variant used by notify() — tolerates any future type (prefs default-on). */
+export type NotifyType = NotificationType | (string & {});
 
 /**
  * Creates a notification (no-op when acting on your own content).

@@ -5,7 +5,7 @@
 A free, open-source, privacy-first trading journal for Indian traders — built for
 **every** trader type: intraday equity, swing & positional, F&O (options/futures),
 MCX commodity and CDS currency. Track trades, mistakes and rules with a paise-accurate
-charges engine, learn from a community, and (soon) backtest your setups — while keeping
+charges engine, learn from a community, and backtest your setups — while keeping
 your data in **your own database**.
 
 **Live:** [thetrademarkk.com](https://thetrademarkk.com) · **License:** MIT ·
@@ -58,10 +58,15 @@ Sharing to the community is always explicit; your journal never auto-publishes.
 
 ### Backtesting
 
-A backtesting workspace is in active development — replay your saved playbooks against
-historical NIFTY/BANKNIFTY data, with strategy equity curves and walk-forward testing.
-The historical-options dataset is being prepared and brought online; until then the
-in-app tab shows a transparent "coming soon" preview rather than fabricated results.
+A full backtesting workspace: a no-code five-step strategy builder with a live payoff
+diagram and an interactive strike ladder, a deterministic 1-minute bar-replay engine
+(paise-accurate charges, honest fill modelling, expiry-at-last-traded-price), a
+verdict→evidence→drill-down results view with a tap-to-derive charge waterfall,
+walk-forward + Monte-Carlo robustness with a deflated-Sharpe overfitting caution,
+founder-vetted example strategies, and a "compare against your real journal" overlay.
+**Coverage honesty is the moat** — every result surfaces how much real data backed it.
+The historical-options dataset is being brought online; strategies that need
+not-yet-published data show a transparent coverage state rather than fabricated results.
 
 ### Multi-broker Chrome extension
 
@@ -73,11 +78,11 @@ See [docs/extension.md](docs/extension.md).
 
 ### Privacy by design — three storage modes, switch anytime
 
-| Mode | Where your journal lives | Accounts |
-| --- | --- | --- |
-| **Hosted** (default) | An **isolated Turso database per user**, provisioned for you. The browser talks to Turso directly via a short-lived, single-database token — our backend never proxies or sees your queries. | Sign up (email/password or Google) |
-| **BYOD** (bring your own database) | **Your own** Turso database; URL + token stay in your browser only. | Optional |
-| **Local / demo** | SQLite in the browser (sql.js wasm + IndexedDB). | None |
+| Mode                               | Where your journal lives                                                                                                                                                                     | Accounts                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **Hosted** (default)               | An **isolated Turso database per user**, provisioned for you. The browser talks to Turso directly via a short-lived, single-database token — our backend never proxies or sees your queries. | Sign up (email/password or Google) |
+| **BYOD** (bring your own database) | **Your own** Turso database; URL + token stay in your browser only.                                                                                                                          | Optional                           |
+| **Local / demo**                   | SQLite in the browser (sql.js wasm + IndexedDB).                                                                                                                                             | None                               |
 
 Mode switching works in **all directions, in-app**, with an integrity-checked copy
 engine — see [docs/PLAN.md](docs/PLAN.md). A free community account works in every mode.
@@ -121,16 +126,16 @@ npm run dev
 
 ### Environment variables
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `TURSO_PLATFORM_DB_URL` / `TURSO_PLATFORM_DB_TOKEN` | yes | Platform DB (auth + db-mapping only — never journal data) |
-| `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` | yes | Auth sessions |
-| `NEXT_PUBLIC_APP_URL` | yes | Public origin of the deployment |
-| `TURSO_PLATFORM_API_TOKEN` / `TURSO_ORG_SLUG` | for hosted mode | Provisions per-user DBs and mints scoped tokens |
-| `ADMIN_EMAILS` | optional | Comma-separated owner/admin allowlist (admin panel + moderation) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional | Google sign-in (set `NEXT_PUBLIC_GOOGLE_AUTH=1` to show the button) |
-| `RESEND_API_KEY` / `EMAIL_FROM` | optional | Email verification & password reset (skipped if unset) |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional | Distributed rate limiting (in-memory fallback otherwise) |
+| Variable                                              | Required        | Purpose                                                             |
+| ----------------------------------------------------- | --------------- | ------------------------------------------------------------------- |
+| `TURSO_PLATFORM_DB_URL` / `TURSO_PLATFORM_DB_TOKEN`   | yes             | Platform DB (auth + db-mapping only — never journal data)           |
+| `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL`              | yes             | Auth sessions                                                       |
+| `NEXT_PUBLIC_APP_URL`                                 | yes             | Public origin of the deployment                                     |
+| `TURSO_PLATFORM_API_TOKEN` / `TURSO_ORG_SLUG`         | for hosted mode | Provisions per-user DBs and mints scoped tokens                     |
+| `ADMIN_EMAILS`                                        | optional        | Comma-separated owner/admin allowlist (admin panel + moderation)    |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | optional        | Google sign-in (set `NEXT_PUBLIC_GOOGLE_AUTH=1` to show the button) |
+| `RESEND_API_KEY` / `EMAIL_FROM`                       | optional        | Email verification & password reset (skipped if unset)              |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional        | Distributed rate limiting (in-memory fallback otherwise)            |
 
 The full variable list is in [`.env.example`](.env.example) and
 [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md). Without `TURSO_PLATFORM_API_TOKEN`, hosted
@@ -139,17 +144,17 @@ mode returns a clear error — BYOD and local/demo modes still work.
 
 ### Scripts
 
-| Script | What it does |
-| --- | --- |
-| `npm run dev` | Next.js dev server (marketing only — see the CSP note above) |
-| `npm run build` / `npm start` | Production build / serve |
-| `npm test` | Vitest unit tests (charges, stats, fill-pairing, …) |
-| `npm run typecheck` | `tsc --noEmit` for the app |
-| `npm run ext:typecheck` | `tsc` for the extension |
-| `npm run lint` | ESLint (`next lint`) |
-| `npm run migrate:platform` | Create/upgrade the platform DB tables |
-| `npm run ext:build` | Build the Chrome extension bundles |
-| `npm run ext:package` | Build the Chrome Web Store upload zip |
+| Script                        | What it does                                                 |
+| ----------------------------- | ------------------------------------------------------------ |
+| `npm run dev`                 | Next.js dev server (marketing only — see the CSP note above) |
+| `npm run build` / `npm start` | Production build / serve                                     |
+| `npm test`                    | Vitest unit tests (charges, stats, fill-pairing, …)          |
+| `npm run typecheck`           | `tsc --noEmit` for the app                                   |
+| `npm run ext:typecheck`       | `tsc` for the extension                                      |
+| `npm run lint`                | ESLint (`next lint`)                                         |
+| `npm run migrate:platform`    | Create/upgrade the platform DB tables                        |
+| `npm run ext:build`           | Build the Chrome extension bundles                           |
+| `npm run ext:package`         | Build the Chrome Web Store upload zip                        |
 
 ## Documentation
 

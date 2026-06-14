@@ -1,6 +1,6 @@
 import { computeCharges, computeGrossPnl, resolveExchange } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
-import { classifyAgriCommodity, parseContractName } from "./instrument-parse";
+import { parseContractName } from "./instrument-parse";
 import type { Product, Segment, TradeRow } from "./types";
 
 export interface RawFill {

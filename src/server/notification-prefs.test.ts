@@ -55,7 +55,7 @@ const DDL = [
   )`,
   `CREATE TABLE notifications (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, actor_id TEXT NOT NULL, type TEXT NOT NULL,
-    post_id TEXT, comment_id TEXT, read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    post_id TEXT, comment_id TEXT, backtest_id TEXT, read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
   )`,
 ];
 
