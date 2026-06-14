@@ -149,8 +149,15 @@ merged to main.
       +29 vitest (suite 1493 → 1523, incl. a sql.js DB-backed seed test over the
       real journal migrations) + new `scripts/e2e-bt-journal-compare.mjs` (11/11).
       This COMPLETES the buildable-now backtest scope.
-- [ ] **BT-10, BT-13..14** — presets, BYOC (Pyodide), server leaderboard.
-      (BT-10 + BT-08 are HF-gated; BT-13/14 are optional.)
+- [~] **BT-10 (partial)** — preset catalogue + Explore/Templates surface +
+  mandatory CoverageBadge SHIPPED (accumulated, pending batch deploy + owner
+  HF token for full-data runs). ~12 founder-vetted EDUCATIONAL presets RUN
+  today on the local fixture window where data exists; non-local presets show
+  the honest "unlocks when the dataset goes live" state. Full-data preset runs
+  are HF-gated behind BT-08 (the DataSource swap is zero-preset-code-change).
+- [ ] **BT-08, BT-13..14** — data-proxy (enables full-data preset runs; needs the
+      owner HF token), BYOC (Pyodide), server leaderboard. (BT-08 HF-gated;
+      BT-13/14 are optional.)
 
 ## Working rules (this lane)
 
@@ -315,3 +322,38 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   41/41 unchanged, e2e-smoke 36/36, mobile-audit clean (compare route added).
   This COMPLETES the buildable-now backtest scope — only BT-08 data-proxy + BT-10
   presets (HF-gated) and the optional BT-13 BYOC / BT-14 leaderboard remain.
+- 2026-06-14 — BT-10 (partial) — PRESET CATALOGUE + Explore/Templates surface +
+  MANDATORY CoverageBadge, accumulated (deploy-conserving; pending batch deploy +
+  owner HF token for full-data runs). ~12 founder-vetted EDUCATIONAL house
+  strategies as versioned, schema-valid StrategyDefs + discovery metadata in
+  `src/features/backtest/presets/*` (catalogue, types, filter, coverage-resolver,
+  run-decision seam, local-availability, build-cards, use-coverage hook), spanning
+  all three indices and the premium-selling / directional / hedged / volatility /
+  income families — descriptive only, never recommendations. CoverageBadge
+  (`src/components/backtesting/presets/coverage-badge.tsx`) drives off the
+  committed manifest summary via the BT-ETL `CoverageManifest` loader + a pure
+  bucketing module (`src/lib/backtest/coverage/coverage-buckets.ts`: ≥70% high /
+  40-69% medium / <40% low / absent→honest unknown), mounted on EVERY preset card
+  and on the run result. Explore surface at `/backtesting/explore` (server
+  component — manifest stays server-side, 170 KB JSON never ships to the client) =
+  filterable grid (index / category / tag) + the required "Educational examples to
+  learn the mechanics — not trade recommendations" banner; featured strip + Explore
+  CTA seeded on the `/backtesting` landing. Run seam (item 4): the BT-06 builder
+  hydrates a preset via `?preset=<id>` (full StrategyDef, not just legs) and
+  `&run=1` auto-runs; presets with local fixture data RUN today, others show the
+  honest LOCKED state — NOT a fabricated result. The run-vs-locked decision reads
+  data availability, so BT-08's DataSource swap flips locked presets to runnable
+  with ZERO preset-code change (unit-tested). +89 vitest (suite 1523 → 1612:
+  bucketing incl. absent→unknown, resolver incl. fallbacks + null manifest, full
+  catalogue schema-validation + builder hydration + educational-framing guard,
+  Explore filter logic, run-vs-locked decision + BT-08 swap) + new
+  `scripts/e2e-bt-presets.mjs` (9/9: grid + badges + filters, Open-in-builder
+  hydrates 4-leg condor, local NIFTY preset Runs → results WITH a CoverageBadge,
+  non-local preset shows the honest LOCKED state, 360px clean, zero console
+  errors). All LOCAL gates green: tsc, ext:typecheck, next lint 0-warn, vitest
+  1612, next build (`/backtesting/explore` 1.38 kB static), e2e-bt-builder 7/7 /
+  run 4/4 / results 9/9 / persistence 13/13 / walkforward 8/8 / journal-compare
+  11/11 unchanged, e2e-smoke 37/37 (+Explore step), mobile-audit clean (Explore
+  route added). NO new heavy dep, no HF, no LLM. Buildable-now backtest scope is
+  now FULLY exhausted — only BT-08 data-proxy (enables full-data preset runs;
+  needs the owner HF token) + optional BT-13 BYOC / BT-14 leaderboard remain.

@@ -29,7 +29,14 @@ import { ReviewStep } from "./steps/review-step";
  * while the current step is invalid (inline errors shown); a future stepper node
  * is reachable only once its predecessors validate.
  */
-export function BuilderShell() {
+export function BuilderShell({
+  autoRun = false,
+  onAutoRunConsumed,
+}: {
+  /** When true, the Review step kicks off a run automatically once (preset "Run"). */
+  autoRun?: boolean;
+  onAutoRunConsumed?: () => void;
+} = {}) {
   const draft = useBuilderStore((s) => s.draft);
   const step = useBuilderStore((s) => s.step);
   const setStep = useBuilderStore((s) => s.setStep);
@@ -107,7 +114,14 @@ export function BuilderShell() {
           {step === "legs" && <LegsStep draft={draft} />}
           {step === "timing" && <TimingStep draft={draft} />}
           {step === "risk" && <RiskStep draft={draft} />}
-          {step === "review" && <ReviewStep draft={draft} onEdit={goTo} />}
+          {step === "review" && (
+            <ReviewStep
+              draft={draft}
+              onEdit={goTo}
+              autoRun={autoRun}
+              onAutoRunConsumed={onAutoRunConsumed}
+            />
+          )}
 
           {/* Inline validation feedback. */}
           {showErrors && validation.errors.length > 0 && (

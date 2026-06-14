@@ -102,6 +102,15 @@ await step("backtesting landing renders the pre-baked sample + Build CTA", async
     .waitFor({ timeout: 10000 });
 });
 
+await step("backtesting Explore surface renders the preset grid + CoverageBadges", async () => {
+  await page.goto(`${BASE}/backtesting/explore`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("preset-grid").waitFor({ timeout: 20000 });
+  if ((await page.getByTestId("preset-card").count()) < 10)
+    throw new Error("expected >=10 preset cards on Explore");
+  await page.getByTestId("coverage-badge").first().waitFor({ timeout: 10000 });
+  await page.getByTestId("explore-disclaimer").waitFor({ timeout: 8000 });
+});
+
 await step("/app/backtesting 308-redirects to /backtesting", async () => {
   const resp = await page.goto(`${BASE}/app/backtesting`, { waitUntil: "domcontentloaded" });
   if (!page.url().endsWith("/backtesting")) {

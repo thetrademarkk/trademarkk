@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BacktestHome } from "./backtest-home";
+import { FeaturedPresets } from "@/components/backtesting/presets/featured-presets";
 
 export const metadata: Metadata = {
   title: "Backtesting",
@@ -13,8 +14,16 @@ export const metadata: Metadata = {
  * The backtesting landing. Fully static + indexable — the only "compute" a
  * first-time visitor sees is the pre-baked sample card, which hydrates from a
  * static module and NEVER boots the engine/WASM (UX Priority 1). No server data
- * fetch, so it prerenders cleanly.
+ * fetch, so it prerenders cleanly. The featured-templates strip is a sibling
+ * server section (coverage computed at build time, manifest stays server-side).
  */
 export default function BacktestingLandingPage() {
-  return <BacktestHome />;
+  return (
+    <>
+      <BacktestHome />
+      <div className="mx-auto max-w-5xl px-4 pb-12">
+        <FeaturedPresets />
+      </div>
+    </>
+  );
 }

@@ -13,6 +13,8 @@ import {
 } from "@/features/backtest/builder/run-adapter";
 import type { StrategyDef, WizardStep } from "@/features/backtest/builder/types";
 import { ResultsView } from "@/components/backtesting/results/results-view";
+import { CoverageBadge } from "@/components/backtesting/presets/coverage-badge";
+import { useCoverage } from "@/features/backtest/presets/use-coverage";
 
 /**
  * Step 5 — Review & run. Read-only recap of the whole strategy with inline
@@ -25,9 +27,14 @@ import { ResultsView } from "@/components/backtesting/results/results-view";
 export function ReviewStep({
   draft,
   onEdit,
+  autoRun = false,
+  onAutoRunConsumed,
 }: {
   draft: StrategyDef;
   onEdit: (step: WizardStep) => void;
+  /** Kick off a run once on mount (preset card "Run" deep link). */
+  autoRun?: boolean;
+  onAutoRunConsumed?: () => void;
 }) {
   const { status, result, progress, error, emptyReason, run, cancel } = useBacktestRunner();
   const active = isActive(status);
@@ -38,10 +45,30 @@ export function ReviewStep({
   const payload = React.useMemo(() => builderDataPayload(), []);
   const snapshot = payload.kind === "fixture" ? payload.snapshot : null;
 
+  // Coverage for the data the engine actually ran against (the served expiries
+  // in the snapshot). MANDATORY on any run result — never hidden.
+  const servedExpiries = React.useMemo(
+    () => (snapshot ? [...new Set(snapshot.days.map((d) => d.expiry))].sort() : []),
+    [snapshot]
+  );
+  const runCoverage = useCoverage(snapshot?.symbol ?? null, servedExpiries);
+
   // The EXACT strategy fed to the engine — also what Save/Share persists, so a
   // saved run round-trips to the same definition that produced it.
   const ranStrategy = React.useMemo(() => adaptDraftForGoldenRun(draft), [draft]);
-  const onRun = () => run(ranStrategy, payload);
+  const onRun = React.useCallback(() => run(ranStrategy, payload), [run, ranStrategy, payload]);
+
+  // Auto-run once for a preset "Run" deep link (the data-backed presets execute
+  // immediately; the honest-locked ones never reach here — their card Run is
+  // disabled). Guarded so it fires exactly once.
+  const autoRan = React.useRef(false);
+  React.useEffect(() => {
+    if (autoRun && !autoRan.current) {
+      autoRan.current = true;
+      onRun();
+      onAutoRunConsumed?.();
+    }
+  }, [autoRun, onRun, onAutoRunConsumed]);
 
   return (
     <div className="space-y-5" data-testid="bt-step-review">
@@ -116,6 +143,24 @@ export function ReviewStep({
           the prev run via the per-stat deltas); Re-run replays the same draft. */}
       {status !== "idle" && (
         <div data-testid="bt-result" className="pt-1">
+          {/* MANDATORY coverage honesty on the run result (BT-10). */}
+          {snapshot && (
+            <div
+              className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted"
+              data-testid="bt-result-coverage"
+            >
+              <span>Data coverage for this run:</span>
+              <CoverageBadge
+                fraction={runCoverage.fraction}
+                symbol={snapshot.symbol}
+                scope="over the run window"
+              />
+              <span className="text-[11px]">
+                Ran against the committed {snapshot.symbol} sample window — the full historical data
+                layer is on the way.
+              </span>
+            </div>
+          )}
           <ResultsView
             status={status}
             result={result}

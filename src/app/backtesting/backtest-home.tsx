@@ -123,7 +123,7 @@ export function BacktestHome() {
             <Link href="/backtesting/build">Build a strategy — free, no signup</Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <Link href="/backtesting/code">Write code</Link>
+            <Link href="/backtesting/explore">Explore strategies</Link>
           </Button>
         </div>
       </section>
