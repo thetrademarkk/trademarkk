@@ -21,7 +21,9 @@ import type {
   ProfileCommentView,
   ProfileView,
   SearchResponse,
+  ThreadState,
 } from "./types";
+import { classifyAttachment, toggleMessageReaction, type MessageReactionKind } from "./dm-v2";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import { toggleFollowedTag } from "./followed-tags";
@@ -1119,10 +1121,12 @@ export interface ConversationsResponse {
   unread: number;
 }
 
-interface ThreadResponse {
+export interface ThreadResponse {
   messages: DmMessageView[];
   nextCursor: string | null;
   peer: AuthorView;
+  /** DM v2: peer seen/typing state for delivery ticks + the typing bubble. */
+  state: ThreadState;
 }
 
 /** Inbox list + total unread. Pollers pick their own cadence (header 30s, inbox 5s). */
@@ -1186,6 +1190,12 @@ export function useSendMessage(conversationId: string) {
         body,
         mine: true,
         createdAt: new Date().toISOString(),
+        reactions: {},
+        editedAt: null,
+        editHistory: [],
+        deletedAt: null,
+        // Classify the attachment locally so an image preview shows instantly.
+        attachment: classifyAttachment(body),
       };
       qc.setQueryData<ThreadResponse>(key, (data) =>
         data ? { ...data, messages: [...data.messages, optimistic] } : data
@@ -1206,6 +1216,140 @@ export function useSendMessage(conversationId: string) {
     onError: (_e, _body, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev);
     },
+  });
+}
+
+/** Patches one message in the cached thread (optimistic helper shared by v2 mutations). */
+function patchThreadMessage(
+  qc: ReturnType<typeof useQueryClient>,
+  conversationId: string,
+  messageId: string,
+  patch: (m: DmMessageView) => DmMessageView
+) {
+  qc.setQueryData<ThreadResponse>(["community-dm", conversationId], (data) =>
+    data
+      ? { ...data, messages: data.messages.map((m) => (m.id === messageId ? patch(m) : m)) }
+      : data
+  );
+}
+
+/**
+ * Toggles the viewer's reaction on a message. Optimistic: the chip updates
+ * instantly via the same pure toggle the server uses, then reconciles with the
+ * server's authoritative message on success (or rolls back on error).
+ */
+export function useReactToMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, reaction }: { messageId: string; reaction: MessageReactionKind }) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}/react`,
+        { method: "POST", body: JSON.stringify({ reaction }) }
+      ),
+    onMutate: ({ messageId, reaction }) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        reactions: toggleMessageReaction(m.reactions, "me", reaction),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, { messageId }) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+  });
+}
+
+/** Edits a message within its window — optimistic patch with rollback. */
+export function useEditMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: string }) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}`,
+        { method: "PATCH", body: JSON.stringify({ body }) }
+      ),
+    onMutate: ({ messageId, body }) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      const editedAt = new Date().toISOString();
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        editHistory: [...m.editHistory, { editedAt, body: m.body }],
+        body: body.trim(),
+        editedAt,
+        attachment: classifyAttachment(body.trim()),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, { messageId }) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Soft-deletes a message — optimistic tombstone with rollback. */
+export function useDeleteMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}`,
+        { method: "DELETE" }
+      ),
+    onMutate: (messageId) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        body: "",
+        reactions: {},
+        attachment: null,
+        deletedAt: new Date().toISOString(),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, messageId) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Fires a (throttled by the caller) typing heartbeat — fire-and-forget. */
+export function useTypingPing(conversationId: string) {
+  return useMutation({
+    mutationFn: () =>
+      request(`/api/community/dm/conversations/${conversationId}/typing`, { method: "POST" }),
+  });
+}
+
+/** Re-confirms a thread read on window focus (the GET already marks on load). */
+export function useMarkThreadRead(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      request(`/api/community/dm/conversations/${conversationId}/read`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Lazy link-card unfurl for a DM message (images render directly, no fetch). */
+export function useMessageUnfurl(conversationId: string, messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-dm-unfurl", conversationId, messageId],
+    queryFn: () =>
+      request<{ unfurl: LinkUnfurl | null }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}/unfurl`
+      ),
+    enabled,
+    staleTime: 60 * 60_000,
+    retry: false,
   });
 }
 

@@ -55,6 +55,11 @@ export const NOTIFICATION_PREF_TYPES = [
     description: "When someone @mentions you in a post or comment.",
   },
   {
+    type: "message",
+    label: "Direct messages",
+    description: "When someone sends you a direct message.",
+  },
+  {
     type: "follow",
     label: "New followers",
     description: "When someone starts following you.",

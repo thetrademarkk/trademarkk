@@ -123,6 +123,16 @@ export const sendDmSchema = z.object({
   body: z.string().trim().min(1, "Empty message").max(2000, "Keep it under 2000 characters"),
 });
 
+/** Editing a DM re-runs the same body validation as sending one. */
+export const editDmSchema = z.object({
+  body: z.string().trim().min(1, "Empty message").max(2000, "Keep it under 2000 characters"),
+});
+
+/** Reacting to a DM with one of the supported message-reaction kinds. */
+export const reactDmSchema = z.object({
+  reaction: z.enum(["like", "love", "laugh", "celebrate", "sad"]),
+});
+
 export const REPORT_REASONS = [
   { id: "spam", label: "Spam or promotion" },
   { id: "harassment", label: "Harassment or abuse" },
@@ -143,3 +153,5 @@ export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type EditPostInput = z.infer<typeof editPostSchema>;
 export type EditCommentInput = z.infer<typeof editCommentSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type EditDmInput = z.infer<typeof editDmSchema>;
+export type ReactDmInput = z.infer<typeof reactDmSchema>;

@@ -3,6 +3,8 @@ import type { CommentEditSnapshot, PostEditSnapshot } from "./edit-window";
 import type { Sentiment } from "./sentiment";
 import type { ReputationTier } from "./reputation";
 import type { AwardId } from "./awards";
+import type { MessageReactionMap } from "./dm-v2";
+import type { LinkUnfurl } from "./unfurl";
 
 /** A snapshot of a journal trade, shared by explicit user action. Never a live link. */
 export interface TradeCard {
@@ -232,7 +234,7 @@ export interface LeaderboardRow {
 
 export interface NotificationView {
   id: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare";
+  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare" | "message";
   actor: AuthorView;
   postId: string | null;
   read: boolean;
@@ -243,16 +245,56 @@ export interface NotificationView {
 export interface ConversationView {
   id: string;
   peer: AuthorView;
-  lastMessage: { body: string; mine: boolean; createdAt: string } | null;
+  lastMessage: {
+    body: string;
+    mine: boolean;
+    createdAt: string;
+    /** True when the inbox preview should read "Message deleted" (tombstone). */
+    deleted: boolean;
+  } | null;
   unread: number;
   lastMessageAt: string;
 }
 
+/** A rich attachment derived from the first link in a message (DM v2). */
+export interface DmAttachment {
+  kind: "image" | "link";
+  url: string;
+  /** Present for link cards (resolved server-side via the unfurl path); null for images. */
+  unfurl?: LinkUnfurl | null;
+}
+
 export interface DmMessageView {
   id: string;
+  /** The (possibly empty) message body. Empty + deleted = tombstone. */
   body: string;
   mine: boolean;
   createdAt: string;
+  /** DM v2: per-message reactions (userId -> kind). Omitted/empty when none. */
+  reactions: MessageReactionMap;
+  /** DM v2: set when the sender edited the message; null otherwise. */
+  editedAt: string | null;
+  /** DM v2: append-only prior-body snapshots, oldest first (empty when never edited). */
+  editHistory: CommentEditSnapshot[];
+  /** DM v2: set when soft-deleted — render the tombstone, suppress body/attachment. */
+  deletedAt: string | null;
+  /** DM v2: classified first-link attachment (image preview or link card), or null. */
+  attachment: DmAttachment | null;
+}
+
+/**
+ * Per-thread DM v2 state surfaced alongside the messages on each poll: the
+ * peer's seen/typing derived from their last-read/typing columns. Drives the
+ * sender's sent→delivered→seen ticks and the typing bubble. Cheap — read from
+ * the conversation row the thread query already loads.
+ */
+export interface ThreadState {
+  /** Peer's last-read message ISO timestamp (or null) — drives "seen" ticks. */
+  peerLastReadAt: string | null;
+  /** Peer's last thread-activity ISO timestamp (or null) — drives "delivered". */
+  peerLastSeenAt: string | null;
+  /** Peer's typing heartbeat ISO timestamp (or null) — TTL-checked client-side. */
+  peerTypingAt: string | null;
 }
 
 export interface FeedResponse {

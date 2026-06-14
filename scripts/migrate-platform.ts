@@ -397,6 +397,27 @@ async function main() {
     // existing users see no behaviour change). Strictly PERSONAL: hides matching
     // posts/comments from THIS user's own feeds/threads, never global moderation.
     `ALTER TABLE profiles ADD COLUMN muted_words TEXT`,
+    // ── DM v2: per-participant read/seen/typing state on conversations ──
+    // last_read_* = each participant's last-read message ISO timestamp (unread
+    // badges + sender's sent→delivered→seen ticks); last_seen_* = last thread
+    // activity ISO (drives "delivered"); typing_* = short-TTL typing heartbeat
+    // ISO (see features/community/dm-v2.ts). All NULL by default — additive,
+    // idempotent, no behaviour change for existing v1 threads.
+    `ALTER TABLE conversations ADD COLUMN last_read_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_read_b TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_seen_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_seen_b TEXT`,
+    `ALTER TABLE conversations ADD COLUMN typing_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN typing_b TEXT`,
+    // ── DM v2: per-message reactions + edit window + soft-delete tombstone ──
+    // reactions = compact JSON userId->kind map; edited_at/edit_history reuse the
+    // post/comment edit-window model; deleted_at = soft-delete (the row stays as a
+    // "message deleted" tombstone so thread continuity is preserved). All NULL by
+    // default — additive, idempotent.
+    `ALTER TABLE dm_messages ADD COLUMN reactions TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN edited_at TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN edit_history TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN deleted_at TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

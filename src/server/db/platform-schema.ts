@@ -357,7 +357,21 @@ export const blogSubmissions = sqliteTable("blog_submissions", {
   reviewedAt: text("reviewed_at"),
 });
 
-/** 1:1 direct-message threads. Participants stored in canonical order (userA < userB). */
+/**
+ * 1:1 direct-message threads. Participants stored in canonical order (userA < userB).
+ *
+ * DM v2 adds per-participant ephemeral/derived state, all additive + idempotent:
+ *  - `lastReadA/B`   — each participant's last-read message ISO timestamp; drives
+ *    unread badges and the sender's sent→delivered→seen ticks (one indexed read
+ *    on the existing thread poll, no extra table).
+ *  - `lastSeenA/B`   — each participant's last thread-activity ISO timestamp
+ *    (set on thread poll/open); drives the "delivered" state (the peer's client
+ *    has the message) distinct from "seen" (they actually read up to it).
+ *  - `typingA/B`     — a short-TTL typing heartbeat ISO timestamp per participant
+ *    (see features/community/dm-v2.ts TYPING_TTL_MS); the thread poll surfaces it
+ *    and it expires a few seconds after the last keystroke. Ephemeral, no infra.
+ * Suffix A/B maps to userA/userB (canonical order) so there's exactly one row.
+ */
 export const conversations = sqliteTable(
   "conversations",
   {
@@ -366,6 +380,12 @@ export const conversations = sqliteTable(
     userB: text("user_b").notNull(),
     createdAt: text("created_at").notNull(),
     lastMessageAt: text("last_message_at").notNull(),
+    lastReadA: text("last_read_a"),
+    lastReadB: text("last_read_b"),
+    lastSeenA: text("last_seen_a"),
+    lastSeenB: text("last_seen_b"),
+    typingA: text("typing_a"),
+    typingB: text("typing_b"),
   },
   (t) => [unique().on(t.userA, t.userB)]
 );
@@ -376,7 +396,16 @@ export const dmMessages = sqliteTable("dm_messages", {
   senderId: text("sender_id").notNull(),
   body: text("body").notNull(), // plain text, ≤ 2000 chars
   createdAt: text("created_at").notNull(),
-  read: integer("read").notNull().default(0), // recipient has seen it
+  read: integer("read").notNull().default(0), // recipient has seen it (v1; superseded by last_read_*)
+  // ── DM v2: per-message reactions + edit window + soft-delete tombstone ──
+  /** Per-message reactions: compact JSON map of userId -> kind (see dm-v2.ts). NULL = none. */
+  reactions: text("reactions"),
+  /** Set the first time the sender edits the message; null = never edited. */
+  editedAt: text("edited_at"),
+  /** Append-only JSON array of pre-edit body snapshots (reuses edit-window.ts). */
+  editHistory: text("edit_history"),
+  /** Set when the sender soft-deletes the message; the row stays as a tombstone. */
+  deletedAt: text("deleted_at"),
 });
 
 /**
