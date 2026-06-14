@@ -14,8 +14,18 @@ import { saveRunBodySchema } from "@/features/backtest/persist/api";
  * user. The engine is never re-executed — the result is stored verbatim.
  *
  * Guard chain mirrors src/app/api/feedback/route.ts:
- *   origin → session (required) → rate-limit → zod-parse → act → typed JSON.
+ *   origin → session (required) → rate-limit → size-cap → zod-parse → act → typed JSON.
  */
+
+/**
+ * Hard cap on the request body. A RunResult is stored verbatim, so an oversized
+ * blob is a storage-exhaustion vector. runResultSchema's own .max() bounds keep
+ * a well-formed run well under this, leaving a generous margin for the strategy
+ * + JSON overhead. We reject early on Content-Length so a huge upload never gets
+ * buffered or parsed.
+ */
+const MAX_SAVE_BODY_BYTES = 256 * 1024;
+
 export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -25,6 +35,11 @@ export async function POST(req: Request) {
   const { allowed } = await rateLimit(`bt:save:${session.user.id}`, 30, 3600);
   if (!allowed) {
     return NextResponse.json({ error: "Too many saves — try later" }, { status: 429 });
+  }
+
+  const contentLength = Number(req.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_SAVE_BODY_BYTES) {
+    return NextResponse.json({ error: "Run too large to save" }, { status: 413 });
   }
 
   const parsed = saveRunBodySchema.safeParse(await req.json().catch(() => null));

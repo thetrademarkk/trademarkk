@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { follows, profiles } from "@/server/db/platform-schema";
+import { blocks, follows, profiles } from "@/server/db/platform-schema";
 import { ensureProfile, getSession, notify } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
@@ -24,6 +24,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ username: stri
   if (!target) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   if (target.userId === session.user.id)
     return NextResponse.json({ error: "You can't follow yourself" }, { status: 400 });
+
+  // A user the target has blocked can't follow (or notify) them.
+  const blockedByTarget = await platformDb
+    .select()
+    .from(blocks)
+    .where(and(eq(blocks.blockerId, target.userId), eq(blocks.blockedId, session.user.id)))
+    .get();
+  if (blockedByTarget)
+    return NextResponse.json({ error: "You can't follow this trader" }, { status: 403 });
+
   await ensureProfile(session.user.id, session.user.name);
 
   const existing = await platformDb

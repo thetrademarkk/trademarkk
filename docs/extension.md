@@ -160,7 +160,7 @@ hosted app already allowlists it.
   empty to disable). Wildcard extension origins are never trusted. Sessions
   and rate limits still apply to every request.
 - **Scoped DB tokens**: hosted tokens are minted per user, scoped to that
-  user's single database, valid 7 days, cached at most 24h in
+  user's single database, valid 24h, cached at most 24h in
   `chrome.storage.session` (cleared when the browser closes).
 - **Journal data never touches the platform server** — the panel talks to
   your Turso database directly, exactly like the web client.

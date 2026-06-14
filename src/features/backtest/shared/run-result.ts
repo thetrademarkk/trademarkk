@@ -19,6 +19,19 @@ import { strategyDefSchema } from "./strategy-def";
 
 export const RUN_RESULT_VERSION = 1 as const;
 
+/**
+ * Hard upper bounds on the variable-length parts of a RunResult. These are a
+ * security cap, not a product limit: a saved run is stored verbatim, so an
+ * unbounded array/string is a storage-exhaustion vector. The per-day arrays
+ * (equityCurve / tradeReturns / blotter) are capped at MAX_RUN_DAYS — generous
+ * for the dataset's 5+ years of trading days (~250/yr) yet finite. monthly
+ * returns span at most MAX_RUN_MONTHS, chips/legs/flags are tiny by design.
+ */
+export const MAX_RUN_DAYS = 1500;
+export const MAX_RUN_MONTHS = 240;
+export const MAX_QUALITY_CHIPS = 16;
+export const MAX_RUN_LEGS = 8;
+
 /** Per-leg, per-cycle strike resolution honesty primitive (requested → served). */
 export const strikeResolutionSchema = z.object({
   requested: z.number(),
@@ -67,7 +80,7 @@ export type HeadlineStats = z.infer<typeof headlineStatsSchema>;
 export const qualityChipSchema = z.object({
   kind: z.enum(["coverage", "liquidity", "substitution", "sample", "slippage", "excluded"]),
   level: z.enum(["good", "warning", "bad"]),
-  label: z.string(),
+  label: z.string().max(120),
 });
 export type QualityChip = z.infer<typeof qualityChipSchema>;
 
@@ -99,10 +112,13 @@ export type BookedLeg = z.infer<typeof bookedLegSchema>;
 
 /** One trade = one trading-day cycle (the AlgoTest convention). */
 export const blotterRowSchema = z.object({
-  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  day: z
+    .string()
+    .max(40)
+    .regex(/^\d{4}-\d{2}-\d{2}$/),
   entryTs: z.number().int(),
   exitTs: z.number().int(),
-  legs: z.array(bookedLegSchema),
+  legs: z.array(bookedLegSchema).max(MAX_RUN_LEGS),
   gross: z.number(),
   charges: z.number(),
   net: z.number(),
@@ -124,7 +140,7 @@ export const perLegStatSchema = z.object({
 export type PerLegStat = z.infer<typeof perLegStatSchema>;
 
 export const tradeReturnSchema = z.object({
-  day: z.string(),
+  day: z.string().max(40),
   net: z.number(),
 });
 export type TradeReturn = z.infer<typeof tradeReturnSchema>;
@@ -141,12 +157,12 @@ export const runResultSchema = z.object({
   ranAt: z.number().int(),
   coverage: coverageReportSchema,
   stats: headlineStatsSchema,
-  qualityChips: z.array(qualityChipSchema),
-  equityCurve: z.array(equityPointSchema),
-  monthlyReturns: z.array(monthlyReturnSchema),
-  tradeReturns: z.array(tradeReturnSchema),
-  blotter: z.array(blotterRowSchema),
-  perLeg: z.array(perLegStatSchema),
+  qualityChips: z.array(qualityChipSchema).max(MAX_QUALITY_CHIPS),
+  equityCurve: z.array(equityPointSchema).max(MAX_RUN_DAYS),
+  monthlyReturns: z.array(monthlyReturnSchema).max(MAX_RUN_MONTHS),
+  tradeReturns: z.array(tradeReturnSchema).max(MAX_RUN_DAYS),
+  blotter: z.array(blotterRowSchema).max(MAX_RUN_DAYS),
+  perLeg: z.array(perLegStatSchema).max(MAX_RUN_LEGS),
   /** Aggregated correctness/honesty flags surfaced on the verdict. */
   flags: z.array(z.enum(["COVERAGE", "LOW_LIQUIDITY", "MISSING_LEG"])),
 });
