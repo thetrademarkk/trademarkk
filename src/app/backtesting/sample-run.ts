@@ -5,14 +5,146 @@
  * lets a first-time visitor see a beautiful, honest result instantly, with zero
  * WASM boot and $0 cost (UX Priority 1: the landing never triggers the engine).
  * It is clearly labelled a sample in the UI. The shape is the real RunResult
- * schema so the same result card can render both this and live runs.
+ * schema so the same result card AND the full RunResultReport (incl. the BT-11
+ * robustness/walk-forward tab) can render both this and live runs.
  *
- * Strategy: a NIFTY 09:20 short ATM straddle, weekly expiry, 3-month window —
- * the canonical hot path. Numbers are plausible illustrative figures, marked
- * "Sample" so they are never mistaken for a guaranteed edge.
+ * Strategy: a NIFTY 09:20 short ATM straddle, weekly expiry, ~3-month window —
+ * the canonical hot path. The blotter is a DETERMINISTIC ~60 trade-day series
+ * (generated below from a fixed seed) so the robustness layer is meaningful: the
+ * walk-forward split has enough folds and the Monte-Carlo resampling clears its
+ * MIN_TRADES gate — letting the sample showcase the honesty rigor layer without
+ * an engine boot. Numbers are plausible illustrative figures, marked "Sample" so
+ * they are never mistaken for a guaranteed edge.
  */
 
-import type { RunResult } from "@/features/backtest/shared";
+import type {
+  BlotterRow,
+  EquityPoint,
+  MonthlyReturn,
+  RunResult,
+  TradeReturn,
+} from "@/features/backtest/shared";
+import { mulberry32 } from "@/lib/montecarlo/simulate";
+
+/** A NIFTY trading-day spine across Jan–Mar 2024 (skips weekends; ~60 days). */
+function tradingDaySpine(): string[] {
+  const days: string[] = [];
+  const start = new Date(Date.UTC(2024, 0, 1));
+  const end = new Date(Date.UTC(2024, 2, 28));
+  for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) {
+    const d = new Date(t);
+    const dow = d.getUTCDay();
+    if (dow === 0 || dow === 6) continue; // weekends
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+/**
+ * Build the deterministic sample blotter. A short straddle wins most days
+ * (premium decay) with occasional sharp losses; we deliberately make the LATER
+ * (out-of-sample) stretch a touch weaker so the walk-forward tab honestly reads
+ * "softened out-of-sample" — an illustrative, descriptive outcome.
+ */
+function buildSample(): {
+  blotter: BlotterRow[];
+  tradeReturns: TradeReturn[];
+  equityCurve: EquityPoint[];
+  monthlyReturns: MonthlyReturn[];
+  netPnl: number;
+  wins: number;
+} {
+  const days = tradingDaySpine();
+  const rand = mulberry32(0xc0ffee);
+  const blotter: BlotterRow[] = [];
+  const tradeReturns: TradeReturn[] = [];
+  const equityCurve: EquityPoint[] = [{ ts: Date.parse(days[0]! + "T03:45:00Z"), equity: 0 }];
+  const monthly = new Map<string, number>();
+  let equity = 0;
+  let wins = 0;
+
+  days.forEach((day, i) => {
+    // Later third drifts weaker (mild OOS degradation) for an honest illustration.
+    const lateFactor = i > days.length * 0.66 ? 0.55 : 1;
+    const r = rand();
+    // ~70% small wins, ~30% losses (some sharp) — scaled to plausible ₹ for 1 lot.
+    let net: number;
+    if (r < 0.7) net = Math.round((600 + rand() * 1400) * lateFactor);
+    else net = -Math.round((900 + rand() * 3200) * lateFactor);
+    if (net > 0) wins++;
+
+    const ts = Date.parse(day + "T03:50:00Z");
+    const exitTs = Date.parse(day + "T09:45:00Z");
+    const entryPrice = 90 + Math.round(rand() * 20);
+    const exitPrice = Math.max(0.05, Math.round((entryPrice - net / 75) * 100) / 100);
+    blotter.push({
+      day,
+      entryTs: ts,
+      exitTs,
+      legs: [
+        {
+          legId: "ce",
+          optionType: "CE",
+          side: "sell",
+          qty: 75,
+          resolution: {
+            requested: 21700,
+            served: 21700,
+            coverage: 0.86 + rand() * 0.12,
+            confidence: "high",
+            fallbackSteps: 0,
+          },
+          entryPrice,
+          exitPrice,
+          gross: Math.round(net / 2 + 35),
+          charges: 35,
+          net: Math.round(net / 2),
+          reentries: 0,
+        },
+        {
+          legId: "pe",
+          optionType: "PE",
+          side: "sell",
+          qty: 75,
+          resolution: {
+            requested: 21700,
+            served: 21700,
+            coverage: 0.82 + rand() * 0.12,
+            confidence: "high",
+            fallbackSteps: 0,
+          },
+          entryPrice,
+          exitPrice,
+          gross: net - Math.round(net / 2) + 35,
+          charges: 35,
+          net: net - Math.round(net / 2),
+          reentries: 0,
+        },
+      ],
+      gross: net + 70,
+      charges: 70,
+      net,
+      substituted: false,
+      flags: [],
+    });
+
+    equity = Math.round((equity + net) * 100) / 100;
+    equityCurve.push({ ts: exitTs, equity });
+    tradeReturns.push({ day, net });
+    const ym = day.slice(0, 7);
+    monthly.set(ym, (monthly.get(ym) ?? 0) + net);
+  });
+
+  const netPnl = equity;
+  const monthlyReturns: MonthlyReturn[] = [...monthly.entries()]
+    .map(([month, pnl]) => ({ month, pnl }))
+    .sort((a, b) => (a.month < b.month ? -1 : 1));
+
+  return { blotter, tradeReturns, equityCurve, monthlyReturns, netPnl, wins };
+}
+
+const sample = buildSample();
+const tradeCount = sample.blotter.length;
 
 export const SAMPLE_RUN: RunResult = {
   resultVersion: 1,
@@ -73,10 +205,10 @@ export const SAMPLE_RUN: RunResult = {
     filledBarFraction: 0.93,
   },
   stats: {
-    netPnl: 41250,
-    winRate: 0.63,
+    netPnl: sample.netPnl,
+    winRate: Math.round((sample.wins / tradeCount) * 100) / 100,
     maxDrawdown: -18400,
-    expectancy: 695,
+    expectancy: Math.round(sample.netPnl / tradeCount),
     profitFactor: 1.74,
     sharpe: 1.28,
   },
@@ -85,90 +217,27 @@ export const SAMPLE_RUN: RunResult = {
     { kind: "substitution", level: "warning", label: "3 days used a nearer strike" },
     { kind: "liquidity", level: "warning", label: "1 low-liquidity day" },
   ],
-  // 13 weekly points — a gently rising sample equity curve.
-  equityCurve: [
-    { ts: 1704067200000, equity: 0 },
-    { ts: 1704672000000, equity: 4200 },
-    { ts: 1705276800000, equity: 3100 },
-    { ts: 1705881600000, equity: 8900 },
-    { ts: 1706486400000, equity: 12400 },
-    { ts: 1707091200000, equity: 9800 },
-    { ts: 1707696000000, equity: 16100 },
-    { ts: 1708300800000, equity: 21300 },
-    { ts: 1708905600000, equity: 19000 },
-    { ts: 1709510400000, equity: 27600 },
-    { ts: 1710115200000, equity: 33200 },
-    { ts: 1710720000000, equity: 36800 },
-    { ts: 1711324800000, equity: 41250 },
-  ],
-  monthlyReturns: [
-    { month: "2024-01", pnl: 12400 },
-    { month: "2024-02", pnl: 13900 },
-    { month: "2024-03", pnl: 14950 },
-  ],
-  tradeReturns: [
-    { day: "2024-01-04", net: 2100 },
-    { day: "2024-01-11", net: -1500 },
-    { day: "2024-01-18", net: 3300 },
-    { day: "2024-02-01", net: 1800 },
-    { day: "2024-02-15", net: -2200 },
-    { day: "2024-03-07", net: 4100 },
-  ],
-  blotter: [
-    {
-      day: "2024-01-04",
-      entryTs: 1704335400000,
-      exitTs: 1704356100000,
-      legs: [
-        {
-          legId: "ce",
-          optionType: "CE",
-          side: "sell",
-          qty: 75,
-          resolution: {
-            requested: 21700,
-            served: 21700,
-            coverage: 0.9,
-            confidence: "high",
-            fallbackSteps: 0,
-          },
-          entryPrice: 95,
-          exitPrice: 62,
-          gross: 2475,
-          charges: 70,
-          net: 2405,
-          reentries: 0,
-        },
-        {
-          legId: "pe",
-          optionType: "PE",
-          side: "sell",
-          qty: 75,
-          resolution: {
-            requested: 21700,
-            served: 21650,
-            coverage: 0.55,
-            confidence: "medium",
-            fallbackSteps: 1,
-          },
-          entryPrice: 88,
-          exitPrice: 92,
-          gross: -300,
-          charges: 65,
-          net: -365,
-          reentries: 0,
-        },
-      ],
-      gross: 2175,
-      charges: 135,
-      net: 2040,
-      substituted: true,
-      flags: ["COVERAGE"],
-    },
-  ],
+  equityCurve: sample.equityCurve,
+  monthlyReturns: sample.monthlyReturns,
+  tradeReturns: sample.tradeReturns,
+  blotter: sample.blotter,
   perLeg: [
-    { legId: "ce", optionType: "CE", side: "sell", net: 23800, trades: 13, meanCoverage: 0.88 },
-    { legId: "pe", optionType: "PE", side: "sell", net: 17450, trades: 13, meanCoverage: 0.84 },
+    {
+      legId: "ce",
+      optionType: "CE",
+      side: "sell",
+      net: Math.round(sample.netPnl * 0.55),
+      trades: tradeCount,
+      meanCoverage: 0.88,
+    },
+    {
+      legId: "pe",
+      optionType: "PE",
+      side: "sell",
+      net: Math.round(sample.netPnl * 0.45),
+      trades: tradeCount,
+      meanCoverage: 0.84,
+    },
   ],
   flags: ["COVERAGE", "LOW_LIQUIDITY"],
 };

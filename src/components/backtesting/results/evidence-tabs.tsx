@@ -14,6 +14,9 @@ const RiskTab = React.lazy(() => import("./risk-tab").then((m) => ({ default: m.
 const CalendarTab = React.lazy(() =>
   import("./calendar-tab").then((m) => ({ default: m.CalendarTab }))
 );
+const RobustnessTab = React.lazy(() =>
+  import("./robustness-tab").then((m) => ({ default: m.RobustnessTab }))
+);
 
 function TabFallback() {
   return <div className="h-40 animate-pulse rounded-lg bg-surface-2/60" aria-hidden />;
@@ -37,6 +40,9 @@ export function EvidenceTabs({ run }: { run: RunResult }) {
         <TabsTrigger value="calendar" data-testid="bt-tab-calendar">
           Calendar
         </TabsTrigger>
+        <TabsTrigger value="robustness" data-testid="bt-tab-robustness">
+          Robustness
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="returns">
@@ -52,6 +58,11 @@ export function EvidenceTabs({ run }: { run: RunResult }) {
       <TabsContent value="calendar">
         <React.Suspense fallback={<TabFallback />}>
           <CalendarTab run={run} />
+        </React.Suspense>
+      </TabsContent>
+      <TabsContent value="robustness">
+        <React.Suspense fallback={<TabFallback />}>
+          <RobustnessTab run={run} />
         </React.Suspense>
       </TabsContent>
     </Tabs>

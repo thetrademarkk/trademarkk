@@ -131,8 +131,12 @@ merged to main.
 - [ ] **BT-08 data-proxy** — `/api/mkt/[...path]` range-proxy + duckdb-wasm data
       layer (the HF integration seam; needs the owner-provided HF dataset + the
       ETL above uploaded).
-- [ ] **BT-10..14** — presets, walk-forward+MC, compare-journal, BYOC (Pyodide),
-      server leaderboard.
+- [x] **BT-11 walk-forward + MC robustness + overfitting coach** — accumulated,
+      pending batch deploy (descriptive-only honesty rigor layer; see the lane log
+      below).
+- [ ] **BT-10, BT-12..14** — presets, compare-journal, BYOC (Pyodide), server
+      leaderboard. (BT-10 + BT-08 are HF-gated; BT-12 journal-compare is buildable
+      now.)
 
 ## Working rules (this lane)
 
@@ -226,3 +230,39 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
     scripts ran successfully against the real archive; manifest schema validated.
     OWNER-ASK (only blocker): HF org name (e.g. `thetrademarkk`), a fine-grained
     WRITE token scoped to ONE dataset repo, and a public+ungated confirmation.
+- 2026-06-14 — BT-11 WALK-FORWARD + MC ROBUSTNESS + OVERFITTING COACH, accumulated
+  (deploy-conserving). The honesty rigor layer on top of the BT-04 engine + BT-07
+  results — everything DESCRIPTIVE (D10), never a verdict, never an LLM, no HF data.
+  Pure modules: `src/lib/backtest/walkforward.ts` (rolling/anchored IS-vs-OOS split
+  over the run's per-day trade-return series — equivalent to re-running the
+  point-in-time engine per sub-range while reusing the deterministic output;
+  per-window metrics via the existing `computeMetrics`; aggregate OOS curve;
+  `MIN_WINDOW_DAYS=5` low-coverage flag, never fabricated; descriptive verdict
+  held/softened/degraded/improved/inconclusive + plain-language summary;
+  `walkForwardCurve` two-color train→test split for the chart). `robustness.ts`
+  (extends mc-cone: BOOTSTRAP terminal-P&L + max-DD distributions AND an
+  ORDER-SHUFFLE max-DD distribution — "how much was luck"; D3 raw-₹ vs R basis
+  reused from mc-cone; `MIN_TRADES=30` gate; single seed → identical
+  `distributionHash`). `deflated-sharpe.ts` (Probabilistic + Deflated Sharpe,
+  Bailey & López de Prado 2014 — closed-form normalCdf/normalInv/erf, skew+kurtosis
+  adjustment, expected-max-of-N deflation for trials tried; DESCRIPTIVE caution
+  bucket low/moderate/elevated/insufficient, cites the concept, never recommends).
+  UI: a lazy-mounted "Robustness" tab in the BT-07 evidence tabs
+  (`src/components/backtesting/results/robustness-tab.tsx` + `walkforward-curve.tsx`)
+  with the two-color IS/OOS Recharts curve (reused idiom, NO new charting dep), the
+  per-window table, the MC cone (reused `EquityCone`) + percentile tiles, and the
+  deflated-Sharpe caution card; all 5 states incl. honest low-sample notes. The
+  pre-baked landing `SAMPLE_RUN` was enriched to a deterministic ~60-trade-day
+  series + an "Explore the full sample report" disclosure so the feature is
+  demonstrable engine-free. +37 vitest (suite 1456 → 1493: IS/OOS windowing,
+  anchored-vs-rolling, low-coverage skip, two-color split, bootstrap/shuffle
+  determinism hash + percentile correctness, PSR hand-computed worked example,
+  descriptive-not-evaluative summary/caution thresholds, SAMPLE_RUN gate-crossing
+  guard) + new `scripts/e2e-bt-walkforward.mjs` (8/8: populated curve+table+MC
+  distribution+coach render, determinism of MC tiles on re-mount, golden 2-day
+  low-sample honest notes, 360px clean, zero console errors). All LOCAL gates
+  green: tsc, ext:typecheck, next lint 0-warn, vitest 1493, next build
+  (`/backtesting/build` 72.5 kB, robustness tab + curve lazy, no SSR worker import),
+  e2e-bt-builder/run/results/persistence 33/33 unchanged, e2e-smoke 36/36,
+  mobile-audit clean. Next backtest item: BT-12 journal-compare (buildable now);
+  BT-08 data-proxy + BT-10 presets stay HF-gated.

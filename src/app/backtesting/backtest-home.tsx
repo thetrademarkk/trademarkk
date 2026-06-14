@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { SAMPLE_RUN } from "./sample-run";
 import { SampleResultCard } from "./sample-result-card";
 
+// The full read-only report (incl. the BT-11 robustness tab) is heavy (Recharts)
+// so it's lazy-loaded and only mounts when the visitor expands the sample.
+const RunResultReport = React.lazy(() =>
+  import("@/components/backtesting/results/run-result-report").then((m) => ({
+    default: m.RunResultReport,
+  }))
+);
+
 /** localStorage keys for the anonymous-first backtesting universe (tmk.bt.*). */
 export const BT_KEYS = {
   visited: "tmk.bt.visited",
@@ -83,6 +91,7 @@ const TRUST = [
 export function BacktestHome() {
   const [recent, setRecent] = React.useState<RecentRun[]>([]);
   const [returning, setReturning] = React.useState(false);
+  const [showFullSample, setShowFullSample] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -151,6 +160,26 @@ export function BacktestHome() {
           shape instantly. Build your own to run live in your browser.
         </p>
         <SampleResultCard run={SAMPLE_RUN} sample />
+        <div className="mt-3 text-center">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowFullSample((v) => !v)}
+            data-testid="bt-sample-full-toggle"
+            aria-expanded={showFullSample}
+          >
+            {showFullSample ? "Hide full sample report" : "Explore the full sample report"}
+          </Button>
+        </div>
+        {showFullSample && (
+          <div className="mt-5" data-testid="bt-sample-full-report">
+            <React.Suspense
+              fallback={<div className="h-40 animate-pulse rounded-2xl bg-surface-2/60" />}
+            >
+              <RunResultReport result={SAMPLE_RUN} />
+            </React.Suspense>
+          </div>
+        )}
       </section>
 
       {/* Two ways in */}
