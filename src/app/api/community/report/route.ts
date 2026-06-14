@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, gte, like } from "drizzle-orm";
 import { newId } from "@/lib/id";
 import { platformDb } from "@/server/db/platform";
-import { reports } from "@/server/db/platform-schema";
+import { comments, posts, reports } from "@/server/db/platform-schema";
 import { getSession } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
@@ -18,6 +18,27 @@ export async function POST(req: Request) {
 
   const parsed = reportSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid report" }, { status: 400 });
+
+  // Resolve the target so we never queue a report for content that doesn't
+  // exist (or whose kind was spoofed: a comment id sent as targetType "post").
+  // zod only constrains the SHAPE — it can't know whether the id is real.
+  const target =
+    parsed.data.targetType === "post"
+      ? await platformDb
+          .select({ authorId: posts.userId })
+          .from(posts)
+          .where(eq(posts.id, parsed.data.targetId))
+          .get()
+      : await platformDb
+          .select({ authorId: comments.userId })
+          .from(comments)
+          .where(eq(comments.id, parsed.data.targetId))
+          .get();
+  if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // You can't report your own content.
+  if (target.authorId === session.user.id)
+    return NextResponse.json({ error: "Can't report your own content" }, { status: 403 });
 
   // De-dupe: the same reporter reporting the same target for the same reason
   // within 24h is idempotent — don't pile identical rows into the admin queue.

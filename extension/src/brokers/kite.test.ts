@@ -212,13 +212,17 @@ describe("assembleCapture", () => {
     const c = assembleCapture({
       ...baseFields,
       symbolText: "DHANIYA",
-      exchangeText: "NCD",
+      // The real National Commodity & Derivatives Exchange code is "NCDEX" —
+      // it must survive into the capture so the charge engine bills NCDEX
+      // (not MCX) slabs rather than dropping the exchange entirely.
+      exchangeText: "NCDEX",
       panelClasses: ["order-window", "buy"],
       submitText: "Buy",
       qtyText: "1",
       priceText: "7100",
     });
-    expect(c).toMatchObject({ exchange: "NCD" });
+    expect(c).toMatchObject({ exchange: "NCDEX" });
+    expect(c!.symbol).toBe("DHANIYA"); // no leading-space corruption
     expect(parseContractName(c!.symbol)).toMatchObject({
       symbol: "DHANIYA",
       segment: "COMM",

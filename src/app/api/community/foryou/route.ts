@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, queryForYou } from "@/server/community";
+import { rateLimit } from "@/server/rate-limit";
 
 /**
  * The signed-in viewer's "For You" interest feed — recent posts re-ranked by a
@@ -16,5 +17,9 @@ export async function GET() {
     // tabs instead. (For-You is a signed-in tab.)
     return NextResponse.json({ posts: [], nextCursor: null });
   }
+  // queryForYou is uncached and recomputed per request — modest per-user cap,
+  // mirroring the leaderboard route's anti-abuse precedent.
+  const { allowed } = await rateLimit(`foryou:${session.user.id}`, 60, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   return NextResponse.json(await queryForYou(session.user.id));
 }

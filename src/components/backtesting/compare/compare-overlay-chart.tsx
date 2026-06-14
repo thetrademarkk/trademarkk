@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { formatINR } from "@/lib/utils";
 import type { OverlayPoint } from "@/features/backtest/journal-compare/compare";
+import { compareOverlayAriaSummary } from "@/features/analytics/chart-aria";
 
 /**
  * The two-color REAL (your journaled trading) vs BASELINE (mechanical backtest)
@@ -26,7 +27,12 @@ import type { OverlayPoint } from "@/features/backtest/journal-compare/compare";
  */
 export function CompareOverlayChart({ overlay }: { overlay: OverlayPoint[] }) {
   return (
-    <div className="h-56 w-full" data-testid="bt-compare-overlay">
+    <div
+      className="h-56 w-full"
+      data-testid="bt-compare-overlay"
+      role="img"
+      aria-label={compareOverlayAriaSummary(overlay)}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={overlay} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />

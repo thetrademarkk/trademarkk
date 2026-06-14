@@ -14,8 +14,9 @@ export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // At most 10 mints/hour, and never two within 10 minutes — a 7-day token is
-  // already long-lived, so anything faster is abuse (or a buggy client loop).
+  // At most 10 mints/hour, and never two within 10 minutes — a 24h token plus
+  // the client's 24h cache is already ample, so anything faster is abuse (or a
+  // buggy client loop).
   const { allowed } = await rateLimit(`token:${session.user.id}`, 10, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   const { allowed: notTooSoon } = await rateLimit(`token-burst:${session.user.id}`, 1, 600);
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       url: `https://${row.hostname}`,
       token,
       storageMode: row.storageMode,
-      expiresInDays: 7,
+      expiresInDays: 1,
     });
   } catch (e) {
     console.error("[token] mint failed", e);

@@ -1,5 +1,7 @@
 import { newId } from "@/lib/id";
+import { resolveExchange } from "@/lib/charges/charges";
 import type { DbStatement, DbValue } from "@/lib/db/types";
+import { parseContractName } from "./instrument-parse";
 import type { TradeFormValues } from "./schemas";
 import { allLegs, deriveTradeNumbers, localInputToIso } from "./utils";
 
@@ -28,11 +30,18 @@ export function buildTradeSaveStatements(
   // onboarding will set a per-user default later). MIS keeps charges identical
   // to the pre-v4 intraday-equity behaviour.
   const product = values.product ?? "MIS";
+  // Exchange (SEG-CHG). Prefer the exchange the contract name pins down so a
+  // manually-entered NCDEX agri commodity persists exchange === "NCDEX" (and the
+  // charge engine applies the NCDEX exchange-transaction rate instead of the MCX
+  // default that undercharges it); otherwise fall back to the segment default
+  // (COMM → MCX, CDS/EQ/FUT/OPT → NSE), matching the CSV import path.
+  const symbol = values.symbol.trim().toUpperCase();
+  const exchange = parseContractName(symbol).exchange ?? resolveExchange(values.segment);
   const row: DbValue[] = [
     id,
     values.accountId,
-    values.symbol.trim().toUpperCase(),
-    "NSE",
+    symbol,
+    exchange,
     values.segment,
     product,
     values.expiry || null,

@@ -4,6 +4,10 @@ export const metadata: Metadata = {
   title: "Changelog",
   description: "What's new in TradeMarkk.",
   alternates: { canonical: "/changelog" },
+  // Match og:url to the route's canonical (relative — metadataBase resolves it)
+  // so it doesn't inherit the homepage url; the branded card image still comes
+  // from the root layout's explicit openGraph.images.
+  openGraph: { url: "/changelog" },
 };
 
 const RELEASES = [

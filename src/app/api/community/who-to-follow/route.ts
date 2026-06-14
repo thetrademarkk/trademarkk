@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession, queryFollowSuggestions } from "@/server/community";
+import { rateLimit } from "@/server/rate-limit";
 
 /**
  * "Who to follow" — relevant, non-spammy follow recommendations for the signed-in
@@ -12,5 +13,9 @@ import { getSession, queryFollowSuggestions } from "@/server/community";
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ show: false, suggestions: [] });
+  // queryFollowSuggestions is uncached and recomputed per request — modest
+  // per-user cap, mirroring the leaderboard route's anti-abuse precedent.
+  const { allowed } = await rateLimit(`who-to-follow:${session.user.id}`, 60, 60);
+  if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   return NextResponse.json(await queryFollowSuggestions(session.user.id));
 }

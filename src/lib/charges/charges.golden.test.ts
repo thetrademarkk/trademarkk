@@ -100,6 +100,43 @@ const GOLDEN: GoldenRow[] = [
     },
   },
   {
+    // Finding (16): per-leg brokerage cap. A long that ran up hard —
+    // 100 sh @ ₹400 → ₹800 — has a LOPSIDED round trip: buyTurnover 40,000 ≪
+    // sellTurnover 80,000. The cap is statutory PER ORDER, capped against THAT
+    // leg's own turnover, NOT the average. The sell leg's % (80,000×0.03%=24)
+    // clears the ₹20 flat cap (→ capped at 20) while the buy leg's % (12) does
+    // not, so brokerage = 12 + 20 = 32.00. The OLD average-based math computed
+    // min(20, (120,000/2)×0.03%=18)×2 = 18×2 = 36.00 — overcharging by ₹4 on
+    // the buy leg (whose true % was only ₹12). This row LOCKS the per-leg fix:
+    // 32.00 ≠ the old 36.00.
+    name: "Zerodha · EQ + MIS (LOPSIDED, per-leg cap) · NSE — Finding (16)",
+    profile: zerodha,
+    trade: {
+      segment: "EQ",
+      product: "MIS",
+      qty: 100,
+      entryPrice: 400,
+      exitPrice: 800,
+      direction: "long",
+    },
+    formula:
+      "brokerage min(20, 40,000×0.03%=12)=12 + min(20, 80,000×0.03%=24→20)=20 ⇒ 32.00 " +
+      "(per-leg; OLD average min(20, 60,000×0.03%=18)×2=36.00) · STT 80,000×0.025%=20 (sell) · " +
+      "exch 120,000×0.00307%=3.684→3.68 · SEBI 120,000/1cr×10=0.12 · " +
+      "GST (32+3.684+0.12)×18%=6.44472→6.44 · stamp 40,000×0.003%=1.20 · DP 0 · " +
+      "total 32+20+3.684+0.12+6.44472+1.20=63.44872→63.45",
+    expected: {
+      brokerage: 32,
+      stt: 20,
+      exchange: 3.68,
+      sebi: 0.12,
+      gst: 6.44,
+      stampDuty: 1.2,
+      dpCharge: 0,
+      total: 63.45,
+    },
+  },
+  {
     name: "Zerodha · EQ + CNC (delivery) · NSE",
     profile: zerodha,
     trade: { segment: "EQ", product: "CNC", ...eq },
@@ -564,7 +601,10 @@ describe("SEG-02/SEG-CHG golden charge table — (segment × product × exchange
           `${r.profile.id}:${r.trade.segment}:${r.trade.product ?? "null"}` +
           `:${r.trade.exchange ?? "default"}` +
           `:${r.trade.commodityOption ? "comOpt" : ""}:${r.trade.isOption ? "ccyOpt" : ""}` +
-          `:${r.trade.agriCommodity ? "agri" : ""}`
+          `:${r.trade.agriCommodity ? "agri" : ""}` +
+          // Price fixture distinguishes the LOPSIDED per-leg-cap row (Finding 16)
+          // from the canonical EQ+MIS row, which share (broker,segment,product,exchange).
+          `:${r.trade.entryPrice}-${r.trade.exitPrice}`
       )
     );
     expect(cells.size).toBe(GOLDEN.length); // no accidental duplicate row

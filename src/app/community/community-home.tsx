@@ -200,6 +200,9 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
 
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
+        {/* Single page h1 (sr-only — the visual hierarchy is the composer +
+            feed cards as h2) so the primary indexable route isn't headless. */}
+        <h1 className="sr-only">TradeMarkk Community</h1>
         <InlineComposer />
         {/* Today's session threads — surfaced inline on mobile (the right rail
             that hosts it on desktop is hidden below lg). */}

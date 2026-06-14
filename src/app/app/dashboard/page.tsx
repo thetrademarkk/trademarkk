@@ -37,7 +37,7 @@ export default function DashboardPage() {
   const { from, to } = periodToRange(period);
   // One table scan instead of two: fetch all trades once, filter the period
   // client-side (the heatmap needs the full set anyway).
-  const { data: allTrades, isLoading } = useTrades({});
+  const { data: allTrades, isLoading } = useTrades({}, { withTags: false });
   const trades = React.useMemo(
     () =>
       (allTrades ?? []).filter((t) => {
@@ -49,6 +49,12 @@ export default function DashboardPage() {
   const { data: adherence } = useAdherence(from, to);
   const { data: journalDates = [] } = useJournalDates();
   const { data: traderProfile } = useTraderProfile();
+
+  // Full-journal derivations (heatmap + holding-style emphasis) only change when
+  // the underlying trade set does — memoize so they don't re-scan every render.
+  const allClosed = React.useMemo(() => closedOnly(allTrades ?? []), [allTrades]);
+  const monthPnl = React.useMemo(() => dailyPnl(allClosed), [allClosed]);
+  const mix = React.useMemo(() => horizonMix(allClosed), [allClosed]);
 
   if (isLoading || !trades) {
     return (
@@ -64,15 +70,12 @@ export default function DashboardPage() {
   }
 
   const now = new Date();
-  const allClosed = closedOnly(allTrades ?? []);
-  const monthPnl = dailyPnl(allClosed);
   // The dashboard adapts to the trader's holding style: positional/swing users
   // get open-positions + holding emphasis, intraday users keep the day-focused
   // arrangement, and a thin/mixed journal degrades to the balanced layout.
   // SEG-08: until there are enough classifiable trades to read the style from
   // the data, fall back to the onboarding trader-type's emphasis so a brand-new
   // swing/F&O trader gets a relevant layout from their very first session.
-  const mix = horizonMix(allClosed);
   const emphasis =
     mix.total < GATE_MIN_TRADES && traderProfile
       ? dashboardEmphasisForTraderType(traderProfile.traderType)

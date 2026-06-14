@@ -29,12 +29,12 @@ export function SentimentGauge({ symbol }: { symbol: string }) {
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Community sentiment</h2>
-        <div role="tablist" aria-label="Sentiment window" className="flex items-center gap-1">
+        <div role="group" aria-label="Sentiment window" className="flex items-center gap-1">
           {windows.map((w) => (
             <button
               key={w.id}
-              role="tab"
-              aria-selected={window === w.id}
+              type="button"
+              aria-pressed={window === w.id}
               onClick={() => setWindow(w.id)}
               className={cn(
                 "rounded-md px-2 py-0.5 text-xs transition-colors",

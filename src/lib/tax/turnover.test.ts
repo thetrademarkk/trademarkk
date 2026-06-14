@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   chargesBreakdown,
+  classifyTaxBucket,
   classifyTrade,
   fnoTurnover,
   fyTaxSummary,
   isFno,
+  isNonSpecBusiness,
   realisedPnlByInstrument,
   speculativeSplit,
   tradeTurnover,
@@ -72,11 +74,71 @@ describe("classifyTrade", () => {
   });
 });
 
+describe("classifyTaxBucket (three-way head)", () => {
+  // Regression for finding (39): a same-IST-day equity round trip is INTRADAY
+  // (speculative) regardless of margin product, mirroring classifyHorizon. The
+  // three-way bucket must AGREE with the two-way classifyTrade.
+  it("same-day CNC equity is speculative — not capital-gains — and agrees with classifyTrade", () => {
+    const t = mk({
+      segment: "EQ",
+      product: "CNC",
+      opened_at: "2025-06-10T04:00:00Z",
+      closed_at: "2025-06-10T09:00:00Z",
+    });
+    expect(classifyTaxBucket(t)).toBe("speculative");
+    expect(classifyTrade(t)).toBe("speculative");
+  });
+
+  it("same-day BTST / STBT equity are also speculative (product never overrides horizon)", () => {
+    const open = "2025-06-10T04:00:00Z";
+    const close = "2025-06-10T09:00:00Z";
+    expect(
+      classifyTaxBucket(mk({ segment: "EQ", product: "BTST", opened_at: open, closed_at: close }))
+    ).toBe("speculative");
+    expect(
+      classifyTaxBucket(mk({ segment: "EQ", product: "STBT", opened_at: open, closed_at: close }))
+    ).toBe("speculative");
+  });
+
+  it("overnight CNC equity is capital-gains", () => {
+    const t = mk({
+      segment: "EQ",
+      product: "CNC",
+      opened_at: "2025-06-10T04:00:00Z",
+      closed_at: "2025-06-12T09:00:00Z",
+    });
+    expect(classifyTaxBucket(t)).toBe("capital-gains");
+  });
+
+  it("MIS equity is always speculative", () => {
+    expect(classifyTaxBucket(mk({ segment: "EQ", product: "MIS", closed_at: null }))).toBe(
+      "speculative"
+    );
+  });
+
+  it("commodity and currency are non-speculative business", () => {
+    expect(classifyTaxBucket(mk({ segment: "COMM" }))).toBe("non-speculative-business");
+    expect(classifyTaxBucket(mk({ segment: "CDS" }))).toBe("non-speculative-business");
+  });
+});
+
 describe("isFno", () => {
   it("flags FUT and OPT only", () => {
     expect(isFno(mk({ segment: "FUT" }))).toBe(true);
     expect(isFno(mk({ segment: "OPT" }))).toBe(true);
     expect(isFno(mk({ segment: "EQ" }))).toBe(false);
+    expect(isFno(mk({ segment: "COMM" }))).toBe(false);
+    expect(isFno(mk({ segment: "CDS" }))).toBe(false);
+  });
+});
+
+describe("isNonSpecBusiness", () => {
+  it("flags the whole non-speculative-business head: FUT/OPT/COMM/CDS", () => {
+    expect(isNonSpecBusiness(mk({ segment: "FUT" }))).toBe(true);
+    expect(isNonSpecBusiness(mk({ segment: "OPT" }))).toBe(true);
+    expect(isNonSpecBusiness(mk({ segment: "COMM" }))).toBe(true);
+    expect(isNonSpecBusiness(mk({ segment: "CDS" }))).toBe(true);
+    expect(isNonSpecBusiness(mk({ segment: "EQ" }))).toBe(false);
   });
 });
 
@@ -103,31 +165,88 @@ describe("tradeTurnover", () => {
 });
 
 describe("fnoTurnover (absolute-profit convention)", () => {
-  it("sums absolute settlements and notional turnover, ignoring equity", () => {
+  it("sums absolute GROSS settlements and notional turnover, ignoring equity", () => {
     const trades = [
-      mk({ segment: "OPT", net_pnl: 1000, avg_entry: 100, avg_exit: 110, qty: 50 }), // +1000
-      mk({ segment: "FUT", net_pnl: -400, avg_entry: 200, avg_exit: 190, qty: 25 }), // -400
-      mk({ segment: "EQ", net_pnl: 9999 }), // excluded
+      // gross +1000 (net +950), gross -400 (net -450) — abs-profit uses GROSS.
+      mk({
+        segment: "OPT",
+        gross_pnl: 1000,
+        charges: 50,
+        net_pnl: 950,
+        avg_entry: 100,
+        avg_exit: 110,
+        qty: 50,
+      }),
+      mk({
+        segment: "FUT",
+        gross_pnl: -400,
+        charges: 50,
+        net_pnl: -450,
+        avg_entry: 200,
+        avg_exit: 190,
+        qty: 25,
+      }),
+      mk({ segment: "EQ", gross_pnl: 9999, net_pnl: 9999 }), // excluded
     ];
     const s = fnoTurnover(trades);
     expect(s.trades).toBe(2);
-    expect(s.totalProfit).toBe(1000);
-    expect(s.totalLoss).toBe(400);
-    expect(s.absoluteProfitTurnover).toBe(1400); // |+1000| + |-400|
-    expect(s.netRealised).toBe(600);
+    expect(s.totalProfit).toBe(1000); // GROSS favourable
+    expect(s.totalLoss).toBe(400); // |GROSS unfavourable|
+    expect(s.absoluteProfitTurnover).toBe(1400); // |+1000| + |-400| (gross)
+    expect(s.netRealised).toBe(500); // after-cost: 950 - 450
     // notional: OPT 100*50 + 110*50 = 10500; FUT 200*25 + 190*25 = 9750
     expect(s.notionalTurnover).toBe(20250);
   });
 
-  it("returns zeros for no F&O trades", () => {
+  // Finding (40): absolute-profit turnover is a GROSS convention, so it must NOT
+  // shrink with charges; only netRealised is after-cost.
+  it("uses gross_pnl for the abs-profit turnover, net_pnl only for netRealised", () => {
+    const s = fnoTurnover([mk({ segment: "FUT", gross_pnl: 2000, charges: 300, net_pnl: 1700 })]);
+    expect(s.totalProfit).toBe(2000); // gross
+    expect(s.absoluteProfitTurnover).toBe(2000); // gross — unaffected by the ₹300 cost
+    expect(s.netRealised).toBe(1700); // after-cost
+  });
+
+  // Finding (17): the statement spans the whole non-speculative-business head —
+  // a COMM (MCX) trade must contribute, not be silently dropped like before.
+  it("includes commodity (COMM) and currency (CDS) trades in the turnover", () => {
+    const trades = [
+      mk({
+        segment: "COMM",
+        gross_pnl: 800,
+        charges: 50,
+        net_pnl: 750,
+        avg_entry: 60,
+        avg_exit: 70,
+        qty: 10,
+      }),
+      mk({
+        segment: "CDS",
+        gross_pnl: -200,
+        charges: 20,
+        net_pnl: -220,
+        avg_entry: 80,
+        avg_exit: 78,
+        qty: 100,
+      }),
+    ];
+    const s = fnoTurnover(trades);
+    expect(s.trades).toBe(2); // both counted
+    expect(s.totalProfit).toBe(800); // COMM gross
+    expect(s.totalLoss).toBe(200); // |CDS gross|
+    expect(s.absoluteProfitTurnover).toBe(1000);
+    expect(s.netRealised).toBe(530); // 750 - 220
+  });
+
+  it("returns zeros for no derivative trades", () => {
     const s = fnoTurnover([mk({ segment: "EQ" })]);
     expect(s).toMatchObject({ trades: 0, absoluteProfitTurnover: 0, notionalTurnover: 0 });
   });
 
   it("keeps paise precision (no premature rounding)", () => {
     const s = fnoTurnover([
-      mk({ segment: "OPT", net_pnl: 100.05 }),
-      mk({ segment: "OPT", net_pnl: -0.05 }),
+      mk({ segment: "OPT", gross_pnl: 100.05, net_pnl: 100.05 }),
+      mk({ segment: "OPT", gross_pnl: -0.05, net_pnl: -0.05 }),
     ]);
     expect(s.absoluteProfitTurnover).toBe(100.1);
     expect(s.netRealised).toBe(100);

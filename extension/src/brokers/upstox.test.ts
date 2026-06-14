@@ -30,6 +30,13 @@ describe("normalizeUpstoxInstrumentText", () => {
     expect(normalizeUpstoxInstrumentText("NIFTY 24500 CE NFO")).toBe("NIFTY 24500 CE");
   });
 
+  it("strips a leading NCDEX prefix without leaving a stray 'EX'", () => {
+    // The real exchange code is "NCDEX"; the truncated "NCD" alternation alone
+    // would match "NCD" first and leave "EX: GUARSEED10" behind.
+    expect(normalizeUpstoxInstrumentText("NCDEX: GUARSEED10")).toBe("GUARSEED10");
+    expect(normalizeUpstoxInstrumentText("NCDEX DHANIYA")).toBe("DHANIYA");
+  });
+
   it("passes compact tradingsymbols through untouched", () => {
     expect(normalizeUpstoxInstrumentText("BANKNIFTY24JUN52000CE")).toBe("BANKNIFTY24JUN52000CE");
     expect(normalizeUpstoxInstrumentText("NIFTY2661924500CE")).toBe("NIFTY2661924500CE");
@@ -65,6 +72,11 @@ describe("normalizeUpstoxExchange", () => {
     expect(normalizeUpstoxExchange("NSE_EQ")).toBe("NSE");
     expect(normalizeUpstoxExchange("NSE • Equity")).toBe("NSE");
     expect(normalizeUpstoxExchange("BSE | F&O")).toBe("BSE");
+  });
+
+  it("reads the National Commodity & Derivatives Exchange code 'NCDEX'", () => {
+    expect(normalizeUpstoxExchange("NCDEX")).toBe("NCDEX");
+    expect(normalizeUpstoxExchange("NCDEX • Commodity")).toBe("NCDEX");
   });
 
   it("unknown / missing exchange text → null", () => {
@@ -175,6 +187,20 @@ describe("assembleUpstoxCapture", () => {
   it("reads exchange out of Upstox's category styling", () => {
     const c = assembleUpstoxCapture({ ...baseFields, exchangeText: "NSE • Equity" });
     expect(c?.exchange).toBe("NSE");
+  });
+
+  it("NCDEX agri commodity → exchange survives as NCDEX with a clean symbol", () => {
+    const c = assembleUpstoxCapture({
+      ...baseFields,
+      symbolText: "NCDEX: GUARSEED10",
+      // The real National Commodity & Derivatives Exchange code is "NCDEX".
+      exchangeText: "NCDEX • Commodity",
+      qtyText: "10",
+      priceText: "5125",
+    });
+    expect(c).toMatchObject({ exchange: "NCDEX" });
+    expect(c!.symbol).toBe("GUARSEED10"); // prefix stripped, no leading-space corruption
+    expect(parseContractName(c!.symbol)).toMatchObject({ segment: "COMM", agri: true });
   });
 
   it("sell-side option order maps cleanly to the contract parser", () => {

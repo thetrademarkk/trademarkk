@@ -71,19 +71,24 @@ export default function CalendarPage() {
     setYear(Number(date.slice(0, 4)));
     setMonth(Number(date.slice(5, 7)) - 1);
   }, []);
-  const { data: trades = [] } = useTrades({});
+  const { data: trades = [] } = useTrades({}, { withTags: false });
   const { data: journalDates = [] } = useJournalDates();
 
-  const pnlMap = dailyPnl(closedOnly(trades));
+  // Per-day P&L scans the whole journal; only re-derive when trades change.
+  const pnlMap = React.useMemo(() => dailyPnl(closedOnly(trades)), [trades]);
   const shift = (delta: number) => {
     const d = new Date(year, month + delta, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth());
     setSelected(null);
   };
-  const monthTotal = [...pnlMap.entries()]
-    .filter(([k]) => k.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
-    .reduce((s, [, v]) => s + v, 0);
+  const monthTotal = React.useMemo(
+    () =>
+      [...pnlMap.entries()]
+        .filter(([k]) => k.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
+        .reduce((s, [, v]) => s + v, 0),
+    [pnlMap, year, month]
+  );
 
   return (
     <div className="space-y-4">
@@ -92,13 +97,13 @@ export default function CalendarPage() {
         description="Your P&L, day by day. Dots mark journaled days; the bar under a day shows a position was held across it."
       />
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => shift(-1)}>
+        <Button variant="outline" size="icon" aria-label="Previous month" onClick={() => shift(-1)}>
           <ChevronLeft />
         </Button>
         <div className="min-w-[160px] text-center text-sm font-semibold">
           {new Date(year, month).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
         </div>
-        <Button variant="outline" size="icon" onClick={() => shift(1)}>
+        <Button variant="outline" size="icon" aria-label="Next month" onClick={() => shift(1)}>
           <ChevronRight />
         </Button>
         <div className="ml-auto text-sm">

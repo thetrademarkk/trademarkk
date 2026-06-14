@@ -26,6 +26,36 @@ import { buildTradeSaveStatements } from "./save-statements";
 
 const cast = <T>(rows: Record<string, unknown>[]): T[] => rows as unknown as T[];
 
+/**
+ * Journal-domain query keys that depend on trade/leg data. A trade write can
+ * affect any of these surfaces (list, detail, calendar, streak, rule-adherence
+ * ₹-cost, mistake/emotion tag stats, options-strategy classification), so we
+ * invalidate them generously. We deliberately do NOT invalidate community /
+ * network keys here — those read a separate dataset and forcing a full sql.js
+ * re-scan on every trade write is the perf bug this scoping fixes. Keys that
+ * read only non-trade tables (journal_entries, rule_checks, rules, settings,
+ * accounts, tags, playbooks) are left untouched as they are unaffected.
+ */
+const TRADE_DATA_KEYS = [
+  ["trades"],
+  ["trade"],
+  ["all-legs"],
+  ["day-trades"],
+  ["streak"],
+  ["adherence"],
+  ["tag-stats"],
+] as const;
+
+/** Keys affected by an attachment write (trade detail + any journal-date view). */
+const ATTACHMENT_KEYS = [["trade"], ["trades"], ["day-trades"], ["journal"]] as const;
+
+function invalidateKeys(
+  qc: ReturnType<typeof useQueryClient>,
+  keys: ReadonlyArray<readonly string[]>
+) {
+  for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
+}
+
 async function fetchTagsByTrade(db: DbClient): Promise<Map<string, Tag[]>> {
   const res = await db.execute(
     `SELECT tt.trade_id AS trade_id, g.id, g.name, g.kind, g.color
@@ -47,10 +77,15 @@ async function fetchTagsByTrade(db: DbClient): Promise<Map<string, Tag[]>> {
   return map;
 }
 
-export function useTrades(filters: TradeFilters = {}) {
+export function useTrades(filters: TradeFilters = {}, opts: { withTags?: boolean } = {}) {
   const { db } = useDb();
+  // #14: per-trade tags require a full trade_tags JOIN scan. Most views never
+  // read .tags, so tag-free hot pages (dashboard/calendar) pass withTags:false
+  // to skip it. Default stays true so every existing caller is unchanged; a
+  // tagId filter always needs the tags to resolve the filter.
+  const withTags = opts.withTags !== false || filters.tagId != null;
   return useQuery({
-    queryKey: ["trades", filters],
+    queryKey: ["trades", filters, withTags],
     queryFn: async (): Promise<TradeWithMeta[]> => {
       let sql = `SELECT t.*, p.name AS playbook_name FROM trades t
                  LEFT JOIN playbooks p ON p.id = t.playbook_id WHERE 1=1`;
@@ -84,6 +119,7 @@ export function useTrades(filters: TradeFilters = {}) {
       sql += ` ORDER BY t.opened_at DESC`;
       const res = await db.execute(sql, args);
       const trades = cast<TradeWithMeta>(res.rows).map((t) => ({ ...t, tags: [] as Tag[] }));
+      if (!withTags) return trades;
       const tagMap = await fetchTagsByTrade(db);
       if (filters.tagId) {
         return trades
@@ -202,7 +238,7 @@ export function useSaveTrade() {
       await db.batch(statements);
       return tradeId;
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, TRADE_DATA_KEYS),
   });
 }
 
@@ -218,7 +254,7 @@ export function useDeleteTrade() {
         { sql: `DELETE FROM trades WHERE id = ?`, args: [id] },
       ]);
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, TRADE_DATA_KEYS),
   });
 }
 
@@ -244,7 +280,7 @@ export function useAddAttachment() {
         ]
       );
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, ATTACHMENT_KEYS),
   });
 }
 
@@ -255,7 +291,7 @@ export function useDeleteAttachment() {
     mutationFn: async (id: string) => {
       await db.execute(`DELETE FROM attachments WHERE id = ?`, [id]);
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, ATTACHMENT_KEYS),
   });
 }
 
@@ -301,7 +337,7 @@ export function useImportTrades() {
       for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
       return rows.length;
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, TRADE_DATA_KEYS),
   });
 }
 
@@ -357,6 +393,6 @@ export function useApplyRecompute() {
       for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
       return preview;
     },
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateKeys(qc, TRADE_DATA_KEYS),
   });
 }

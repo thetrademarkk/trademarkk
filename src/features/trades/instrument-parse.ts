@@ -22,6 +22,9 @@
  * carry contract in its own segment rather than falling back to EQ/FUT/OPT.
  */
 
+/** The exchange the charge engine resolves charges against (mirrors charges.ts). */
+export type Exchange = "NSE" | "BSE" | "MCX" | "NCDEX";
+
 export interface ParsedInstrument {
   symbol: string;
   segment: "EQ" | "FUT" | "OPT" | "COMM" | "CDS";
@@ -35,6 +38,16 @@ export interface ParsedInstrument {
    * `agriCommodity` flag so NCDEX agri + MCX agri (KAPAS/COTTON) skip CTT.
    */
   agri: boolean;
+  /**
+   * Resolved exchange when the name lets us pin it down, else null (let the
+   * caller's resolveExchange default per segment). Derived so an NCDEX agri
+   * commodity persists exchange === "NCDEX" rather than defaulting to MCX (which
+   * undercharges the exchange transaction fee up to ~3x). NCDEX for an
+   * NCDEX:/NCD:/NCO: prefix or an NCDEX-only agri base on COMM; MCX for any other
+   * COMM; NSE/BSE for an NSE:/BSE: prefix; null for EQ/FUT/OPT/CDS without an
+   * explicit exchange prefix (back-compat: existing callers ignore this field).
+   */
+  exchange: Exchange | null;
 }
 
 const MONTHS: Record<string, number> = {
@@ -64,6 +77,7 @@ const eq = (symbol: string): ParsedInstrument => ({
   optionType: null,
   expiry: null,
   agri: false,
+  exchange: null,
 });
 
 /** The four NSE/BSE INR currency pairs (CDS segment). */
@@ -145,14 +159,26 @@ const isMcxCommodityBase = (sym: string) => startsWithAny(sym, COMMODITY_BASES);
 const isNcdexAgriBase = (sym: string) => startsWithAny(sym, NCDEX_AGRI_BASES);
 /** Any recognised commodity base (MCX commodity or NCDEX agri). */
 const isCommodityBase = (sym: string) => isMcxCommodityBase(sym) || isNcdexAgriBase(sym);
-/** Agri (CTT-exempt) commodity: every NCDEX commodity + the agri MCX contracts. */
-const isAgriBase = (sym: string) => isNcdexAgriBase(sym) || startsWithAny(sym, MCX_AGRI_BASES);
+/**
+ * Agri (CTT-exempt) commodity: every NCDEX commodity + the agri MCX contracts,
+ * MINUS the processed-derivative exceptions (Guar Gum, oilcakes, refined oils,
+ * AGRIDEX) which look agri but DO pay CTT. The exception check uses the same
+ * whole-base set + base-normaliser as `classifyAgriCommodity` so the per-trade
+ * charge path agrees with the tax-turnover path (CORR-02). Checked even when the
+ * symbol carries an NCDEX prefix — a processed product on NCDEX is still non-agri.
+ */
+const isAgriBase = (sym: string) =>
+  !isProcessedAgriException(sym) && (isNcdexAgriBase(sym) || startsWithAny(sym, MCX_AGRI_BASES));
+
+/** True when a symbol's base is a processed agri product / index that pays CTT. */
+const isProcessedAgriException = (sym: string) => AGRI_PROCESSED_EXCEPTIONS.has(commodityBase(sym));
 
 /**
- * Internal pre-classification parse: every shape EXCEPT the agri flag, which
- * `reclassifySegment` (the single funnel) derives once it knows the segment.
+ * Internal pre-classification parse: every shape EXCEPT the agri flag and the
+ * resolved exchange, which `reclassifySegment` (the single funnel) derives once
+ * it knows the segment and the stripped exchange prefix.
  */
-type RawParse = Omit<ParsedInstrument, "agri">;
+type RawParse = Omit<ParsedInstrument, "agri" | "exchange">;
 
 /**
  * Reclassifies an equity/F&O parse into COMM (MCX commodity) or CDS (currency)
@@ -160,18 +186,35 @@ type RawParse = Omit<ParsedInstrument, "agri">;
  * /expiry. `exchange` is the stripped prefix (MCX/CDS/NSE/…) or "".
  */
 function reclassifySegment(p: RawParse, exchange: string): ParsedInstrument {
+  // A securities-market exchange prefix (NSE:/BSE:) that pins the venue for an
+  // equity/F&O instrument; null when no such prefix was present.
+  const equityPrefix: Exchange | null =
+    exchange === "NSE" ? "NSE" : exchange === "BSE" ? "BSE" : null;
   const isCurrency = exchange === "CDS" || CURRENCY_PAIRS.has(p.symbol);
   // NCDEX / MCX prefixes (or a recognised commodity base) make it a commodity.
   const isNcdex = exchange === "NCDEX" || exchange === "NCD" || exchange === "NCO";
   const isCommodity = exchange === "MCX" || isNcdex || isCommodityBase(p.symbol);
-  if (!isCurrency && !isCommodity) return { ...p, agri: false };
+  if (!isCurrency && !isCommodity)
+    // EQ/FUT/OPT (and CDS-less currency-shaped names): keep the explicit NSE/BSE
+    // prefix when present, else null so the caller's resolveExchange defaults.
+    return { ...p, agri: false, exchange: equityPrefix };
   // Currency wins only if the base is an actual INR pair OR the prefix is CDS and
   // it isn't a known commodity (avoids an MCX symbol that merely contains "INR").
   const segment: ParsedInstrument["segment"] = isCurrency && !isCommodity ? "CDS" : "COMM";
   // Agri (CTT-exempt) only applies to commodities: an NCDEX prefix, an NCDEX
-  // agri base, or an agri MCX contract (KAPAS/COTTON/CARDAMOM/MENTHAOIL).
-  const agri = segment === "COMM" && (isNcdex || isAgriBase(p.symbol));
-  return { ...p, segment, agri };
+  // agri base, or an agri MCX contract (KAPAS/COTTON/CARDAMOM/MENTHAOIL) — but
+  // NEVER a processed derivative (Guar Gum, oilcakes, refined oils, AGRIDEX),
+  // which pays CTT even on NCDEX. This keeps parseContractName(sym).agri in lock
+  // step with classifyAgriCommodity(sym) used by the tax page (CORR-02).
+  const agri =
+    segment === "COMM" && !isProcessedAgriException(p.symbol) && (isNcdex || isAgriBase(p.symbol));
+  // Resolved exchange (1-produce): NCDEX for an NCDEX prefix OR an NCDEX-only agri
+  // base on COMM (so agri commodities persist NCDEX, not the MCX default that
+  // undercharges the exchange fee); MCX for any other COMM; null for CDS (the
+  // caller defaults currency to NSE per resolveExchange).
+  const resolvedExchange: Exchange | null =
+    segment === "COMM" ? (isNcdex || isNcdexAgriBase(p.symbol) ? "NCDEX" : "MCX") : null;
+  return { ...p, segment, agri, exchange: resolvedExchange };
 }
 
 export function parseContractName(raw: string): ParsedInstrument {
@@ -179,7 +222,9 @@ export function parseContractName(raw: string): ParsedInstrument {
   if (!s) return eq(s);
   const prefix = s.match(/^(NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCDEX|NCD|NCO):/); // Fyers/exchange prefix
   const exchange = prefix?.[1] ?? "";
-  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCDEX|NCD|NCO):/, "");
+  // Strip the exchange prefix then .trim() — a "NCDEX: GUARSEED10" (space after
+  // the colon) would otherwise leak a leading-space symbol downstream (21).
+  s = s.replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|BCD|NCDEX|NCD|NCO):/, "").trim();
   const series = s.match(/^([A-Z0-9&.-]+?)-(?:EQ|BE|BZ|SM|ST|A|B|T|XT)$/); // Fyers series suffix
   if (series) return reclassifySegment(eq(series[1]!), exchange);
   const parsed = s.includes(" ") ? parseSpacedName(s) : parseCompactName(s);

@@ -121,6 +121,20 @@ describe("RunResult zod round-trip", () => {
     bad.dataSnapshotId = "";
     expect(safeParseRunResult(bad).success).toBe(false);
   });
+
+  it("rejects an over-cap per-day array (storage-exhaustion guard)", () => {
+    const bad = makeRunResult();
+    const point = bad.equityCurve[0]!;
+    // One element past MAX_RUN_DAYS (1500) must fail the .max() bound.
+    bad.equityCurve = Array.from({ length: 1501 }, () => ({ ...point }));
+    expect(safeParseRunResult(bad).success).toBe(false);
+  });
+
+  it("rejects an over-length free-text chip label", () => {
+    const bad = makeRunResult();
+    bad.qualityChips = [{ kind: "coverage", level: "good", label: "x".repeat(121) }];
+    expect(safeParseRunResult(bad).success).toBe(false);
+  });
 });
 
 describe("deriveQualityChips", () => {

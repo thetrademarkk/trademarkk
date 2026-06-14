@@ -31,11 +31,7 @@ export interface PayoffLeg {
  * Intrinsic value at expiry of ONE option contract (per unit), given the
  * underlying settle price. Calls: max(S − K, 0); puts: max(K − S, 0).
  */
-export function intrinsicValue(
-  optionType: OptionType,
-  strike: number,
-  underlying: number
-): number {
+export function intrinsicValue(optionType: OptionType, strike: number, underlying: number): number {
   if (optionType === "CE") return Math.max(underlying - strike, 0);
   return Math.max(strike - underlying, 0);
 }
@@ -48,8 +44,7 @@ export function intrinsicValue(
  */
 export function legPayoffAt(leg: PayoffLeg, underlying: number): number {
   const intrinsic = intrinsicValue(leg.optionType, leg.strike, underlying);
-  const perUnit =
-    leg.direction === "long" ? intrinsic - leg.premium : leg.premium - intrinsic;
+  const perUnit = leg.direction === "long" ? intrinsic - leg.premium : leg.premium - intrinsic;
   return perUnit * leg.qty;
 }
 
@@ -77,7 +72,7 @@ export interface PayoffCurve {
   maxLoss: number;
   /** Underlying prices where P&L crosses zero (breakevens), ascending. */
   breakevens: number[];
-  /** P&L is unbounded above (net long calls / net long puts toward 0). */
+  /** P&L is unbounded above — only net long CALLs (the put side is floored at S=0). */
   profitUnbounded: boolean;
   /** P&L is unbounded below (net short calls). */
   lossUnbounded: boolean;
@@ -99,6 +94,12 @@ function tailExposure(legs: PayoffLeg[]): { calls: number; puts: number } {
  * Choose a sensible underlying price range to plot. Centred on the strikes,
  * padded so the kinks and both breakevens are visible. Falls back gracefully
  * when there is a single strike.
+ *
+ * When the book carries ANY net PUT exposure the range is extended all the way
+ * down to S=0, because a put's payoff keeps changing until the underlying hits
+ * zero (a net-short put's max loss and a net-long put's max profit both occur at
+ * S=0). The default ~20%-of-centre floor would otherwise never sample that leg
+ * and understate the bounded put-side extreme (CORR-06).
  */
 export function payoffRange(legs: PayoffLeg[]): { lo: number; hi: number } {
   const strikes = legs.map((l) => l.strike).filter((s) => Number.isFinite(s));
@@ -108,7 +109,10 @@ export function payoffRange(legs: PayoffLeg[]): { lo: number; hi: number } {
   // Pad by the wider of: the strike spread, or ~20% of the centre price.
   const spread = maxK - minK;
   const pad = Math.max(spread, center * 0.2, 1);
-  const lo = Math.max(0, Math.min(minK, center - pad));
+  // Any net put exposure means the S→0 leg is load-bearing for max loss/profit,
+  // so floor the range at 0; otherwise keep the centred, padded window.
+  const { puts } = tailExposure(legs);
+  const lo = puts !== 0 ? 0 : Math.max(0, Math.min(minK, center - pad));
   const hi = Math.max(maxK, center + pad);
   return { lo, hi };
 }
@@ -183,22 +187,24 @@ export function buildPayoffCurve(legs: PayoffLeg[], steps = 80): PayoffCurve {
 
   // Detect open tails so the UI can label "unlimited" rather than the sampled
   // edge value. As S → ∞ the P&L slope is the net call exposure; as S → 0 the
-  // P&L slope is driven by the net put exposure (puts gain as S falls).
-  const { calls, puts } = tailExposure(usable);
+  // underlying is floored at zero, so the put side is ALWAYS bounded:
+  //   • a net-LONG put peaks at S=0 (gain = (K − premium)·qty), not infinity;
+  //   • a net-SHORT put's max loss also occurs at S=0 and is bounded.
+  // Only net long CALLs give genuinely unbounded upside (CORR-01). With the
+  // sample range now extended to S=0 for any put-bearing book (CORR-06), the
+  // sampled maxProfit/maxLoss already capture the true put-side extreme.
+  const { calls } = tailExposure(usable);
   const profitUnbounded = calls > 0; // net long calls → unbounded upside
   const lossUnbounded = calls < 0; // net short calls → unbounded downside
-  // Downside tail (S→0): net long puts gain heavily, net short puts lose — but
-  // the loss is bounded because S is floored at 0, so only count the gain side.
-  const downGain = puts > 0;
 
   return {
     points,
     minUnderlying: lo,
     maxUnderlying: hi,
-    maxProfit: profitUnbounded || downGain ? Infinity : maxProfit,
+    maxProfit: profitUnbounded ? Infinity : maxProfit,
     maxLoss: lossUnbounded ? -Infinity : maxLoss,
     breakevens: dedupeSorted(breakevens),
-    profitUnbounded: profitUnbounded || downGain,
+    profitUnbounded,
     lossUnbounded,
   };
 }

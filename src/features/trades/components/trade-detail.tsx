@@ -133,7 +133,7 @@ export function TradeDetail({ id }: { id: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/app/trades">
+          <Link href="/app/trades" aria-label="Back to trades">
             <ArrowLeft />
           </Link>
         </Button>

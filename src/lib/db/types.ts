@@ -20,6 +20,14 @@ export interface DbStatement {
 export interface DbClient {
   execute(sql: string, args?: DbValue[]): Promise<DbResult>;
   batch(statements: DbStatement[]): Promise<DbResult[]>;
+  /**
+   * Force any debounced/coalesced persistence to complete and resolve only when
+   * it has landed. Implemented by the local (sql.js → IndexedDB) adapter, where
+   * writes are debounced; remote adapters (hosted/BYOD Turso) write synchronously
+   * over the wire so they omit it. Callers that need durability-on-resolve after
+   * a bulk write (backup restore, mode-switch copy) should `await db.flush?.()`.
+   */
+  flush?(): Promise<void>;
 }
 
 export type StorageMode = "hosted" | "byod" | "local";

@@ -23,6 +23,12 @@ describe("normalizeFyersInstrumentText", () => {
     expect(normalizeFyersInstrumentText("MCX:CRUDEOIL24JUNFUT")).toBe("MCX:CRUDEOIL24JUNFUT");
   });
 
+  it("recognizes a native NCDEX key as a Fyers key (NCDEX before NCD)", () => {
+    // FYERS_KEY must try "NCDEX" before "NCD" — else "NCDEX:GUARSEED10" would
+    // not match the native-key path and the colon prefix would survive.
+    expect(normalizeFyersInstrumentText("NCDEX:GUARSEED10")).toBe("NCDEX:GUARSEED10");
+  });
+
   it("trims decoration around a native key but keeps prefix/suffix", () => {
     expect(normalizeFyersInstrumentText("NSE:SBIN-EQ ●")).toBe("NSE:SBIN-EQ");
   });
@@ -40,6 +46,12 @@ describe("normalizeFyersInstrumentText", () => {
   it("strips a leading exchange prefix from a NON-native bare name", () => {
     // "NSE RELIANCE" (space, no series suffix) isn't a Fyers key — clean it.
     expect(normalizeFyersInstrumentText("NSE RELIANCE")).toBe("RELIANCE");
+  });
+
+  it("strips a leading NCDEX prefix from a NON-native bare name (no stray 'EX')", () => {
+    // The real exchange code is "NCDEX"; the truncated "NCD" alternation alone
+    // would match "NCD" first and leave "EX DHANIYA" behind.
+    expect(normalizeFyersInstrumentText("NCDEX DHANIYA")).toBe("DHANIYA");
   });
 
   it("strips standalone exchange tokens from spaced names", () => {
@@ -89,6 +101,12 @@ describe("normalizeFyersExchange", () => {
     expect(normalizeFyersExchange("NSE:")).toBe("NSE");
     expect(normalizeFyersExchange("NSE • Equity")).toBe("NSE");
     expect(normalizeFyersExchange("MCX Commodity")).toBe("MCX");
+  });
+
+  it("reads the National Commodity & Derivatives Exchange code 'NCDEX'", () => {
+    expect(normalizeFyersExchange("NCDEX")).toBe("NCDEX");
+    expect(normalizeFyersExchange("NCDEX Commodity")).toBe("NCDEX");
+    expect(normalizeFyersExchange("NCDEX:GUARSEED10")).toBe("NCDEX");
   });
 
   it("reads the exchange out of a native Fyers symbol key", () => {
@@ -204,6 +222,19 @@ describe("assembleFyersCapture", () => {
   it("falls back to the symbol's exchange when the tag text is unknown", () => {
     const c = assembleFyersCapture({ ...baseFields, exchangeText: "Equity" });
     expect(c?.exchange).toBe("NSE");
+  });
+
+  it("NCDEX agri commodity (native key) → NCDEX exchange, COMM agri, clean symbol", () => {
+    const c = assembleFyersCapture({
+      ...baseFields,
+      symbolText: "NCDEX:GUARSEED10",
+      exchangeText: "", // exchange falls back to the native key's prefix
+      qtyText: "10",
+      priceText: "5125",
+    });
+    expect(c).toMatchObject({ exchange: "NCDEX" });
+    expect(c!.symbol).toBe("NCDEX:GUARSEED10"); // native key preserved, no corruption
+    expect(parseContractName(c!.symbol)).toMatchObject({ segment: "COMM", agri: true });
   });
 
   it("buy-side native option order maps cleanly to the contract parser", () => {

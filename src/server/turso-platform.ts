@@ -6,8 +6,10 @@ import { platformDb } from "./db/platform";
 import { userDatabases } from "./db/platform-schema";
 
 /**
- * Turso Platform API — provisions per-user databases and mints short-lived,
- * single-database tokens. The org token never leaves the server.
+ * Turso Platform API — provisions per-user databases and mints single-database
+ * tokens that expire after 24h (matching the client-side token cache TTL, so an
+ * expired token is transparently re-minted on the next request). The org token
+ * never leaves the server.
  */
 function api() {
   if (!hasTursoApi()) {
@@ -32,13 +34,16 @@ export async function provisionDatabase(
 }
 
 /**
- * Mints a short-lived, single-database, full-access token for `dbName` — but
- * ONLY after verifying that `dbName` is the database mapped to `userId` in the
- * platform DB. Without this ownership check, any signed-in user who learned (or
- * guessed) another user's `db_name` could mint a full-access token to that
+ * Mints a single-database, full-access token for `dbName` that expires after 24h
+ * — but ONLY after verifying that `dbName` is the database mapped to `userId` in
+ * the platform DB. Without this ownership check, any signed-in user who learned
+ * (or guessed) another user's `db_name` could mint a full-access token to that
  * user's private journal (latent privilege escalation). The check lives INSIDE
  * the mint so every caller is protected, not just the ones that remember to do
  * it themselves.
+ *
+ * The 24h expiry matches the client-side token cache TTL, so a stale token is
+ * transparently re-minted on the next request rather than lingering for a week.
  */
 export async function mintDbToken(dbName: string, userId: string): Promise<string> {
   const owned = await platformDb
@@ -50,7 +55,7 @@ export async function mintDbToken(dbName: string, userId: string): Promise<strin
     throw new Error("Database does not belong to this user");
   }
   const token = await api().databases.createToken(dbName, {
-    expiration: "7d",
+    expiration: "24h",
     authorization: "full-access",
   });
   return token.jwt;

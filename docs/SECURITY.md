@@ -11,7 +11,7 @@ issues for security problems. We aim to respond within 72 hours.
 
 - The **Turso org/platform API token never leaves the server** — modules touching it import
   the `server-only` package, so any accidental client import fails the build.
-- Hosted users receive **short-lived (7-day) tokens scoped to their single database**, minted
+- Hosted users receive **short-lived (24h) tokens scoped to their single database**, minted
   per session via `/api/db/token`. The hot path (queries) goes browser → Turso directly; our
   server never proxies or sees journal data.
 - BYOD credentials live **only in the user's browser** (localStorage), optionally encrypted

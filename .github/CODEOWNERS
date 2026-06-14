@@ -1,0 +1,10 @@
+# Code owners for TradeMarkk.
+#
+# Every path is owned by @thetrademarkk (the repo owner = the designated merge
+# authority). With branch protection's "Require review from Code Owners" enabled
+# on `main`, @thetrademarkk's approval is MANDATORY on every pull request before
+# it can be merged. Contributors (e.g. @raashish1601) open PRs but cannot get a
+# change into `main` without @thetrademarkk's review — so merge control rests
+# with @thetrademarkk. (A hard per-user "only @thetrademarkk may click Merge"
+# restriction additionally requires the repo to live in a GitHub Organization.)
+*       @thetrademarkk

@@ -23,6 +23,22 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   keywords: [...siteConfig.keywords],
   applicationName: siteConfig.name,
+  // PNG icons for installability (iOS ignores SVG manifest icons). The
+  // app/apple-icon.png file convention emits the apple-touch-icon link; this
+  // also exposes the raster icons + the existing SVG favicon.
+  icons: {
+    icon: [
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: siteConfig.name,
+    statusBarStyle: "black-translucent",
+  },
   openGraph: {
     type: "website",
     siteName: siteConfig.name,

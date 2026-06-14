@@ -341,20 +341,23 @@ export function TaxReportView() {
             </CardContent>
           </Card>
 
-          {/* F&O turnover statement */}
+          {/* F&O / commodity / currency turnover statement */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-1.5 text-base">
-                <Receipt className="h-4 w-4 text-muted" aria-hidden /> F&amp;O turnover statement
+                <Receipt className="h-4 w-4 text-muted" aria-hidden /> F&amp;O / commodity /
+                currency turnover statement
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {summary.turnover.trades === 0 ? (
-                <p className="text-sm text-muted">No futures or options trades in this FY.</p>
+                <p className="text-sm text-muted">
+                  No futures, options, commodity or currency trades in this FY.
+                </p>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <Stat label="F&O trades">{summary.turnover.trades}</Stat>
+                    <Stat label="Derivative trades">{summary.turnover.trades}</Stat>
                     <Stat label="Turnover (abs-profit)">
                       <Money value={summary.turnover.absoluteProfitTurnover} plain />
                     </Stat>

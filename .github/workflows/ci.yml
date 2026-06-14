@@ -28,6 +28,10 @@ jobs:
       - run: npm run typecheck
       - run: npm run ext:typecheck
       - run: npm run lint
+      # Parse-check the standalone scripts (Playwright e2e specs, audit tools).
+      # A broken parse here is invisible to typecheck/build but breaks the e2e
+      # runner — exactly the P0 that slipped through a consolidation merge.
+      - run: for f in scripts/*.mjs; do node --check "$f"; done
       - run: npm test
       - run: npm run build
       # Browser extension bundle (fast — vite, no network):

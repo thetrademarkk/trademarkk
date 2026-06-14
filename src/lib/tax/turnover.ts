@@ -59,6 +59,16 @@ export function classifyTrade(t: TaxTrade): TaxCategory {
 
 export const isFno = (t: TaxTrade) => t.segment === "FUT" || t.segment === "OPT";
 
+/**
+ * Non-speculative business segments: F&O (FUT/OPT) plus commodity (COMM —
+ * MCX/NCDEX) and currency (CDS) derivatives. These are all one head of income
+ * (non-speculative business) under Indian tax, so the turnover statement spans
+ * the whole head — narrowing it to FUT/OPT would understate turnover for
+ * commodity / currency traders.
+ */
+export const isNonSpecBusiness = (t: TaxTrade) =>
+  t.segment === "FUT" || t.segment === "OPT" || t.segment === "COMM" || t.segment === "CDS";
+
 /* ────────────────────────── Three-way classification (SEG-07) ──────────────────────────
  *
  * Indian traders have THREE distinct heads of income, not two:
@@ -75,13 +85,19 @@ export const isFno = (t: TaxTrade) => t.segment === "FUT" || t.segment === "OPT"
 
 export type TaxBucketKind = "speculative" | "non-speculative-business" | "capital-gains";
 
-/** A delivery-equity round trip is intraday only when product=MIS or same IST day. */
+/**
+ * An equity round trip is intraday (speculative) when it opens and squares off
+ * the same IST calendar day — regardless of margin product. Holding HORIZON, not
+ * the product, decides this: a CNC/BTST/STBT position closed the same IST day is
+ * intraday delivery exactly like an MIS one (the product only chooses margin).
+ * This mirrors `classifyHorizon` in src/lib/stats/horizon.ts (commit cfbb757),
+ * which classifies a same-IST-day CNC/NRML position as intraday, and keeps
+ * `classifyTaxBucket` in agreement with `classifyTrade`.
+ */
 function isIntradayEquity(t: TaxTrade): boolean {
   if (t.product === "MIS") return true;
-  // CNC / BTST / STBT are delivery-basis by definition (overnight).
-  if (t.product === "CNC" || t.product === "BTST" || t.product === "STBT") return false;
-  // NRML is not an equity product, but guard anyway. Legacy null → fall back to
-  // the timestamps: same IST day ⇒ intraday, otherwise delivery.
+  // Same IST day ⇒ intraday speculative, for any product (CNC/BTST/STBT/NRML/
+  // legacy null). Without a close date the trade is unrealised → not intraday.
   return !!t.closed_at && sameIstDate(t.opened_at, t.closed_at);
 }
 
@@ -134,15 +150,15 @@ export interface TurnoverStatement {
   trades: number;
   /**
    * Tax turnover under the absolute-profit convention (ICAI Guidance Note):
-   * the sum of the *absolute* settlement values — i.e. abs(net P&L) per trade
-   * summed. This is the figure used to test the audit / 44AD thresholds.
+   * the sum of the *absolute* GROSS settlement values — i.e. abs(gross P&L) per
+   * trade summed. This is the figure used to test the audit / 44AD thresholds.
    */
   absoluteProfitTurnover: number;
-  /** Sum of positive settlements (favourable differences). */
+  /** Sum of positive gross settlements (favourable differences). */
   totalProfit: number;
-  /** Sum of |negative settlements| (unfavourable differences). */
+  /** Sum of |negative gross settlements| (unfavourable differences). */
   totalLoss: number;
-  /** Net realised P&L (gross of P&L, i.e. sum of net_pnl). */
+  /** Net realised P&L (after-cost, i.e. sum of net_pnl). */
   netRealised: number;
   /**
    * Alternate convention: total notional/contract turnover = buy + sell
@@ -155,20 +171,26 @@ export interface TurnoverStatement {
 }
 
 /**
- * F&O turnover statement over a set of trades. Uses NET realised P&L per trade
- * as the "settlement" — the favourable/unfavourable difference — which is the
- * conservative, after-cost basis most CAs use for the journal's own trades.
+ * F&O / commodity / currency turnover statement over a set of trades — the whole
+ * non-speculative-business head (FUT/OPT/COMM/CDS), not just FUT/OPT, so the
+ * audit-threshold figure isn't understated for commodity / currency traders.
+ *
+ * The absolute-profit (ICAI Guidance Note) convention sums the GROSS
+ * favourable/unfavourable settlement per trade, so totalProfit / totalLoss /
+ * absoluteProfitTurnover use `gross_pnl` (pre-cost). The `netRealised` line is
+ * after-cost (`net_pnl`), the figure the trader actually banked.
  */
 export function fnoTurnover(trades: TaxTrade[]): TurnoverStatement {
-  const fno = trades.filter(isFno);
+  const fno = trades.filter(isNonSpecBusiness);
   let totalProfit = 0;
   let totalLoss = 0;
   let netRealised = 0;
   let notional = 0;
   let sell = 0;
   for (const t of fno) {
-    const settle = t.net_pnl;
-    netRealised += settle;
+    // Absolute-profit turnover is a GROSS (pre-cost) convention.
+    const settle = t.gross_pnl;
+    netRealised += t.net_pnl;
     if (settle >= 0) totalProfit += settle;
     else totalLoss += -settle;
     const tt = tradeTurnover(t);

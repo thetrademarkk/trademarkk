@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { GroupStat } from "@/lib/stats/stats";
 import {
+  backtestEquityAriaSummary,
   calendarCellAriaLabel,
+  compareOverlayAriaSummary,
   disciplineTrendAriaSummary,
   equityConeAriaSummary,
   equityCurveAriaSummary,
@@ -10,6 +12,7 @@ import {
   payoffAriaSummary,
   rHistogramAriaSummary,
   statTileAriaValue,
+  walkForwardAriaSummary,
 } from "./chart-aria";
 
 const stat = (key: string, netPnl: number, trades: number): GroupStat => ({
@@ -49,13 +52,14 @@ describe("rHistogramAriaSummary", () => {
   it("empty", () => {
     expect(rHistogramAriaSummary([])).toContain("not enough data");
   });
-  it("names the peak bucket and total", () => {
+  it("names the peak bucket and total, without doubling the R unit the bucket already carries", () => {
     const s = rHistogramAriaSummary([
-      { bucket: "0 to 1", count: 3 },
-      { bucket: "1 to 2", count: 7 },
+      { bucket: "0.5R", count: 3 },
+      { bucket: "≤ -2R", count: 7 },
     ]);
     expect(s).toContain("10 trades");
-    expect(s).toContain("1 to 2R with 7 trades");
+    expect(s).toContain("≤ -2R with 7 trades");
+    expect(s).not.toContain("RR");
   });
 });
 
@@ -75,6 +79,63 @@ describe("equityCurveAriaSummary", () => {
     expect(s).toContain("Ends at -₹1,000");
     expect(s).toContain("Peak +₹5,000");
     expect(s).toContain("low -₹1,000");
+  });
+});
+
+describe("backtestEquityAriaSummary", () => {
+  it("empty / too few points", () => {
+    expect(backtestEquityAriaSummary([{ ts: 1, equity: 0 }])).toContain("not enough data");
+  });
+  it("reports end, peak and deepest drawdown with signs", () => {
+    const s = backtestEquityAriaSummary([
+      { ts: 1, equity: 0 },
+      { ts: 2, equity: 5000 },
+      { ts: 3, equity: 1000 },
+    ]);
+    expect(s).toContain("2 trade-days");
+    expect(s).toContain("Ends at +₹1,000");
+    expect(s).toContain("peak +₹5,000");
+    expect(s).toContain("deepest drawdown -₹4,000");
+  });
+});
+
+describe("walkForwardAriaSummary", () => {
+  it("empty", () => {
+    expect(walkForwardAriaSummary([])).toContain("not enough data");
+  });
+  it("reports in-sample and out-of-sample ending equity", () => {
+    const s = walkForwardAriaSummary([
+      { isEquity: 2000, oosEquity: null },
+      { isEquity: 3000, oosEquity: 3000 },
+      { isEquity: null, oosEquity: 1500 },
+    ]);
+    expect(s).toContain("In-sample ends at +₹3,000");
+    expect(s).toContain("Out-of-sample ends at +₹1,500");
+  });
+  it("honest when there is no out-of-sample segment", () => {
+    const s = walkForwardAriaSummary([{ isEquity: 1000, oosEquity: null }]);
+    expect(s).toContain("No out-of-sample segment yet");
+  });
+});
+
+describe("compareOverlayAriaSummary", () => {
+  it("empty", () => {
+    expect(compareOverlayAriaSummary([])).toContain("not enough data");
+  });
+  it("reports both ending equities and the gap", () => {
+    const s = compareOverlayAriaSummary([
+      { real: 1000, baseline: null },
+      { real: 3000, baseline: 2000 },
+    ]);
+    expect(s).toContain("2 trading days");
+    expect(s).toContain("Your trading ends at +₹3,000");
+    expect(s).toContain("Mechanical baseline ends at +₹2,000");
+    expect(s).toContain("Gap +₹1,000");
+  });
+  it("honest when the baseline never appears", () => {
+    const s = compareOverlayAriaSummary([{ real: 500, baseline: null }]);
+    expect(s).toContain("No baseline segment yet");
+    expect(s).not.toContain("Gap");
   });
 });
 

@@ -1,6 +1,6 @@
 import { computeCharges, computeGrossPnl, resolveExchange } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
-import { parseContractName } from "./instrument-parse";
+import { parseContractName, parseTimestamp } from "./instrument-parse";
 import type { Product, Segment, TradeRow } from "./types";
 
 export interface RawFill {
@@ -70,6 +70,7 @@ function guessInstrument(symbol: string, expiry: string | null) {
       strike: null,
       optionType: null,
       agri: false,
+      exchange: p.exchange,
     };
   }
   return {
@@ -78,6 +79,7 @@ function guessInstrument(symbol: string, expiry: string | null) {
     strike: p.strike,
     optionType: p.optionType,
     agri: p.agri,
+    exchange: p.exchange,
   };
 }
 
@@ -88,8 +90,11 @@ export function rowsToFills(rows: Record<string, string>[], map: ColumnMapping):
     const qty = Math.abs(Number(r[map.qty]));
     const price = Number(r[map.price]);
     const rawTime = r[map.time] ?? "";
-    const time =
-      new Date(rawTime).toString() !== "Invalid Date" ? new Date(rawTime).toISOString() : null;
+    // Indian broker tradebooks write day-first dates ("12-06-2026"), which
+    // `new Date()` misreads as month-first (Dec 06). parseTimestamp is the
+    // repo's day-first-aware parser used by every other broker mapper; it
+    // returns an ISO string or null. Keep the null-skip below + the sort.
+    const time = parseTimestamp(rawTime);
     const symbol = (r[map.symbol] ?? "").trim().toUpperCase();
     if (!symbol || !qty || !price || !time) continue;
     fills.push({
@@ -177,15 +182,18 @@ function buildTrade(
   };
   const e = wavg(entries);
   const first = entries[0]!;
+  // Parse the symbol once: even when the broker already mapped the segment, the
+  // agri (CTT-exempt) flag and the resolved exchange stay symbol-derived so an
+  // MCX/NCDEX agri commodity is charged (and persisted) against the right venue.
+  const parsed = parseContractName(first.symbol);
   const inst = first.segment
     ? {
         symbol: first.symbol,
         segment: first.segment,
         strike: first.strike ?? null,
         optionType: first.optionType ?? null,
-        // Agri (CTT-exempt) is symbol-derived even when the broker already
-        // mapped the segment, so an MCX/NCDEX agri commodity is charged right.
-        agri: first.segment === "COMM" && parseContractName(first.symbol).agri,
+        agri: first.segment === "COMM" && parsed.agri,
+        exchange: parsed.exchange,
       }
     : guessInstrument(first.symbol, first.expiry ?? null);
   const closed = exits.length > 0;
@@ -209,10 +217,13 @@ function buildTrade(
       : "NRML";
   const product: TradeRow["product"] = first.product ?? inferredProduct;
 
-  // Exchange (SEG-CHG). New imports record the segment default (COMM → MCX,
-  // CDS/EQ/FUT/OPT → NSE); a broker exchange column may override later. The
-  // charge engine resolves it identically, so legacy rows stay byte-identical.
-  const exchange = resolveExchange(inst.segment);
+  // Exchange (SEG-CHG). Prefer the exchange the contract name pins down (so an
+  // NCDEX agri commodity persists exchange === "NCDEX" and the charge engine
+  // applies the NCDEX exchange-transaction rate instead of the MCX default that
+  // undercharges it); otherwise fall back to the segment default (COMM → MCX,
+  // CDS/EQ/FUT/OPT → NSE). The charge engine resolves both identically, so
+  // legacy non-NCDEX rows stay byte-identical.
+  const exchange = inst.exchange ?? resolveExchange(inst.segment);
   let gross = 0;
   let charges = 0;
   if (closed && x) {

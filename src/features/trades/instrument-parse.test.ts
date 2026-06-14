@@ -15,6 +15,7 @@ describe("parseContractName — compact NSE names", () => {
       optionType: "CE",
       expiry: null,
       agri: false,
+      exchange: null,
     });
   });
 
@@ -109,6 +110,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       optionType: "CE",
       expiry: "2026-06-26",
       agri: false,
+      exchange: null,
     });
   });
 
@@ -120,6 +122,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       optionType: "CE",
       expiry: "2026-06-25",
       agri: false,
+      exchange: null,
     });
   });
 
@@ -138,6 +141,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       optionType: null,
       expiry: "2026-06-25",
       agri: false,
+      exchange: null,
     });
   });
 
@@ -261,18 +265,86 @@ describe("parseContractName — NCDEX agri (→ COMM, agri-flagged)", () => {
     expect(parseContractName("JEERAUNJHA")).toMatchObject({ segment: "COMM", agri: true });
   });
 
-  it("lot-size-suffixed agri variant still classifies (GUARSEED10, GUARGUM5)", () => {
+  it("lot-size-suffixed agri SEED variant still classifies as agri (GUARSEED10)", () => {
     expect(parseContractName("GUARSEED10")).toMatchObject({
       symbol: "GUARSEED10",
       segment: "COMM",
       agri: true,
     });
-    expect(parseContractName("GUARGUM5")).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("processed GUARGUM is COMM but NON-agri — CTT applies (CORR-02)", () => {
+    // Guar Gum is the processed derivative of Guar Seed: still a commodity, but
+    // it pays CTT, so agri MUST be false to match classifyAgriCommodity / the tax
+    // page (turnover.ts). Lot-suffixed (GUARGUM5) and NCDEX-prefixed both apply.
+    expect(parseContractName("GUARGUM5")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("GUARGUM")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("NCDEX:GUARGUM")).toMatchObject({ segment: "COMM", agri: false });
+    // Parity with the authoritative classifier the tax-turnover path uses.
+    expect(parseContractName("GUARGUM5").agri).toBe(classifyAgriCommodity("GUARGUM5"));
   });
 
   it("a generic equity is never swept into agri COMM", () => {
     expect(parseContractName("RELIANCE")).toMatchObject({ segment: "EQ", agri: false });
     expect(parseContractName("INFY")).toMatchObject({ segment: "EQ", agri: false });
+  });
+});
+
+describe("parseContractName — resolved exchange (1-produce + leading-space trim 21)", () => {
+  it("'NCDEX: GUARSEED10' (space after colon) → NCDEX + trimmed symbol", () => {
+    const p = parseContractName("NCDEX: GUARSEED10");
+    expect(p).toMatchObject({
+      symbol: "GUARSEED10",
+      segment: "COMM",
+      agri: true,
+      exchange: "NCDEX",
+    });
+    // No leading/trailing space leaks downstream.
+    expect(p.symbol).toBe(p.symbol.trim());
+  });
+
+  it("NCDEX prefix variants (NCD:/NCO:) resolve exchange NCDEX", () => {
+    expect(parseContractName("NCD:WHEAT")).toMatchObject({ exchange: "NCDEX" });
+    expect(parseContractName("NCO:JEERA")).toMatchObject({ exchange: "NCDEX" });
+  });
+
+  it("bare NCDEX-only agri base persists exchange NCDEX (not the MCX default)", () => {
+    expect(parseContractName("DHANIYA")).toMatchObject({ segment: "COMM", exchange: "NCDEX" });
+    expect(parseContractName("GUARSEED10")).toMatchObject({ segment: "COMM", exchange: "NCDEX" });
+  });
+
+  it("an MCX gold contract resolves exchange MCX", () => {
+    expect(parseContractName("GOLD24JUN72000CE")).toMatchObject({
+      symbol: "GOLD",
+      segment: "COMM",
+      exchange: "MCX",
+    });
+    expect(parseContractName("MCX:CRUDEOIL24JUNFUT")).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      exchange: "MCX",
+    });
+  });
+
+  it("an NSE equity is unchanged — exchange null (caller defaults NSE)", () => {
+    expect(parseContractName("RELIANCE")).toMatchObject({ segment: "EQ", exchange: null });
+    expect(parseContractName("NIFTY24JUN24500CE")).toMatchObject({
+      segment: "OPT",
+      exchange: null,
+    });
+    expect(parseContractName("BANKNIFTY24JUNFUT")).toMatchObject({
+      segment: "FUT",
+      exchange: null,
+    });
+  });
+
+  it("an explicit NSE:/BSE: prefix pins the equity exchange", () => {
+    expect(parseContractName("NSE:SBIN-EQ")).toMatchObject({ symbol: "SBIN", exchange: "NSE" });
+    expect(parseContractName("BSE:SBIN-EQ")).toMatchObject({ symbol: "SBIN", exchange: "BSE" });
+  });
+
+  it("currency (CDS) carries exchange null (caller defaults NSE)", () => {
+    expect(parseContractName("USDINR24JUNFUT")).toMatchObject({ segment: "CDS", exchange: null });
   });
 });
 

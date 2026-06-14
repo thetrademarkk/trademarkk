@@ -95,7 +95,14 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t p-3">
-        <Button variant="ghost" size="icon" className="w-full" onClick={toggleSidebar}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="w-full"
+          onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+        >
           {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
         </Button>
       </div>

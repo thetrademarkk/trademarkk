@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ArrowLeft, Clock } from "lucide-react";
 import { getBlogArticle, listBlogPosts } from "@/server/blog-posts";
 import { siteConfig, jsonLdScript } from "@/config/site";
-import { RichContent } from "@/components/ui/rich-editor";
+import { RichContent } from "@/components/ui/rich-content";
 import { cn } from "@/lib/utils";
 import { Toc } from "../_components/toc";
 import { ReadingProgress } from "../_components/progress-bar";

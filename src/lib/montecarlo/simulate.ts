@@ -134,11 +134,40 @@ const MAX_TRADES = 2_000;
 export function runSimulation(input: SimInput): SimResult {
   const paths = Math.max(1, Math.min(MAX_PATHS, Math.floor(input.paths)));
   const trades = Math.max(1, Math.min(MAX_TRADES, Math.floor(input.trades)));
-  const startEquityR = input.startEquityR;
+  const startEquityR = Number.isFinite(input.startEquityR) ? input.startEquityR : 0;
   const ruinFloorR = startEquityR * clamp01(input.ruinFloorFraction);
   const samples = input.rSamples;
   const m = samples.length;
   const rand = mulberry32(input.seed);
+
+  // With no R-samples there is nothing to bootstrap from. Bail out with a
+  // well-defined NEUTRAL result rather than indexing samples[…]===undefined,
+  // which would turn equity (and every derived figure) into NaN. The cone is a
+  // flat line at the starting equity, no path ever moves, so finals sit on the
+  // start and drawdown is zero. (The UI gates this at MIN_TRADES, but the math
+  // guards itself so direct callers can't get NaN.)
+  if (m === 0) {
+    const cone: ConeBand[] = Array.from({ length: trades + 1 }, (_, step) => ({
+      step,
+      p5: startEquityR,
+      p25: startEquityR,
+      p50: startEquityR,
+      p75: startEquityR,
+      p95: startEquityR,
+    }));
+    return {
+      cone,
+      // A motionless path is "ruined" only if the floor already sits at/above
+      // the (unchanging) starting equity.
+      riskOfRuin: startEquityR <= ruinFloorR ? 1 : 0,
+      // No path ever ends strictly above its start, so none finish net-positive.
+      probNetPositive: 0,
+      medianMaxDrawdown: 0,
+      worstMaxDrawdown: 0,
+      finalEquity: { p5: startEquityR, p50: startEquityR, p95: startEquityR },
+      meta: { trades, paths, startEquityR, ruinFloorR, sampleSize: m },
+    };
+  }
 
   // columns[step] holds every path's equity at that step (step 0 = start).
   const columns: number[][] = Array.from({ length: trades + 1 }, () => new Array<number>(paths));

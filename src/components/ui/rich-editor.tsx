@@ -23,6 +23,12 @@ import {
 } from "lucide-react";
 import { compressImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
+import { PROSE_CLASS, RichContent } from "@/components/ui/rich-content";
+
+// PROSE_CLASS and the read-only RichContent renderer live in rich-content.tsx
+// (no TipTap imports) so the ISR blog article route can render stored HTML
+// without bundling this editor. Re-exported here for existing import sites.
+export { PROSE_CLASS, RichContent };
 
 /**
  * TipTap rich-text editor — headings, bold/italic/strike, lists, quote, code,
@@ -75,34 +81,74 @@ function Toolbar({ editor }: { editor: Editor }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b p-1.5" role="toolbar" aria-label="Formatting">
-      <ToolbarButton label="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
+    <div
+      className="flex flex-wrap items-center gap-0.5 border-b p-1.5"
+      role="toolbar"
+      aria-label="Formatting"
+    >
+      <ToolbarButton
+        label="Bold"
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
         <Bold />
       </ToolbarButton>
-      <ToolbarButton label="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
+      <ToolbarButton
+        label="Italic"
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
         <Italic />
       </ToolbarButton>
-      <ToolbarButton label="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
+      <ToolbarButton
+        label="Strikethrough"
+        active={editor.isActive("strike")}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
         <Strikethrough />
       </ToolbarButton>
       <span className="mx-1 h-5 w-px bg-border" />
-      <ToolbarButton label="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+      <ToolbarButton
+        label="Heading 2"
+        active={editor.isActive("heading", { level: 2 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+      >
         <Heading2 />
       </ToolbarButton>
-      <ToolbarButton label="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+      <ToolbarButton
+        label="Heading 3"
+        active={editor.isActive("heading", { level: 3 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+      >
         <Heading3 />
       </ToolbarButton>
       <span className="mx-1 h-5 w-px bg-border" />
-      <ToolbarButton label="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+      <ToolbarButton
+        label="Bullet list"
+        active={editor.isActive("bulletList")}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+      >
         <List />
       </ToolbarButton>
-      <ToolbarButton label="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+      <ToolbarButton
+        label="Numbered list"
+        active={editor.isActive("orderedList")}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+      >
         <ListOrdered />
       </ToolbarButton>
-      <ToolbarButton label="Quote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+      <ToolbarButton
+        label="Quote"
+        active={editor.isActive("blockquote")}
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+      >
         <Quote />
       </ToolbarButton>
-      <ToolbarButton label="Code block" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+      <ToolbarButton
+        label="Code block"
+        active={editor.isActive("codeBlock")}
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+      >
         <Code />
       </ToolbarButton>
       <span className="mx-1 h-5 w-px bg-border" />
@@ -130,9 +176,6 @@ function Toolbar({ editor }: { editor: Editor }) {
   );
 }
 
-export const PROSE_CLASS =
-  "prose-tm max-w-none [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:text-lg [&_h3]:font-semibold [&_p]:my-2.5 [&_p]:leading-7 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1 [&_blockquote]:border-l-2 [&_blockquote]:border-accent [&_blockquote]:pl-4 [&_blockquote]:text-muted [&_a]:text-accent [&_a]:underline [&_img]:rounded-lg [&_img]:border [&_pre]:rounded-lg [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:text-sm [&_code]:font-mono [&_strong]:font-semibold";
-
 export function RichEditor({
   value,
   onChange,
@@ -148,7 +191,11 @@ export function RichEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
-      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow" } }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { rel: "noopener noreferrer nofollow" },
+      }),
       Image.configure({ HTMLAttributes: { loading: "lazy", alt: "" } }),
       Placeholder.configure({ placeholder }),
     ],
@@ -165,7 +212,8 @@ export function RichEditor({
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
 
-  if (!editor) return <div className="rounded-lg border" style={{ minHeight: minHeight + 50 }} aria-busy />;
+  if (!editor)
+    return <div className="rounded-lg border" style={{ minHeight: minHeight + 50 }} aria-busy />;
 
   return (
     <div className="rounded-lg border bg-surface-2/30 focus-within:ring-2 focus-within:ring-accent">
@@ -173,9 +221,4 @@ export function RichEditor({
       <EditorContent editor={editor} />
     </div>
   );
-}
-
-/** Read-only renderer for stored TipTap HTML. */
-export function RichContent({ html, className }: { html: string; className?: string }) {
-  return <div className={cn(PROSE_CLASS, className)} dangerouslySetInnerHTML={{ __html: html }} />;
 }

@@ -57,7 +57,7 @@ const connKey = (appUrl: string) => `hostedConn:${appUrl}`;
 
 /**
  * Mints (or reuses) a token for the user's own hosted Turso DB — the same
- * token-vending flow the web client uses (tokens valid 7 days; cached 24h in
+ * token-vending flow the web client uses (tokens valid 24h; cached 24h in
  * chrome.storage.session so it never outlives the browser session).
  */
 export async function fetchHostedConnection(

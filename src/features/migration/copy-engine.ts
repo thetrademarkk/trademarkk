@@ -57,6 +57,9 @@ export async function copyDatabase(
     );
     reports.push({ table, copied: done, sourceCount: total, targetCount });
   }
+  // Force the copied data fully to disk before the caller flips storage mode, so
+  // a mode-switch immediately after copy can't lose it (no-op on remote adapters).
+  await target.flush?.();
   return reports;
 }
 

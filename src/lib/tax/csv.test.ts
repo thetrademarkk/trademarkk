@@ -62,7 +62,7 @@ describe("buildTaxCsv", () => {
       "Summary",
       "Income classification (three-way)",
       "Capital gains — STCG / LTCG (delivery equity)",
-      "F&O turnover statement",
+      "F&O / commodity / currency turnover statement",
       "Charges breakdown",
       "Realised P&L by instrument",
       "Trade ledger",

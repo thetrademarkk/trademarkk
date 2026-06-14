@@ -18,6 +18,7 @@ import { formatINR } from "@/lib/utils";
 import { buildHeroSeries, type HeroPoint } from "@/features/backtest/results/equity-series";
 import type { BenchmarkPoint } from "@/features/backtest/results/benchmark";
 import type { EquityPoint } from "@/features/backtest/shared/run-result";
+import { backtestEquityAriaSummary } from "@/features/analytics/chart-aria";
 
 /**
  * The HERO chart: cumulative net-P&L equity (area) with the underwater drawdown
@@ -56,7 +57,11 @@ export function HeroEquityChart({
           </label>
         )}
       </CardHeader>
-      <CardContent className="h-64 pl-0 md:h-72">
+      <CardContent
+        className="h-64 pl-0 md:h-72"
+        role="img"
+        aria-label={backtestEquityAriaSummary(curve)}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <defs>

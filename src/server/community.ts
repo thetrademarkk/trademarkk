@@ -142,6 +142,18 @@ export async function notify(input: {
 }) {
   if (input.userId === input.actorId) return;
 
+  // Finding 8-notify: if the recipient has blocked the actor, never create the
+  // row — a blocked user must not be able to trigger follow/comment/reply/mention
+  // notifications. Safe early-return: a failed lookup degrades to delivering (the
+  // notification path must never throw into the caller).
+  const blocked = await platformDb
+    .select({ blockerId: blocks.blockerId })
+    .from(blocks)
+    .where(and(eq(blocks.blockerId, input.userId), eq(blocks.blockedId, input.actorId)))
+    .get()
+    .catch(() => undefined);
+  if (blocked) return;
+
   if (!BYPASS_PREF_TYPES.has(input.type)) {
     const pref = await platformDb
       .select({ notificationPrefs: profiles.notificationPrefs })
@@ -799,8 +811,13 @@ export function buildFeedConditions(q: FeedQuery, viewerId: string | null) {
     );
   }
   if (q.search) {
-    const like = `%${q.search.slice(0, 60)}%`;
-    conditions.push(sql`(${posts.body} LIKE ${like} OR ${posts.title} LIKE ${like})`);
+    // Finding 29: LIKE-escape the free-text query (and add `ESCAPE '\\'`) so `%`/`_`
+    // in user input match literally — otherwise `?q=%` would wildcard-scan the table,
+    // exactly as the /search route already guards against.
+    const like = `%${escapeLike(q.search.slice(0, 60))}%`;
+    conditions.push(
+      sql`(${posts.body} LIKE ${like} ESCAPE '\\' OR ${posts.title} LIKE ${like} ESCAPE '\\')`
+    );
   }
   return conditions;
 }
@@ -1188,12 +1205,19 @@ export async function getStarterSuggestions(viewerId: string): Promise<StarterSu
       // is a curated discovery surface, not a personalized feed).
       queryTrending("7d", null),
       // Top contributors this month (reuse the leaderboard's contrib query).
+      // Finding 32: exclude self, banned users, and both-direction blocks —
+      // mirroring queryFollowSuggestions — so a banned or mutually-blocked author
+      // can't surface as a starter suggestion.
       platformDb.all<{ username: string; displayName: string; avatar: string | null }>(
         sql`SELECT p.username AS username, p.display_name AS displayName, p.avatar AS avatar
             FROM profiles p
             JOIN (
               SELECT user_id, COUNT(*) AS posts FROM posts GROUP BY user_id
             ) po ON po.user_id = p.user_id
+            WHERE p.user_id <> ${viewerId}
+              AND p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})
+              AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ${viewerId})
+              AND p.user_id NOT IN (SELECT id FROM user WHERE status = 'banned')
             ORDER BY po.posts DESC LIMIT 12`
       ),
     ]);

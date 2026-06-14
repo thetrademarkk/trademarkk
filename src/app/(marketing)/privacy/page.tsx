@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   description:
     "How TradeMarkk handles your data: your trading data is yours, we never sell it, and we show no ads.",
   alternates: { canonical: "/privacy" },
+  // Match og:url to the route's canonical (relative — metadataBase resolves it)
+  // so it doesn't inherit the homepage url; the branded card image still comes
+  // from the root layout's explicit openGraph.images.
+  openGraph: { url: "/privacy" },
 };
 
 const SECTIONS = [

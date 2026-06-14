@@ -140,14 +140,23 @@ function lastOfMonth(day: string): string {
 }
 
 /**
+ * The UNROLLED rule-weekday occurrence on or after `day` — i.e. the calendar day
+ * the weekly expiry WOULD fall on before any holiday roll-back. NEXT_WEEKLY must
+ * advance from this (not from the rolled-back expiry), so a holiday on the rule
+ * weekday cannot collapse "next week" back onto the current week (CORR-05).
+ */
+function rawWeeklyOnOrAfter(index: IndexSymbol, day: string): string {
+  const rule = expiryRuleFor(index, day);
+  return onOrAfterWeekday(day, rule.weekday);
+}
+
+/**
  * The WEEKLY expiry day for the week containing `day` (the rule weekday in that
  * week), rolled back over holidays. Uses the dated rule window so the 2024–25
  * weekday churn resolves correctly.
  */
 export function weeklyExpiryOnOrAfter(index: IndexSymbol, day: string): string {
-  const rule = expiryRuleFor(index, day);
-  const raw = onOrAfterWeekday(day, rule.weekday);
-  return rollBackToTradingDay(raw, index);
+  return rollBackToTradingDay(rawWeeklyOnOrAfter(index, day), index);
 }
 
 /**
@@ -189,14 +198,23 @@ export function expiryFor(index: IndexSymbol, day: string, kind: ExpiryKind): st
     return m;
   }
 
-  let weekly = weeklyExpiryOnOrAfter(index, day);
+  // Resolve the current week's expiry on the UNROLLED rule-weekday occurrence so
+  // we can advance NEXT_WEEKLY a full week from it regardless of any roll-back.
+  let rawWeekly = rawWeeklyOnOrAfter(index, day);
+  let weekly = rollBackToTradingDay(rawWeekly, index);
   // If the current week's expiry already passed (e.g. day is the Friday after a
   // Thursday expiry that rolled), advance to next week.
-  if (weekly < day) weekly = weeklyExpiryOnOrAfter(index, nextTradingDay(weekly, index));
+  if (weekly < day) {
+    const nextDay = nextTradingDay(weekly, index);
+    rawWeekly = rawWeeklyOnOrAfter(index, nextDay);
+    weekly = rollBackToTradingDay(rawWeekly, index);
+  }
 
   if (kind === "NEXT_WEEKLY") {
-    // Jump one week forward from the resolved weekly, then resolve again.
-    return weeklyExpiryOnOrAfter(index, addDays(weekly, 1));
+    // Jump one full week forward from the UNROLLED current-week occurrence, then
+    // re-resolve. Advancing from the rolled-back `weekly` could land back inside
+    // the same rule week when this week's weekday was a holiday (CORR-05).
+    return weeklyExpiryOnOrAfter(index, addDays(rawWeekly, 7));
   }
   return weekly;
 }
