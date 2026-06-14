@@ -363,7 +363,14 @@ const browser = await chromium.launch();
     const smRes = await fetch(`${BASE}/sitemap.xml`);
     if (!smRes.ok) throw new Error(`sitemap.xml → ${smRes.status}`);
     const sm = await smRes.text();
-    for (const path of ["/features", "/community", "/privacy"]) {
+    for (const path of [
+      "/features",
+      "/community",
+      "/community/trending",
+      "/backtesting",
+      "/backtesting/explore",
+      "/privacy",
+    ]) {
       if (!sm.includes(path)) throw new Error(`sitemap.xml missing ${path}`);
     }
   });

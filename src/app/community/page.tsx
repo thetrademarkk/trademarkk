@@ -7,9 +7,10 @@ export const metadata: Metadata = {
   title: "Community",
   description:
     "Share trades, journals and ideas with Indian FnO & intraday traders on TradeMarkk's community.",
+  // canonical (and the inherited branded OG card from the root layout) drive the
+  // URLs — an explicit openGraph.url without its own image only duplicated the
+  // homepage og:url, so we let metadataBase + canonical handle it.
   alternates: { canonical: "/community" },
-  // Without an explicit url, this page inherits the homepage og:url from the root layout.
-  openGraph: { url: "/community" },
 };
 
 // ISR: the anonymous first feed page is baked into the static document so the

@@ -49,6 +49,13 @@ describe("webSiteJsonLd", () => {
     expect(site.publisher["@id"]).toBe(`${siteConfig.url}/#organization`);
     expect(site.publisher["@id"]).toBe(organizationJsonLd()["@id"]);
   });
+
+  it("emits a SearchAction whose target points at the community ?q= search", () => {
+    const action = site.potentialAction;
+    expect(action["@type"]).toBe("SearchAction");
+    expect(action.target.urlTemplate).toBe(`${siteConfig.url}/community?q={query}`);
+    expect(action["query-input"]).toBe("required name=query");
+  });
 });
 
 describe("siteConfig", () => {

@@ -53,5 +53,14 @@ export function webSiteJsonLd() {
     description: siteConfig.description,
     publisher: { "@id": `${url}/#organization` },
     inLanguage: "en-IN",
+    // The site's real search surface: the community feed accepts a ?q= query.
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${url}/community?q={query}`,
+      },
+      "query-input": "required name=query",
+    },
   } as const;
 }

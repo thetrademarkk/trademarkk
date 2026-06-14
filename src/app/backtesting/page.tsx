@@ -6,8 +6,10 @@ export const metadata: Metadata = {
   title: "Backtesting",
   description:
     "Backtest NIFTY, BANKNIFTY & SENSEX option strategies free in your browser. Honest about data coverage, no login until you save. Educational only.",
+  // Let metadataBase + canonical drive the URLs and inherit the branded OG card
+  // from the root layout — an explicit openGraph.url without its own image only
+  // duplicated the homepage og:url.
   alternates: { canonical: "/backtesting" },
-  openGraph: { url: "/backtesting" },
 };
 
 /**
