@@ -10,8 +10,15 @@ import { lookup } from "node:dns/promises";
  *  - The host is DNS-resolved and EVERY resolved address is checked against a
  *    blocklist of private / loopback / link-local / unique-local / metadata
  *    ranges (IPv4 + IPv6, incl. IPv4-mapped IPv6). One bad address fails.
+ *  - The validated addresses are RETURNED so the caller can connect to that
+ *    EXACT IP (see src/server/unfurl.ts). This closes the DNS-rebinding TOCTOU:
+ *    without pinning, undici/fetch would do its OWN second DNS resolution at
+ *    connect time, and an attacker controlling authoritative DNS (low TTL) could
+ *    return a public IP to this validator and a private IP (127.0.0.1,
+ *    169.254.169.254, 10/172.16/192.168, …) to the actual connect. Pinning makes
+ *    validation-IP === connection-IP, so the two can never diverge.
  *  - Redirects are followed manually (max 3) and the destination of each hop is
- *    re-validated, so a public URL can't 30x into 169.254.169.254.
+ *    re-validated AND re-pinned, so a public URL can't 30x into 169.254.169.254.
  *  - Optional host allowlist (env UNFURL_ALLOWED_HOSTS) — when set, only those
  *    registrable hosts unfurl at all.
  *
@@ -155,15 +162,35 @@ export function isHostAllowed(host: string, list: Set<string> | null = allowedHo
   return [...list].some((allowed) => h === allowed || h.endsWith(`.${allowed}`));
 }
 
+/** The validated, safe target: the parsed URL plus the EXACT IP(s) to connect to. */
+export interface SafeTarget {
+  ok: true;
+  url: URL;
+  /**
+   * The pre-validated public address(es) the caller MUST connect to. Resolved
+   * once here so the connection cannot re-resolve to a different (private) IP.
+   * Each entry carries its IP family for the connection socket.
+   */
+  addresses: { address: string; family: 4 | 6 }[];
+}
+
+export type SafeUrlResult = SafeTarget | { ok: false; reason: string };
+
+/** IP family of a literal address string (4 unless it contains a colon). */
+function ipFamily(ip: string): 4 | 6 {
+  return ip.includes(":") ? 6 : 4;
+}
+
 /**
- * Validates a URL and resolves its host, returning the safe target on success
- * or a reason string on rejection. Performs the full https + allowlist + DNS +
- * per-address blocklist check. Hostnames that are already literal IPs are
- * checked directly (no DNS).
+ * Validates a URL and resolves its host, returning the safe target — INCLUDING
+ * the exact pre-validated address(es) to connect to — on success, or a reason
+ * string on rejection. Performs the full https + allowlist + DNS + per-address
+ * blocklist check. Hostnames that are already literal IPs are checked directly
+ * (no DNS). The returned `addresses` MUST be the ONLY addresses the caller
+ * connects to: that is what makes validation-IP === connection-IP and defeats
+ * DNS rebinding.
  */
-export async function assertSafeUrl(
-  rawUrl: string
-): Promise<{ ok: true; url: URL } | { ok: false; reason: string }> {
+export async function assertSafeUrl(rawUrl: string): Promise<SafeUrlResult> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -175,15 +202,16 @@ export async function assertSafeUrl(
   if (!host) return { ok: false, reason: "no-host" };
   if (!isHostAllowed(url.hostname)) return { ok: false, reason: "host-not-allowed" };
 
-  // A literal IP host bypasses DNS — check it directly.
+  // A literal IP host bypasses DNS — check it directly and pin to itself.
   if (parseIpv4(host) || host.includes(":")) {
     if (isBlockedAddress(host)) return { ok: false, reason: "private-ip" };
-    return { ok: true, url };
+    return { ok: true, url, addresses: [{ address: host, family: ipFamily(host) }] };
   }
 
   // Resolve ALL addresses; reject if any is private (a host could round-robin
-  // a public and a private A record — block the whole host then).
-  let addrs: { address: string }[];
+  // a public and a private A record — block the whole host then). The surviving
+  // addresses are returned so the caller pins the connection to one of them.
+  let addrs: { address: string; family?: number }[];
   try {
     addrs = await lookup(host, { all: true });
   } catch {
@@ -193,5 +221,9 @@ export async function assertSafeUrl(
   for (const a of addrs) {
     if (isBlockedAddress(a.address)) return { ok: false, reason: "private-ip" };
   }
-  return { ok: true, url };
+  return {
+    ok: true,
+    url,
+    addresses: addrs.map((a) => ({ address: a.address, family: ipFamily(a.address) })),
+  };
 }
