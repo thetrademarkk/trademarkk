@@ -9,8 +9,9 @@ export default function OfflinePage() {
       <WifiOff className="h-10 w-10 text-muted" aria-hidden />
       <h1 className="text-lg font-semibold">You&apos;re offline</h1>
       <p className="max-w-sm text-sm text-muted">
-        TradeMarkk needs a connection to reach your database. Your data is safe — reconnect and
-        reload.
+        This page hasn&apos;t been cached yet. If you use TradeMarkk in local mode, your journal
+        lives in this browser and keeps working offline — reopen the app to continue. Hosted and
+        connected journals need a connection to sync; your data is safe, just reconnect and reload.
       </p>
     </div>
   );
