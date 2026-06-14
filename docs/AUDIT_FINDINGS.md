@@ -10,6 +10,54 @@ One note: the final confirmed finding (P3 backtest run-result blob — included 
 
 ---
 
+## Fix status (2026-06-14) — branch `fix/audit-all`
+
+All audit lanes were consolidated into `fix/audit-all` (correctness CORR-01..06,
+SEO-01..08, PWA-01..09, horizon, SSRF, web-vitals, the P0 e2e fix, governance/UI)
+and the remaining pending findings were fixed in five verified batches. Gates after
+every commit: `tsc`, `next lint` (0 warnings), `ext:typecheck`, `vitest` (2501),
+`next build`.
+
+**Fixed in the consolidation** (prior lanes): P0 e2e-smoke; SSRF DNS-rebinding;
+payoff max profit/loss (CORR-01/06); agri charge classifier (CORR-02); IST
+bucketing (CORR-03/04); calendar expiry edge (CORR-05); profile/leaderboard
+self-canonical + sitemap blog + community h1 (SEO-01/02/04/05); post-detail
+canonical (SEO-08); messages/notifications/reset-password noindex (SEO-05/06);
+blog TipTap split + feed-image CLS (web-vitals); offline copy + manifest PNG +
+build-derived SW version (PWA-01/03/05).
+
+**Batch A — security/authz** (`a6947d0`): #7 report-target validation, #8
+block-stops-follow/notify, #28 banned comment-edit gate, #29 feed LIKE escape,
+#30 origin Sec-Fetch-Site, #31 client-ip trusted hop, #32 starter banned/block
+exclusion, #33 discovery rate limits, #34 RunResult size bound, #35 token TTL 24h.
+
+**Batch B — money/charges/tax** (`bbdd5a4`): #16 per-leg brokerage cap, #17
+COMM/CDS in turnover, #39 same-day-CNC speculative, #40 gross-basis turnover,
+#20 per-leg recompute option_type, #1 NCDEX exchange propagation (app), #21
+symbol-prefix trim, #44 day-first CSV dates.
+
+**Batch C — perf** (`a7d6c27`): #3/#9/#11 covering indexes, #5 useThread poll
+storm, #15 DM inbox 30s, #4 scoped invalidations, #38 dashboard/calendar memo,
+#13 debounced sql.js persist (+flush durability). #14 (`0a866d3`) tag-JOIN gate.
+
+**Batch D — a11y/SEO** (`8ed10b3`): #22/#23 chart accessible names + reduced
+motion, #41 rHistogram label, #24 tag-picker, #50/#51/#52/#53/#54 icon-button
+labels, #55 sentiment-gauge, #56 Sheet description, #46 marketing og:url.
+
+**Batch E — engine/extension** (`67b03cc`): #42 coverage accounting, #43 expiry
+source, #19 reject underlying-basis triggers, #18 montecarlo empty-sample guard,
+#2 extension NCDEX adapters, #48 optimizePackageImports.
+
+**Deferred (recommended follow-up PRs):** #10 normalized `post_tags` table (large
+refactor), #25 mobile nav hamburger (UI, needs visual verification), #49 A2HS
+install prompt (feature), #48 lazy-mount HeroShowcase (CLS-sensitive), #36/#37
+small community-query caps, #6/#26/#27/#60 e2e coverage (seg-lots watchdog,
+social funnel, mode-switch, terms/offline), Twitter @handle (needs a real handle).
+The 480-finding `AUDIT_A11Y_SEO_ATTRIBUTES_2026-06-14.md` BATCH 0–8 plan is a
+separate effort, not started here.
+
+---
+
 ## Appendix — all findings
 
 ### P0 (1)
