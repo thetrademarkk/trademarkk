@@ -5,15 +5,15 @@
  * kind of trader the data describes: an intraday scalper, a swing trader or a
  * positional/delivery investor.
  *
- *  - intraday   — squared off the same IST calendar day, OR product = MIS.
+ *  - intraday   — opened and squared off the same IST calendar day.
  *  - swing      — held overnight, up to 7 calendar days.
  *  - positional — held strictly more than 7 calendar days.
  *
- * CNC (delivery equity) and NRML (carry-forward derivatives) are by definition
- * held overnight, so a CNC/NRML trade is never intraday even when the stored
- * timestamps look same-day (e.g. a date-only import). Legacy trades carry
- * product = null and fall back to the timestamp test, matching the rest of the
- * app's "null product behaves like the inferred holding pattern" rule.
+ * Horizon is the holding PERIOD (derived from the entry/exit IST dates), NOT the
+ * margin product: a CNC/NRML position closed the same day is intraday (intraday
+ * delivery / intraday F&O) exactly like an MIS one — the product only chooses
+ * margin. A date-only import that stamps the same day on both sides therefore
+ * reads as intraday; a genuinely held position carries distinct calendar dates.
  *
  * Everything here is paise-irrelevant (it only counts and classifies), runs
  * identically across hosted / BYOD / local modes, and uses no market data.
@@ -89,14 +89,10 @@ export const SWING_MAX_DAYS = 7;
  */
 export function classifyHorizon(t: HorizonTradeLike): Horizon | null {
   if (!t.closed_at) return null;
-  const product = t.product ?? null;
-  // Carry products are overnight by definition, regardless of the timestamps.
-  if (product === "MIS") return "intraday";
-  if (product === "CNC" || product === "NRML" || product === "BTST" || product === "STBT") {
-    const days = istCalendarDaysHeld(t.opened_at, t.closed_at);
-    return days > SWING_MAX_DAYS ? "positional" : "swing";
-  }
-  // No product (legacy) → fall back to the timestamps.
+  // Holding HORIZON is the holding PERIOD, read from the entry/exit IST calendar
+  // dates — NOT the margin product. A CNC/NRML position squared off the same IST
+  // day is intraday (intraday delivery / intraday F&O), exactly like an MIS one;
+  // MIS/CNC/NRML only choose the margin, never the holding period.
   if (istDateKey(t.opened_at) === istDateKey(t.closed_at)) return "intraday";
   const days = istCalendarDaysHeld(t.opened_at, t.closed_at);
   return days > SWING_MAX_DAYS ? "positional" : "swing";

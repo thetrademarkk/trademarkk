@@ -197,6 +197,15 @@ label:has(> input[type="file"].hidden) {
   scrollbar-color: var(--border) transparent;
 }
 
+/* Hide the scrollbar entirely (scrolling still works) — used by modals/sheets. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Marketing surface ────────────────────────────────────────── */
 .text-gradient {
   background: linear-gradient(100deg, var(--accent) 0%, #c084fc 50%, #f0abfc 100%);

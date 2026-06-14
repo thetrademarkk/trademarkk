@@ -27,12 +27,34 @@ const STYLE_ICON: Record<Horizon, LucideIcon> = {
 export function TradingStyleSummary({
   trades,
   compact = false,
+  inline = false,
 }: {
   trades: HorizonTradeLike[];
   compact?: boolean;
+  /** A tiny right-aligned pill (dashboard header) — full breakdown in the tooltip. */
+  inline?: boolean;
 }) {
   const style = useMemo(() => tradingStyle(trades), [trades]);
   const Icon = style.dominant ? STYLE_ICON[style.dominant] : Hourglass;
+
+  if (inline) {
+    const detail =
+      style.mix.total > 0
+        ? `${style.summary} — ${style.mix.intraday} intraday · ${style.mix.swing} swing · ${style.mix.positional} positional (${style.mix.total} closed)`
+        : style.summary;
+    return (
+      <div
+        data-testid="trading-style"
+        title={detail}
+        className="flex shrink-0 items-center gap-1.5 rounded-full border bg-surface px-3 py-1.5 text-xs"
+      >
+        <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />
+        <span className="whitespace-nowrap font-medium">
+          {style.dominant ? `${style.pct}% ${style.dominant}` : "Trading style"}
+        </span>
+      </div>
+    );
+  }
 
   const inner = (
     <div className="flex items-start gap-2">
