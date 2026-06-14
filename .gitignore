@@ -48,10 +48,11 @@ extension/*.zip
 /*.jpg
 /*.webm
 
-.vercel
-
-# local-only e2e helper scripts (verification scratchpads)
+# local-only e2e helper scripts + one-off scratch scripts (never commit)
 scripts/diag*.mjs
+scripts/_*.mjs
+scripts/_*.ts
+
 # transient demo-recording artifacts (auth.json holds a session token!)
 demo/auth.json
 demo/*.webm
@@ -60,8 +61,5 @@ demo/*.pcm
 demo/*.jpg
 demo/clicks.json
 
-# Personal Claude Code settings (machine-local permissions)
-.claude/settings.local.json
-
-# Playwright MCP browser artifacts
+# Playwright MCP browser artifacts (snapshots/screenshots from local verification)
 .playwright-mcp/

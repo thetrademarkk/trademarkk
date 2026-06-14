@@ -1,0 +1,10 @@
+# Code owners for TradeMarkk.
+#
+# Every path is owned by @raashish1601. With branch protection's
+# "Require review from Code Owners" + "Do not allow bypassing the above settings"
+# (enforce admins) enabled on `main`, this makes @raashish1601's approval
+# MANDATORY for every pull request before it can be merged — no direct pushes,
+# no admin bypass. This is how merge authority is held to one account on a
+# personal-account repo (a per-user "only X can click merge" restriction itself
+# requires the repo to live in a GitHub Organization).
+*       @raashish1601
