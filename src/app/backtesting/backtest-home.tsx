@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Code2, FlaskConical, Gauge, ShieldCheck, Sparkles } from "lucide-react";
+import { Code2, FlaskConical, Gauge, GitCompareArrows, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SAMPLE_RUN } from "./sample-run";
 import { SampleResultCard } from "./sample-result-card";
@@ -206,6 +206,30 @@ export function BacktestHome() {
             </Link>
           ))}
         </div>
+      </section>
+
+      {/* Journal-compare entry (BT-12) — the journal-first killer */}
+      <section className="mt-12">
+        <Link
+          href="/backtesting/compare"
+          className="group flex items-start gap-4 rounded-2xl border bg-surface p-5 transition-colors hover:border-accent"
+          data-testid="bt-compare-entry"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+            <GitCompareArrows className="h-5 w-5 text-accent" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold">Did you trade your plan?</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Already journaling your trades? Overlay your <strong>real trades</strong> on a
+              mechanical backtest of the same idea and see, honestly, where your discretionary
+              trading diverged. Runs on your own journal — read-only, on this device.
+            </p>
+            <span className="mt-2 inline-block text-sm font-medium text-accent">
+              Compare with your journal →
+            </span>
+          </div>
+        </Link>
       </section>
 
       {/* Trust row */}

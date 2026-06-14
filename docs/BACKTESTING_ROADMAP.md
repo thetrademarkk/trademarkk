@@ -134,9 +134,23 @@ merged to main.
 - [x] **BT-11 walk-forward + MC robustness + overfitting coach** — accumulated,
       pending batch deploy (descriptive-only honesty rigor layer; see the lane log
       below).
-- [ ] **BT-10, BT-12..14** — presets, compare-journal, BYOC (Pyodide), server
-      leaderboard. (BT-10 + BT-08 are HF-gated; BT-12 journal-compare is buildable
-      now.)
+- [x] **BT-12 journal-compare** — accumulated, pending batch deploy. The
+      journal-first "did I actually trade my plan?" feature: overlay a user's REAL
+      journaled trades against a mechanical baseline backtest of the same idea and
+      show — descriptively, never as a verdict — where their real trading diverged.
+      Pure layer `src/features/backtest/journal-compare/*` (trade-shape adapter
+      across ALL segments EQ/OPT/FUT/COMM/CDS incl. multi-leg; comparison engine =
+      equity overlay + win-rate/avg-hold/P&L-gap discipline metrics + discretionary
+      / skipped-signal divergences; honest no-comparable-data / partial-overlap /
+      low-sample states). Opt-in compare surface at `/backtesting/compare` (mounts
+      its OWN DbSessionProvider to read the journal READ-ONLY via the existing
+      `useTrades`/`useAllLegs` — the journal entry UI is never touched) + a landing
+      entry card. Reuses Recharts + computeMetrics — NO new dep, no HF, no LLM.
+      +29 vitest (suite 1493 → 1523, incl. a sql.js DB-backed seed test over the
+      real journal migrations) + new `scripts/e2e-bt-journal-compare.mjs` (11/11).
+      This COMPLETES the buildable-now backtest scope.
+- [ ] **BT-10, BT-13..14** — presets, BYOC (Pyodide), server leaderboard.
+      (BT-10 + BT-08 are HF-gated; BT-13/14 are optional.)
 
 ## Working rules (this lane)
 
@@ -266,3 +280,38 @@ use-backtest.ts`, `src/features/backtest/shared/backtest-status.ts`,
   e2e-bt-builder/run/results/persistence 33/33 unchanged, e2e-smoke 36/36,
   mobile-audit clean. Next backtest item: BT-12 journal-compare (buildable now);
   BT-08 data-proxy + BT-10 presets stay HF-gated.
+- 2026-06-14 — BT-12 JOURNAL-COMPARE (overlay real journaled trades vs a
+  mechanical baseline backtest of the same idea), accumulated (deploy-conserving).
+  The journal-first "did I actually trade my plan?" killer — opt-in, runs on LOCAL
+  journal data, no HF, no LLM, descriptive-only (a mirror for self-review, never a
+  verdict). Pure layer `src/features/backtest/journal-compare/*`: `adapter.ts`
+  (maps the journal TradeRow shape → a normalized JournalTrade across ALL segments
+  EQ/OPT/FUT/COMM/CDS incl. multi-leg qty summation; robust index resolver
+  NIFTY/BANKNIFTY/SENSEX with BANKNIFTY-before-NIFTY + FINNIFTY/stock/COMM/CDS →
+  null; trusts the journal's stored net-of-charges P&L verbatim, never recomputes),
+  `compare.ts` (cumulative equity overlay you-vs-baseline on the union of IST days;
+  discipline metrics = total-P&L gap / win-rate delta / avg-hold delta /
+  trade-day delta / profit-factor / max-DD via the reused `computeMetrics`;
+  divergences = discretionary days + skipped-signal days + overlap; honest
+  unavailable states no-journal-trades / no-comparable-instrument /
+  no-backtest / no-date-overlap; partial-overlap out-of-range count; low-sample
+  note < 10; paise-correct + deterministic). UI: opt-in route
+  `/backtesting/compare` (mounts its OWN DbSessionProvider to read the journal
+  READ-ONLY via the existing `useTrades`/`useAllLegs` — the journal entry UI/lib,
+  owned by the segments lane, is never touched) with a two-color Recharts overlay
+  (reused walk-forward idiom, NO new dep), a discipline-metrics table, a
+  divergences list, and honest empty/partial/low-sample states; plus a landing
+  entry card. +29 vitest (suite 1493 → 1523: adapter across all segments +
+  multi-leg + index resolver, hand-computed metrics/divergences/overlay paise-
+  correct, all honest states, determinism, + a sql.js DB-backed seed test over the
+  REAL journal migrations asserting the comparison output) + new
+  `scripts/e2e-bt-journal-compare.mjs` (11/11: seeds a local demo journal with
+  NIFTY trades overlapping the golden window → overlay + 6 discipline metrics +
+  divergences render + honest framing + low-sample + out-of-range caveats; the
+  no-comparable-data honest state for a stock/commodity-only book; 360px clean,
+  zero console errors). All LOCAL gates green: tsc, ext:typecheck, next lint
+  0-warn, vitest 1523, next build (`/backtesting/compare` 12.9 kB static shell,
+  journal read client-side), e2e-bt-builder/run/results/persistence/walkforward
+  41/41 unchanged, e2e-smoke 36/36, mobile-audit clean (compare route added).
+  This COMPLETES the buildable-now backtest scope — only BT-08 data-proxy + BT-10
+  presets (HF-gated) and the optional BT-13 BYOC / BT-14 leaderboard remain.
