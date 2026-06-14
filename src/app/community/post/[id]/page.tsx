@@ -23,13 +23,20 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  // Self-canonical so each shared post is its own indexable URL rather than
+  // folding into /community (the default inherited from the layout).
+  const canonical = `/community/post/${id}`;
   try {
     const row = await platformDb
       .select({ title: posts.title, body: posts.body, userId: posts.userId })
       .from(posts)
       .where(eq(posts.id, id))
       .get();
-    if (!row) return { title: "Post not found — TradeMarkk Community" };
+    if (!row)
+      return {
+        title: "Post not found — TradeMarkk Community",
+        alternates: { canonical },
+      };
     const author = await platformDb
       .select({ displayName: profiles.displayName })
       .from(profiles)
@@ -40,10 +47,11 @@ export async function generateMetadata({
     return {
       title: `${title} — TradeMarkk Community`,
       description,
+      alternates: { canonical },
       openGraph: { title, description },
     };
   } catch {
-    return { title: "TradeMarkk Community" };
+    return { title: "TradeMarkk Community", alternates: { canonical } };
   }
 }
 
