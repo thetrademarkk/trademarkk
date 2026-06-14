@@ -107,10 +107,7 @@ async function existingIds(ids: string[], db: DbClient): Promise<Set<string>> {
     const chunk = ids.slice(i, i + 200);
     if (chunk.length === 0) continue;
     const placeholders = chunk.map(() => "?").join(",");
-    const res = await db.execute(
-      `SELECT id FROM trades WHERE id IN (${placeholders})`,
-      chunk
-    );
+    const res = await db.execute(`SELECT id FROM trades WHERE id IN (${placeholders})`, chunk);
     for (const r of res.rows) found.add(String(r.id));
   }
   return found;
@@ -122,6 +119,10 @@ export function tradeRowToFormValues(t: TradeRow): TradeFormValues {
     accountId: t.account_id,
     symbol: t.symbol,
     segment: t.segment,
+    // Preserve the product the CSV-pairing pipeline inferred (derivatives →
+    // NRML, overnight equity → CNC, intraday → MIS) so the stored row keeps
+    // the right holding basis instead of the builder's blanket MIS default.
+    product: t.product ?? undefined,
     expiry: t.expiry ?? undefined,
     strike: t.strike ?? undefined,
     optionType: t.option_type ?? undefined,

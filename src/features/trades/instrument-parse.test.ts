@@ -9,6 +9,7 @@ describe("parseContractName — compact NSE names", () => {
       strike: 52000,
       optionType: "CE",
       expiry: null,
+      agri: false,
     });
   });
 
@@ -102,6 +103,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       strike: 52000,
       optionType: "CE",
       expiry: "2026-06-26",
+      agri: false,
     });
   });
 
@@ -112,6 +114,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       strike: 24500,
       optionType: "CE",
       expiry: "2026-06-25",
+      agri: false,
     });
   });
 
@@ -129,6 +132,7 @@ describe("parseContractName — spaced names (Groww / Dhan)", () => {
       strike: null,
       optionType: null,
       expiry: "2026-06-25",
+      agri: false,
     });
   });
 
@@ -226,6 +230,67 @@ describe("parseContractName — currency (USDINR/EURINR → CDS)", () => {
 
   it("an equity that merely contains INR is not misclassified as CDS", () => {
     expect(parseContractName("INRBANK")).toMatchObject({ symbol: "INRBANK", segment: "EQ" });
+  });
+});
+
+describe("parseContractName — NCDEX agri (→ COMM, agri-flagged)", () => {
+  it("NCDEX: prefixed agri name → COMM and prefix stripped", () => {
+    expect(parseContractName("NCDEX:JEERA")).toMatchObject({
+      symbol: "JEERA",
+      segment: "COMM",
+      agri: true,
+    });
+  });
+
+  it("NCD: prefixed agri name → COMM, agri true", () => {
+    expect(parseContractName("NCD:WHEAT")).toMatchObject({
+      symbol: "WHEAT",
+      segment: "COMM",
+      agri: true,
+    });
+  });
+
+  it("bare NCDEX agri base (no prefix) classifies as COMM agri", () => {
+    expect(parseContractName("DHANIYA")).toMatchObject({ segment: "COMM", agri: true });
+    expect(parseContractName("TURMERIC")).toMatchObject({ segment: "COMM", agri: true });
+    expect(parseContractName("JEERAUNJHA")).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("lot-size-suffixed agri variant still classifies (GUARSEED10, GUARGUM5)", () => {
+    expect(parseContractName("GUARSEED10")).toMatchObject({
+      symbol: "GUARSEED10",
+      segment: "COMM",
+      agri: true,
+    });
+    expect(parseContractName("GUARGUM5")).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("a generic equity is never swept into agri COMM", () => {
+    expect(parseContractName("RELIANCE")).toMatchObject({ segment: "EQ", agri: false });
+    expect(parseContractName("INFY")).toMatchObject({ segment: "EQ", agri: false });
+  });
+});
+
+describe("parseContractName — agri vs non-agri commodity (CTT exemption)", () => {
+  it("metals / energy MCX commodities are NON-agri (CTT applies)", () => {
+    expect(parseContractName("CRUDEOIL")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("GOLD24JUN72000CE")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("SILVER")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("MCX:NATURALGAS24JUNFUT")).toMatchObject({
+      segment: "COMM",
+      agri: false,
+    });
+  });
+
+  it("agri MCX contracts (KAPAS/COTTON/CARDAMOM/MENTHAOIL) are CTT-exempt", () => {
+    expect(parseContractName("KAPAS24APRFUT")).toMatchObject({ segment: "COMM", agri: true });
+    expect(parseContractName("COTTON")).toMatchObject({ segment: "COMM", agri: true });
+    expect(parseContractName("CARDAMOM24JUNFUT")).toMatchObject({ segment: "COMM", agri: true });
+    expect(parseContractName("MENTHAOIL24JUNFUT")).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("currency derivatives carry agri: false (never a commodity)", () => {
+    expect(parseContractName("USDINR24JUNFUT")).toMatchObject({ segment: "CDS", agri: false });
   });
 });
 

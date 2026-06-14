@@ -1,5 +1,9 @@
 import { parseContractName, type ParsedInstrument } from "@/features/trades/instrument-parse";
-import { tradeFormSchema, type TradeFormValues } from "@/features/trades/schemas";
+import {
+  isDerivativeSegment,
+  tradeFormSchema,
+  type TradeFormValues,
+} from "@/features/trades/schemas";
 import { nowLocalInput } from "@/features/trades/utils";
 
 /**
@@ -11,6 +15,14 @@ export interface QuickTradeInput {
   accountId: string;
   /** Raw instrument text, e.g. "BANKNIFTY24JUN52000CE" or "RELIANCE". */
   instrument: string;
+  /**
+   * Captured broker exchange (NSE/BSE/MCX/NCDEX/CDS/...), when known. Used
+   * ONLY to disambiguate the segment for a bare instrument whose name does
+   * not already carry an exchange prefix or a recognised commodity/currency
+   * base — e.g. a thin MCX/NCDEX commodity captured as just "GUARSEED" with
+   * the exchange shown separately. Never overrides an explicit prefix.
+   */
+  exchange?: string | null;
   side: "buy" | "sell";
   qty: string;
   entry: string;
@@ -31,10 +43,53 @@ const toNumber = (raw: string): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+/** Exchange tokens the contract-name parser understands as a "EX:SYM" prefix. */
+const PARSER_EXCHANGES = new Set([
+  "NSE",
+  "BSE",
+  "NFO",
+  "BFO",
+  "MCX",
+  "CDS",
+  "BCD",
+  "NCDEX",
+  "NCD",
+  "NCO",
+]);
+
+/**
+ * Prepends the captured broker exchange as a parser prefix when (a) the
+ * instrument has no exchange prefix already and (b) the exchange is one the
+ * contract-name parser can act on (MCX/NCDEX/CDS disambiguate the segment for a
+ * bare commodity/currency name; NSE/BSE are harmless no-ops the parser strips).
+ * This is the path that gets a thin MCX/NCDEX commodity ("GUARSEED", "DHANIYA")
+ * classified as COMM even when its base isn't a built-in commodity keyword.
+ */
+export function applyCapturedExchange(instrument: string, exchange?: string | null): string {
+  const sym = instrument.trim();
+  if (!sym || /^[A-Z]+:/i.test(sym)) return sym; // already prefixed → leave it
+  const ex = (exchange ?? "").trim().toUpperCase();
+  if (!ex || !PARSER_EXCHANGES.has(ex)) return sym;
+  return `${ex}:${sym}`;
+}
+
+/**
+ * Default position product for a freshly captured/quick-logged trade, from the
+ * segment: derivatives (FUT/OPT/COMM/CDS) are carry-forward (NRML) by default,
+ * cash equity is intraday (MIS). The user can still change it on the web; this
+ * just stops every captured commodity/currency/F&O trade defaulting to MIS,
+ * which would mis-state charges (e.g. NRML vs MIS brokerage/holding basis).
+ */
+export function defaultProductForSegment(segment: TradeFormValues["segment"]): "MIS" | "NRML" {
+  return isDerivativeSegment(segment) ? "NRML" : "MIS";
+}
+
 export function buildQuickTradeValues(input: QuickTradeInput): QuickTradeResult {
   const instrument = input.instrument.trim();
   if (!instrument) return { ok: false, error: "Instrument is required" };
-  const parsed = parseContractName(instrument);
+  // The captured exchange disambiguates a bare commodity/currency symbol
+  // (MCX/NCDEX/CDS) before parsing; it never overrides an explicit prefix.
+  const parsed = parseContractName(applyCapturedExchange(instrument, input.exchange));
   const exit = toNumber(input.exit);
   const now = nowLocalInput();
 
@@ -42,6 +97,8 @@ export function buildQuickTradeValues(input: QuickTradeInput): QuickTradeResult 
     accountId: input.accountId,
     symbol: parsed.symbol,
     segment: parsed.segment,
+    // Product mirrors the CSV-import inference: derivatives → NRML, EQ → MIS.
+    product: defaultProductForSegment(parsed.segment),
     expiry: parsed.expiry ?? undefined,
     strike: parsed.strike ?? undefined,
     optionType: parsed.optionType ?? undefined,
@@ -75,6 +132,17 @@ export function describeParsed(parsed: ParsedInstrument): string {
   if (parsed.segment === "FUT") {
     const expiry = parsed.expiry ? ` · exp ${parsed.expiry}` : "";
     return `${parsed.symbol} · Futures${expiry}`;
+  }
+  if (parsed.segment === "COMM") {
+    const strike = parsed.strike != null ? ` ${parsed.strike}` : "";
+    const type = parsed.optionType ? ` ${parsed.optionType}` : "";
+    const agri = parsed.agri ? " agri" : "";
+    return `${parsed.symbol} · Commodity${strike}${type}${agri}`;
+  }
+  if (parsed.segment === "CDS") {
+    const strike = parsed.strike != null ? ` ${parsed.strike}` : "";
+    const type = parsed.optionType ? ` ${parsed.optionType}` : "";
+    return `${parsed.symbol} · Currency${strike}${type}`;
   }
   return `${parsed.symbol} · Equity`;
 }

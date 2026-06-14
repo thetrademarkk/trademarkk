@@ -73,16 +73,15 @@ export function buildPreTradePlanValues(input: PreTradePlanInput): PreTradePlanR
   if (!instrument) return { ok: false, error: "Instrument is required" };
 
   // The contract parser owns strike/option-type/expiry. The user owns segment +
-  // product (COMM/CDS can't be inferred from a bare name), but if they typed an
-  // option/future name the parser recognises, trust the parsed segment so we
-  // never drop a strike/CE-PE the validator then rejects.
+  // product, but if they typed a name the parser clearly recognises as a
+  // contract (OPT/FUT, or an MCX/NCDEX commodity / CDS currency), trust the
+  // parsed segment so we never drop a strike/CE-PE the validator then rejects
+  // or mis-charge a commodity/currency as equity.
   const parsed = parseContractName(instrument);
   const chosen = isSegment(input.segment) ? input.segment : parsed.segment;
-  // Parsed OPT/FUT are stronger signals than the form default (the parser only
-  // emits them when the name clearly encodes a contract); COMM/CDS stay as
-  // chosen because the parser can't represent them.
-  const segment: Segment =
-    parsed.segment === "OPT" || parsed.segment === "FUT" ? parsed.segment : chosen;
+  // A parsed non-EQ segment is a strong signal (the parser only emits OPT/FUT/
+  // COMM/CDS when the name encodes one); a bare EQ parse defers to the picker.
+  const segment: Segment = parsed.segment !== "EQ" ? parsed.segment : chosen;
 
   const product: Product = productsForSegment(segment).includes(input.product)
     ? input.product

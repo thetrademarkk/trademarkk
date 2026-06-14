@@ -1,5 +1,6 @@
 import { computeCharges, computeGrossPnl, computeRMultiple } from "@/lib/charges/charges";
 import { getChargeProfile } from "@/config/brokers";
+import { parseContractName } from "./instrument-parse";
 import type { TradeFormValues, TradeLeg } from "./schemas";
 
 export interface DerivedNumbers {
@@ -38,6 +39,13 @@ export function deriveTradeNumbers(
     return { status: "open", gross: 0, charges: 0, net: 0, r: null };
   }
   const profile = getChargeProfile(chargeProfileId);
+  // Commodity charge flags (SEG-09): a COMM option carries CTT on the sell
+  // premium (0.05%) vs a COMM future (0.01%); an agri commodity (NCDEX, or
+  // KAPAS/COTTON/CARDAMOM/MENTHAOIL on MCX) is CTT-exempt. Both are derived
+  // from the symbol/segment so the form + extension charge identically to
+  // the CSV-import path.
+  const commodityOption = values.segment === "COMM" && values.optionType != null;
+  const agriCommodity = values.segment === "COMM" && parseContractName(values.symbol).agri;
   let gross = 0;
   let charges = 0;
   for (const leg of legs) {
@@ -54,6 +62,8 @@ export function deriveTradeNumbers(
       entryPrice: leg.avgEntry,
       exitPrice: leg.avgExit!,
       direction: leg.direction,
+      commodityOption,
+      agriCommodity,
     }).total;
   }
   gross = Math.round(gross * 100) / 100;

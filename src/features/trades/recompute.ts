@@ -1,5 +1,6 @@
 import { computeCharges } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
+import { parseContractName } from "./instrument-parse";
 import type { DbStatement, DbValue } from "@/lib/db/types";
 import type { Product, Segment, TradeLegRow, TradeRow } from "./types";
 
@@ -72,9 +73,14 @@ export function chargeLegsForTrade(trade: TradeRow, legs: TradeLegRow[] | undefi
  */
 export function recomputeTradeCharges(
   profile: ChargeProfile,
-  trade: Pick<TradeRow, "segment" | "product">,
+  trade: Pick<TradeRow, "segment" | "product" | "symbol" | "option_type">,
   legs: ChargeLeg[]
 ): number {
+  // Commodity CTT flags (SEG-09): a COMM option carries CTT on the sell
+  // premium, an agri commodity is exempt. Derived from the stored symbol so
+  // recompute matches the form/CSV charge engine exactly.
+  const commodityOption = trade.segment === "COMM" && trade.option_type != null;
+  const agriCommodity = trade.segment === "COMM" && parseContractName(trade.symbol).agri;
   let charges = 0;
   for (const leg of legs) {
     charges += computeCharges(profile, {
@@ -84,6 +90,8 @@ export function recomputeTradeCharges(
       entryPrice: leg.entryPrice,
       exitPrice: leg.exitPrice,
       direction: leg.direction,
+      commodityOption,
+      agriCommodity,
     }).total;
   }
   return r2(charges);
