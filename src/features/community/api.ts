@@ -24,6 +24,7 @@ import type {
   ThreadState,
 } from "./types";
 import { classifyAttachment, toggleMessageReaction, type MessageReactionKind } from "./dm-v2";
+import { backgroundAwarePoll } from "./poll";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
 import { toggleFollowedTag } from "./followed-tags";
@@ -113,9 +114,8 @@ export function useNewPostsCount(since: string | null, enabled: boolean) {
         `/api/community/posts/new-count?since=${encodeURIComponent(since ?? "")}`
       ),
     enabled: enabled && Boolean(since),
-    refetchInterval: 25_000,
-    refetchIntervalInBackground: false, // pause the poll while the tab is hidden
-    refetchOnWindowFocus: true, // one fresh check the moment focus returns
+    // Background-aware: pauses on a hidden tab, one fresh check on focus return.
+    ...backgroundAwarePoll(25_000),
     staleTime: 0,
     retry: false,
   });
@@ -936,13 +936,15 @@ interface NotificationsResponse {
   unread: number;
 }
 
-/** Bell polls the default 30; the full page asks for more via `limit`. */
+/** Bell polls every 60s; the full page asks for more via `limit`. */
 export function useNotifications(enabled: boolean, limit = 30) {
   return useQuery({
     queryKey: ["community-notifications", limit],
     queryFn: () => request<NotificationsResponse>(`/api/community/notifications?limit=${limit}`),
     enabled,
-    refetchInterval: 60_000,
+    // Background-aware: matches the new-posts pill so a hidden tab goes quiet
+    // instead of every community poll hammering on in the background.
+    ...backgroundAwarePoll(60_000),
     retry: false,
   });
 }
@@ -1135,7 +1137,8 @@ export function useConversations(enabled: boolean, refetchInterval = 30_000) {
     queryKey: ["community-dms"],
     queryFn: () => request<ConversationsResponse>("/api/community/dm/conversations"),
     enabled,
-    refetchInterval,
+    // Quiesce on a hidden tab; one fresh check when the trader returns.
+    ...backgroundAwarePoll(refetchInterval),
     retry: false,
   });
 }
@@ -1167,7 +1170,9 @@ export function useThread(conversationId: string | null) {
       return data;
     },
     enabled: Boolean(conversationId),
-    refetchInterval: 5_000,
+    // A 5s poll is heavy to leave running on a hidden tab; pause it and resync
+    // on focus return (the focus handler in MessageThread also re-marks read).
+    ...backgroundAwarePoll(5_000),
     retry: false,
   });
 }

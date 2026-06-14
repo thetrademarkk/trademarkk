@@ -58,6 +58,53 @@ profile polish, header search v2) live in the "Shipped by the loop" log below.
 
 **Later:** _(community numbered backlog 1–22 complete — next focus: a polish pass or hand back to the owner for direction.)_
 
+## Polish pass (cohesion / accessibility / performance hardening)
+
+A surgical, ADDITIVE quality pass over the 22 features built at speed — no new
+features, no schema changes, no moderation-permission changes. End-to-end audit
+of `src/app/community/*` + `src/features/community/*` + `src/server/community.ts`
+
+- the DM module. What was hardened:
+
+* [x] **Polling perf — quiesce every live poll on a backgrounded tab.** Audited
+      all client polls: new-posts pill (25s), notifications bell (60s), DM inbox
+      (30s) / header dock (30s), open DM thread (5s), typing heartbeat. Found the
+      bell, the conversations list and the open-thread polls kept firing on a HIDDEN
+      tab (only the new-posts pill paused) — a needless thundering herd / battery &
+      serverless-invocation drain when several mount together on the feed. Fix:
+      centralised the policy in a tiny pure `backgroundAwarePoll(intervalMs)` helper
+      (`features/community/poll.ts`, unit-tested) — `refetchIntervalInBackground:
+false` (pause while hidden) + `refetchOnWindowFocus: true` (one fresh fetch on
+      return) — and routed ALL four polls through it so they can never drift apart
+      again. Confirmed the feed author chip (reputation tier + awards + featured
+      badge) is FULLY denormalized in `hydratePosts` (rides the already-fetched
+      profile row, lazy fire-and-forget warm-up capped at 12) — NO per-post N+1; no
+      change needed there. _(2026-06-14 — accumulated, pending batch deploy)_
+* [x] **Accessibility sweep of the new interactive surfaces.** Verified the
+      reactions picker, DM reaction picker, new-posts pill (polite live region),
+      who-to-follow, awards tooltips, muted-words, notif-prefs, sentiment toggle,
+      watch button, reputation chip, events/trending all expose accessible names on
+      icon-only controls, keyboard nav + focus management on custom menus, and
+      sr-only fallbacks where labels hide on phones — already strong; fixed the one
+      real gap: the trending-board window switch used a misleading `role="tab"`
+      without roving focus or a `tabpanel` → converted to an honest `aria-pressed`
+      button group with a visible focus ring + per-button accessible name.
+* [x] **State consistency.** Notification preferences silently rolled an
+      optimistic toggle back on a failed save and showed nothing on a load error →
+      added a toast on save failure and an explicit error state. _(2026-06-14 —
+      accumulated, pending batch deploy)_
+* [x] **Cohesion / mobile / honesty checks.** Confirmed no `text-fg` typos, no
+      raw hex, no emojis anywhere in the community components; lucide-only icons,
+      consistent card/skeleton/empty-state idiom, honest non-hype copy across the
+      new surfaces.
+* [x] **Tests.** Added `features/community/poll.test.ts` (poll-policy helper) and
+      a focused `scripts/e2e-community-a11y.mjs` asserting the a11y wins (named icon
+      buttons, the pill's live region, the reaction menu's roles + focus-into-menu,
+      composer focus management) PLUS a perf assertion: open the feed, background the
+      tab and prove via request interception that ZERO community polls fire while
+      hidden, then resume on focus. No regression to the existing community e2e specs
+      or the 1661-test suite.
+
 ## Shipped by the loop
 
 <!-- The loop appends: - [x] YYYY-MM-DD — item — PR #N -->

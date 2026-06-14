@@ -11,6 +11,7 @@ import {
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNotificationPrefs, useUpdateNotificationPref } from "../api";
@@ -32,8 +33,18 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
  * turning a type off stops that kind of notification from being created at all.
  */
 export function NotificationPreferences() {
-  const { data, isLoading } = useNotificationPrefs(true);
+  const { data, isLoading, isError } = useNotificationPrefs(true);
   const update = useUpdateNotificationPref();
+
+  const onToggle = (type: string, enabled: boolean) =>
+    update.mutate(
+      { type, enabled },
+      {
+        // The optimistic switch rolls back on failure; tell the user so the flip
+        // back isn't silent.
+        onError: () => toast.error("Couldn't save that preference — try again."),
+      }
+    );
 
   return (
     <section
@@ -54,6 +65,10 @@ export function NotificationPreferences() {
           <Skeleton className="h-10 rounded-lg" />
           <Skeleton className="h-10 rounded-lg" />
         </div>
+      ) : isError ? (
+        <p className="px-3 py-6 text-center text-sm text-muted">
+          Couldn&apos;t load your preferences. Refresh to try again.
+        </p>
       ) : (
         <ul className="divide-y">
           {(data?.toggles ?? []).map((t) => {
@@ -74,7 +89,7 @@ export function NotificationPreferences() {
                   aria-label={`${t.label} notifications`}
                   data-notif-pref={t.type}
                   data-enabled={t.enabled}
-                  onCheckedChange={(enabled) => update.mutate({ type: t.type, enabled })}
+                  onCheckedChange={(enabled) => onToggle(t.type, enabled)}
                 />
               </li>
             );

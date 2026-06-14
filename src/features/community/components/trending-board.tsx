@@ -146,16 +146,20 @@ export function TrendingBoard({
   const tickers = limit ? (data?.tickers ?? []).slice(0, limit) : (data?.tickers ?? []);
   const topics = limit ? (data?.topics ?? []).slice(0, limit) : (data?.topics ?? []);
 
+  // These buttons FILTER the same board (no separate tabpanel per window), so an
+  // aria-pressed button group is the honest, fully keyboard-reachable pattern —
+  // a role="tab" without arrow-key roving + a tabpanel would mislead AT users.
   const toggle = (
-    <div role="tablist" aria-label="Trending window" className="flex items-center gap-1">
+    <div role="group" aria-label="Trending window" className="flex items-center gap-1">
       {WINDOWS.map((w) => (
         <button
           key={w.id}
-          role="tab"
-          aria-selected={window === w.id}
+          type="button"
+          aria-pressed={window === w.id}
+          aria-label={`Show the last ${w.label}`}
           onClick={() => setWindow(w.id)}
           className={cn(
-            "rounded-md px-2 py-0.5 text-xs transition-colors",
+            "rounded-md px-2 py-0.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
             window === w.id
               ? "bg-accent/12 font-medium text-accent"
               : "text-muted hover:bg-surface-2 hover:text-foreground"
