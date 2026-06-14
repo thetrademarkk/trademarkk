@@ -76,14 +76,17 @@ describe("durationBuckets", () => {
 
 describe("dayTimeHeatmap", () => {
   it("groups by weekday × entry hour with correct aggregates", () => {
-    // 2026-06-01 is a Monday (getDay()===1). Use Z and read in local — assert
-    // via re-deriving the expected weekday/hour from the same Date the fn uses.
+    // dayTimeHeatmap buckets entry time in IST (CORR-04), independent of the
+    // runner's timezone. Re-derive the expected weekday/hour the SAME way the
+    // function does — shift by +05:30 and read the UTC components — so this test
+    // is deterministic in UTC (CI) and IST (local) alike.
+    const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
     const a = mk({ net_pnl: 100, opened_at: "2026-06-01T09:30:00Z" });
     const b = mk({ net_pnl: -40, opened_at: "2026-06-01T09:45:00Z" });
     const c = mk({ net_pnl: 200, opened_at: "2026-06-02T13:05:00Z" });
     const cells = dayTimeHeatmap([a, b, c]);
-    const da = new Date(a.opened_at);
-    const cellA = cells.find((x) => x.weekday === da.getDay() && x.hour === da.getHours())!;
+    const da = new Date(new Date(a.opened_at).getTime() + IST_OFFSET_MS);
+    const cellA = cells.find((x) => x.weekday === da.getUTCDay() && x.hour === da.getUTCHours())!;
     expect(cellA.trades).toBe(2);
     expect(cellA.netPnl).toBe(60);
     expect(cellA.winRate).toBe(0.5);
