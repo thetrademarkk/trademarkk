@@ -6,7 +6,7 @@ import { Check, Loader2, Newspaper, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RichContent } from "@/components/ui/rich-editor";
+import { RichContent } from "@/components/ui/rich-content";
 import { EmptyState } from "@/components/shared/empty-state";
 import { cn, timeAgo } from "@/lib/utils";
 

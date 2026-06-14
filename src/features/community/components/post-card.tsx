@@ -390,14 +390,22 @@ export function PostCard({
       {post.images.length > 0 && (
         <div className={cn("mt-3 grid gap-2", post.images.length > 1 && "grid-cols-2")}>
           {post.images.map((src, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            // The natural dimensions of user-shared charts are never persisted
+            // (images are plain data-URL strings), so reserve a fixed-ratio box
+            // up front to prevent layout shift (CLS) when the image decodes;
+            // object-contain keeps the chart uncropped inside the reserved box.
+            <div
               key={i}
-              src={src}
-              alt={`Chart shared by ${post.author.displayName}`}
-              className="w-full rounded-lg border"
-              loading="lazy"
-            />
+              className="aspect-[4/3] w-full overflow-hidden rounded-lg border bg-surface-2"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={`Chart shared by ${post.author.displayName}`}
+                className="h-full w-full object-contain"
+                loading="lazy"
+              />
+            </div>
           ))}
         </div>
       )}

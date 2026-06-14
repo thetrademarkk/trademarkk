@@ -16,10 +16,13 @@ const CANONICAL_HOST = "thetrademarkk.com";
 
 export function middleware(req: NextRequest) {
   const res = NextResponse.next();
+  // Hot path: the canonical production host (the overwhelming majority of
+  // traffic) does no header work at all. Everything here is synchronous — no
+  // await, DB or fetch — so middleware never adds latency to TTFB.
   const host = ((req.headers.get("host") ?? "").split(":")[0] ?? "").toLowerCase();
-  const isCanonical = host === CANONICAL_HOST;
+  if (host === CANONICAL_HOST) return res;
   const isLocal = host === "localhost" || host === "127.0.0.1" || host.endsWith(".local");
-  if (!isCanonical && !isLocal) {
+  if (!isLocal) {
     res.headers.set("X-Robots-Tag", "noindex, nofollow");
   }
   return res;
