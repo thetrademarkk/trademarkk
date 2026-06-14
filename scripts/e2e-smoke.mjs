@@ -138,6 +138,8 @@ await step("/app/backtesting 308-redirects to /backtesting", async () => {
     .first()
     .waitFor({ timeout: 15000 });
   if (resp && resp.status() >= 400) throw new Error(`redirect ended at ${resp.status()}`);
+});
+
 await step("For-You + starter-suggestions endpoints respond", async () => {
   // Signed-out callers get the safe fallback shape (For-You is a signed-in tab;
   // the signed-in ranking is covered by scripts/e2e-foryou.mjs).

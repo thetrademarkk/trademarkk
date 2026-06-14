@@ -60,12 +60,14 @@ export function PresetCard({ card }: { card: PresetCardData }) {
         />
       </div>
 
-      <h3 className="mt-3 text-base font-semibold leading-snug">{meta.title}</h3>
-      <p className="mt-1 text-sm leading-6 text-muted">{meta.thesis}</p>
+      <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug">
+        {meta.title}
+      </h3>
+      <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{meta.thesis}</p>
 
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-2/50 p-2.5">
         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
-        <p className="text-xs leading-5 text-muted">
+        <p className="line-clamp-3 text-xs leading-5 text-muted">
           <span className="font-medium text-foreground">What it teaches: </span>
           {meta.teaches}
         </p>
@@ -83,7 +85,9 @@ export function PresetCard({ card }: { card: PresetCardData }) {
         {meta.periodLabel} · {DIFFICULTY_LABEL[meta.difficulty] ?? meta.difficulty}
       </p>
 
-      <div className="mt-4 flex items-center gap-2 pt-1">
+      {/* mt-auto pins the action row to the card bottom so every card's buttons
+          align on a row, regardless of how much thesis/teaches text sits above. */}
+      <div className="mt-auto flex items-center gap-2 pt-4">
         <Button asChild size="sm" variant="outline" className="flex-1">
           <Link
             href={`/backtesting/build?preset=${encodeURIComponent(meta.id)}`}
