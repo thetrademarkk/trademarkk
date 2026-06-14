@@ -1028,6 +1028,90 @@ export function useUpdateNotificationPref() {
   });
 }
 
+/* ── Muted words (personal content filter) ───────────────────────────────── */
+
+import type { MuteEntry, MuteMatchMode } from "./muted-words";
+
+interface MutedWordsResponse {
+  entries: MuteEntry[];
+}
+
+/** The signed-in user's personal muted-word entries. Empty for signed-out. */
+export function useMutedWords(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-muted-words"],
+    queryFn: () => request<MutedWordsResponse>("/api/community/muted-words"),
+    enabled,
+    retry: false,
+  });
+}
+
+/** Invalidate every cached feed/post so the muting post-filter re-applies. */
+function invalidateMuteAffected(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: ["community-feed"] });
+  void qc.invalidateQueries({ queryKey: ["community-foryou"] });
+  void qc.invalidateQueries({ queryKey: ["community-post"] }); // thread collapse markers
+}
+
+export interface AddMuteVars {
+  term: string;
+  mode: MuteMatchMode;
+  caseSensitive?: boolean;
+  durationMs?: number;
+}
+
+/** Adds a muted word. The server returns the authoritative new list. */
+export function useAddMutedWord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: AddMuteVars) =>
+      request<MutedWordsResponse>("/api/community/muted-words", {
+        method: "POST",
+        body: JSON.stringify(vars),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(["community-muted-words"], data);
+      invalidateMuteAffected(qc);
+    },
+  });
+}
+
+/** Removes a muted word (by mode + term). Optimistic with server reconcile. */
+export function useRemoveMutedWord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { term: string; mode: MuteMatchMode }) =>
+      request<MutedWordsResponse>("/api/community/muted-words", {
+        method: "DELETE",
+        body: JSON.stringify(vars),
+      }),
+    onMutate: (vars) => {
+      const prev = qc.getQueryData<MutedWordsResponse>(["community-muted-words"]);
+      qc.setQueryData<MutedWordsResponse>(["community-muted-words"], (data) =>
+        data
+          ? { entries: data.entries.filter((e) => !(e.mode === vars.mode && sameTerm(e, vars))) }
+          : data
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-muted-words"], ctx.prev);
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["community-muted-words"], data);
+      invalidateMuteAffected(qc);
+    },
+  });
+}
+
+/** Loose term comparison for optimistic removal (server normalizes definitively). */
+function sameTerm(e: MuteEntry, vars: { term: string; mode: MuteMatchMode }): boolean {
+  const strip = (s: string) => s.trim().replace(/^[$#]+/, "");
+  if (e.mode === "cashtag") return e.term.toUpperCase() === strip(vars.term).toUpperCase();
+  if (e.mode === "hashtag") return e.term.toLowerCase() === strip(vars.term).toLowerCase();
+  return e.term.toLowerCase() === vars.term.trim().toLowerCase();
+}
+
 /* ── Direct messages ─────────────────────────────────────────────────────── */
 
 export interface ConversationsResponse {

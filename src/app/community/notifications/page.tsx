@@ -12,6 +12,7 @@ import { useMarkNotificationsRead, useNotifications } from "@/features/community
 import { groupNotifications, type NotificationGroup } from "@/features/community/notifications";
 import { NotificationGroupRow } from "@/features/community/components/notification-row";
 import { NotificationPreferences } from "@/features/community/components/notification-preferences";
+import { MutedWords } from "@/features/community/components/muted-words";
 
 /** Full notification history (grouped) — everything the bell shows and more. */
 export default function NotificationsPage() {
@@ -89,8 +90,9 @@ export default function NotificationsPage() {
       </div>
 
       {showPrefs && (
-        <div className="mb-4">
+        <div className="mb-4 space-y-4">
           <NotificationPreferences />
+          <MutedWords />
         </div>
       )}
 

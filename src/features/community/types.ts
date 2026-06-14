@@ -144,6 +144,14 @@ export interface CommentView {
   editHistory: CommentEditSnapshot[];
   mine: boolean;
   author: AuthorView;
+  /**
+   * Set (to a short reason like `"scam"` / `$RELIANCE`) when this comment matches
+   * one of the VIEWER's personal muted words. In a thread we never hard-hide a
+   * comment (it would break reply chains) — instead the client COLLAPSES it with
+   * a "hidden by your muted words — show anyway?" reveal. Personal only; absent
+   * for the viewer's own comments and for signed-out viewers.
+   */
+  mutedReason?: string | null;
 }
 
 export interface ProfileView {

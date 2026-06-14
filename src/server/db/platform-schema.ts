@@ -117,6 +117,14 @@ export const profiles = sqliteTable("profiles", {
    * every type is enabled (the default — no behaviour change for existing users).
    */
   notificationPrefs: text("notification_prefs"),
+  /**
+   * Personal "muted words" content filter (see features/community/muted-words.ts).
+   * A compact JSON array of the user's mute entries (term + match mode + optional
+   * case-sensitivity / scope / expiry); NULL/absent means no mutes (the default —
+   * no behaviour change for existing users). Strictly PERSONAL: hides matching
+   * posts/comments from THIS user's own feeds/threads only — never moderation.
+   */
+  mutedWords: text("muted_words"),
   createdAt: text("created_at").notNull(),
 });
 

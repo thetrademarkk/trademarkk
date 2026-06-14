@@ -91,6 +91,15 @@ import {
   applyPrefToggle,
   type NotificationPrefs,
 } from "@/features/community/notification-prefs";
+import {
+  addMuteEntry,
+  matchesMuted,
+  parseMutedWords,
+  removeMuteEntry,
+  serializeMutedWords,
+  type MuteCandidate,
+  type MuteEntry,
+} from "@/features/community/muted-words";
 
 /**
  * The in-app notification types this server emits. Kept as a NAMED union (not an
@@ -227,6 +236,130 @@ export async function setNotificationPref(
     .set({ notificationPrefs: serializeNotificationPrefs(next) })
     .where(eq(profiles.userId, userId));
   return next;
+}
+
+/* ── Personal muted words (content filter — muted-words.ts) ──────────────────── */
+
+/**
+ * Reads the signed-in user's muted-words list (creating the profile row lazily
+ * so the settings page works before any community activity). Returns the parsed,
+ * sanitized entries — `[]` means no mutes (the default, no behaviour change).
+ */
+export async function getMutedWords(userId: string, name: string): Promise<MuteEntry[]> {
+  const profile = await ensureProfile(userId, name);
+  return parseMutedWords(profile?.mutedWords);
+}
+
+/**
+ * Adds one mute entry (sanitized) and persists the compact JSON back to
+ * `profiles.muted_words`. Idempotent: re-adding the same mode+term refreshes it.
+ * Returns the new full list for an optimistic UI; rejects an invalid entry by
+ * returning the unchanged list (the route validates first, so this is defence).
+ */
+export async function addMutedWord(
+  userId: string,
+  name: string,
+  raw: MuteEntry
+): Promise<MuteEntry[]> {
+  const current = await getMutedWords(userId, name);
+  const next = addMuteEntry(current, raw);
+  await platformDb
+    .update(profiles)
+    .set({ mutedWords: serializeMutedWords(next) })
+    .where(eq(profiles.userId, userId));
+  return next;
+}
+
+/** Removes the mute entry matching `mode` + (any-cased) `term`. Returns the new list. */
+export async function removeMutedWord(
+  userId: string,
+  name: string,
+  mode: MuteEntry["mode"],
+  term: string
+): Promise<MuteEntry[]> {
+  const current = await getMutedWords(userId, name);
+  const next = removeMuteEntry(current, mode, term);
+  await platformDb
+    .update(profiles)
+    .set({ mutedWords: serializeMutedWords(next) })
+    .where(eq(profiles.userId, userId));
+  return next;
+}
+
+/**
+ * Lightweight, cached-per-request load of a viewer's mute entries for the feed
+ * post-filter. Returns `[]` for signed-out viewers (no muting) and never throws
+ * into the caller — a mutes hiccup must never break the feed. A single
+ * PK-indexed single-column read on the profile row.
+ */
+export async function loadViewerMutes(viewerId: string | null): Promise<MuteEntry[]> {
+  if (!viewerId) return [];
+  const row = await platformDb
+    .select({ mutedWords: profiles.mutedWords })
+    .from(profiles)
+    .where(eq(profiles.userId, viewerId))
+    .get()
+    .catch(() => undefined);
+  return parseMutedWords(row?.mutedWords);
+}
+
+/**
+ * Maps a hydrated PostView into the text candidate the matcher tests against —
+ * title + body + the post's tags (#hashtag) + its mentioned tickers ($cashtag).
+ * The mentioned tickers are read from the embedded reaction/symbol context the
+ * feed already carries (tags array); the $cashtag join is folded in via the
+ * body's inline mentions PLUS any structured symbols passed through `symbols`.
+ */
+function postViewToCandidate(p: PostView, symbols?: readonly string[]): MuteCandidate {
+  return { title: p.title, body: p.body, tags: p.tags, symbols };
+}
+
+/**
+ * Applies a viewer's muted words to a hydrated page, returning the kept posts
+ * plus how many were hidden. PERSONAL: the viewer's OWN posts (`mine`) are NEVER
+ * hidden, and an empty mute list returns the page unchanged. Symbols are looked
+ * up in bulk for the page so cashtag mutes match the structured `post_symbols`
+ * join, not just inline `$TICKER` text. Never throws — degrades to "hide nothing"
+ * so a filter hiccup can't blank the feed.
+ */
+export async function filterMutedPosts(
+  page: PostView[],
+  entries: readonly MuteEntry[],
+  now: number = Date.now()
+): Promise<{ posts: PostView[]; hidden: number }> {
+  if (!entries.length || !page.length) return { posts: page, hidden: 0 };
+  try {
+    // Bulk-load the symbol joins for the candidate posts (one indexed query) so a
+    // $cashtag mute hides a post that only carries the ticker in post_symbols.
+    const ids = page.map((p) => p.id);
+    const symbolRows = await platformDb
+      .select({ postId: postSymbols.postId, symbol: postSymbols.symbol })
+      .from(postSymbols)
+      .where(inArray(postSymbols.postId, ids));
+    const symbolsByPost = new Map<string, string[]>();
+    for (const r of symbolRows) {
+      const arr = symbolsByPost.get(r.postId) ?? [];
+      arr.push(r.symbol);
+      symbolsByPost.set(r.postId, arr);
+    }
+    const kept: PostView[] = [];
+    let hidden = 0;
+    for (const p of page) {
+      // The user always sees their own posts — muting is for OTHERS' content.
+      if (p.mine) {
+        kept.push(p);
+        continue;
+      }
+      if (matchesMuted(postViewToCandidate(p, symbolsByPost.get(p.id)), entries, now)) {
+        hidden += 1;
+        continue;
+      }
+      kept.push(p);
+    }
+    return { posts: kept, hidden };
+  } catch {
+    return { posts: page, hidden: 0 };
+  }
 }
 
 /**
@@ -668,11 +801,16 @@ export function buildFeedConditions(q: FeedQuery, viewerId: string | null) {
 
 export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   const limit = q.limit ?? 15;
-  const conditions = buildFeedConditions(q, viewerId);
+  // Personal muted words (rank: muted-words). Loaded once per request; empty for
+  // signed-out viewers (no muting). Applied as a thin post-filter on the hydrated
+  // page so the nuanced text matching (whole-word/cashtag/expiry) lives in pure,
+  // tested code rather than awkward SQL. Pagination stays honest below.
+  const mutes = await loadViewerMutes(viewerId);
+  const now = Date.now();
 
-  let rows: PostRow[];
   if (q.sort === "top") {
-    const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const conditions = buildFeedConditions(q, viewerId);
+    const since = new Date(now - 7 * 24 * 3600 * 1000).toISOString();
     conditions.push(sql`${posts.createdAt} >= ${since}`);
     // Pull a wider candidate window cheaply (total reactions + comments give a
     // sound SQL pre-filter), then re-rank in JS with the kind-weighted,
@@ -683,7 +821,6 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(sql`${posts.likeCount} + ${posts.commentCount}`), desc(posts.createdAt))
       .limit(Math.min(120, (limit + 1) * 4));
-    const now = Date.now();
     const scored = candidates
       .map((r) => ({
         row: r as PostRow,
@@ -699,21 +836,56 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
     // profile's Top view) where capping would be meaningless. Applied over the
     // whole scored window BEFORE slicing so capped authors yield to others.
     const diversified = q.authorUserId ? scored : applyDiversityCap(scored, (s) => s.row.userId);
-    rows = diversified.slice(0, limit + 1).map((s) => s.row);
-  } else {
-    if (q.cursor) conditions.push(lt(posts.createdAt, q.cursor));
-    rows = await platformDb
+    const hydrated = await hydratePosts(
+      diversified.slice(0, limit + 1).map((s) => s.row),
+      viewerId
+    );
+    // Top is a single non-paginated window — filter and slice (no cursor to honor).
+    const { posts: filtered } = await filterMutedPosts(hydrated, mutes, now);
+    return { posts: filtered.slice(0, limit), nextCursor: null };
+  }
+
+  // Latest: paginate by createdAt. With muting, a fetched batch may shrink after
+  // the post-filter, so we top up by walking deeper batches until we have `limit`
+  // kept posts (or run out). No top-up when the viewer has no mutes (the common
+  // case): one batch, identical to the original behaviour.
+  const baseConditions = buildFeedConditions(q, viewerId);
+  const kept: PostView[] = [];
+  let cursor = q.cursor ?? null; // walks the SQL window deeper each batch
+  let dataRemaining = true; // is there anything older than what we've fetched?
+  // Bound the walk so a viewer who has muted nearly everything can't trigger an
+  // unbounded scan; honest "page is short" beats hammering the DB.
+  const MAX_BATCHES = mutes.length ? 6 : 1;
+
+  for (let batch = 0; batch < MAX_BATCHES && kept.length < limit && dataRemaining; batch++) {
+    const conditions = [...baseConditions];
+    if (cursor) conditions.push(lt(posts.createdAt, cursor));
+    const rows = await platformDb
       .select()
       .from(posts)
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(posts.createdAt))
       .limit(limit + 1);
+
+    dataRemaining = rows.length > limit; // a peeked extra row means more exists
+    const slice = rows.slice(0, limit);
+    if (slice.length === 0) break;
+    // Advance the SQL cursor to the oldest row we've now consumed for filtering.
+    cursor = slice[slice.length - 1]?.createdAt ?? cursor;
+    const hydrated = await hydratePosts(slice, viewerId);
+    const { posts: filtered } = await filterMutedPosts(hydrated, mutes, now);
+    kept.push(...filtered);
   }
 
-  const page = rows.slice(0, limit);
-  const nextCursor =
-    q.sort === "latest" && rows.length > limit ? (page[page.length - 1]?.createdAt ?? null) : null;
-  return { posts: await hydratePosts(page, viewerId), nextCursor };
+  const page = kept.slice(0, limit);
+  // The page cursor must point past the LAST POST WE RETURN (not the last row we
+  // scanned), so the next page resumes exactly after it — never re-fetching and
+  // never skipping a kept post that overflowed this page. There's a next page
+  // only when we filled the page AND the underlying feed still had more rows.
+  const overflow = kept.length > limit; // we scanned past the page boundary
+  const lastReturned = page[page.length - 1]?.createdAt ?? null;
+  const nextCursor = page.length >= limit && (overflow || dataRemaining) ? lastReturned : null;
+  return { posts: page, nextCursor };
 }
 
 /**

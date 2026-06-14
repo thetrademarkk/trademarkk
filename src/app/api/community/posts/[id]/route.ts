@@ -13,10 +13,12 @@ import {
   deletePostCascade,
   getSession,
   hydratePosts,
+  loadViewerMutes,
   notifyNewMentions,
   recentPostBodiesByUser,
   syncPostSymbols,
 } from "@/server/community";
+import { describeMuteEntry, matchesMuted } from "@/features/community/muted-words";
 import { extractCashtags } from "@/features/community/cashtags";
 import { normalizeSentiment } from "@/features/community/sentiment";
 import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
@@ -143,7 +145,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const authorIds = [...new Set(commentRows.map((c) => c.userId))];
   const commentIds = commentRows.map((c) => c.id);
-  const [authors, myCommentLikes] = await Promise.all([
+  const [authors, myCommentLikes, mutes] = await Promise.all([
     authorIds.length
       ? platformDb.select().from(profiles).where(inArray(profiles.userId, authorIds))
       : Promise.resolve([]),
@@ -158,12 +160,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             )
           )
       : Promise.resolve([] as { commentId: string }[]),
+    // The viewer's personal muted words — drives the per-comment collapse-with-
+    // reveal in the thread (never hard-hide; that would break reply chains).
+    loadViewerMutes(session?.user.id ?? null),
   ]);
   const authorMap = new Map(authors.map((a) => [a.userId, a]));
   const likedSet = new Set(myCommentLikes.map((l) => l.commentId));
+  const muteNow = Date.now();
 
   const commentViews: CommentView[] = commentRows.map((c) => {
     const a = authorMap.get(c.userId);
+    const mine = session?.user.id === c.userId;
+    // Personal mute: flag (don't drop) a matching comment so the client collapses
+    // it with a reveal. The viewer's own comments are never muted.
+    const muteHit = mine ? null : matchesMuted({ body: c.body }, mutes, muteNow);
     return {
       id: c.id,
       body: c.body,
@@ -173,10 +183,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       createdAt: c.createdAt,
       editedAt: c.editedAt,
       editHistory: parseEditHistory<CommentEditSnapshot>(c.editHistory),
-      mine: session?.user.id === c.userId,
+      mine,
       author: a
         ? { username: a.username, displayName: a.displayName, avatar: a.avatar }
         : { username: "deleted", displayName: "Deleted user" },
+      mutedReason: muteHit ? describeMuteEntry(muteHit) : null,
     };
   });
 

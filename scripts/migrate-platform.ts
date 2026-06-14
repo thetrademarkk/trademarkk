@@ -391,6 +391,12 @@ async function main() {
     // participation only, never trading skill / P&L; banned/flagged members earn
     // none.
     `ALTER TABLE profiles ADD COLUMN awards TEXT`,
+    // ── Personal muted-words content filter (muted-words.ts) ──
+    // A compact JSON array of the user's mute entries (term + match mode +
+    // optional case-sensitivity / scope / expiry). NULL = no mutes (the default —
+    // existing users see no behaviour change). Strictly PERSONAL: hides matching
+    // posts/comments from THIS user's own feeds/threads, never global moderation.
+    `ALTER TABLE profiles ADD COLUMN muted_words TEXT`,
   ];
   for (const sql of ALTERS) {
     try {
