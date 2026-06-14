@@ -74,16 +74,21 @@ export default function CalendarPage() {
   const { data: trades = [] } = useTrades({});
   const { data: journalDates = [] } = useJournalDates();
 
-  const pnlMap = dailyPnl(closedOnly(trades));
+  // Per-day P&L scans the whole journal; only re-derive when trades change.
+  const pnlMap = React.useMemo(() => dailyPnl(closedOnly(trades)), [trades]);
   const shift = (delta: number) => {
     const d = new Date(year, month + delta, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth());
     setSelected(null);
   };
-  const monthTotal = [...pnlMap.entries()]
-    .filter(([k]) => k.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
-    .reduce((s, [, v]) => s + v, 0);
+  const monthTotal = React.useMemo(
+    () =>
+      [...pnlMap.entries()]
+        .filter(([k]) => k.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
+        .reduce((s, [, v]) => s + v, 0),
+    [pnlMap, year, month]
+  );
 
   return (
     <div className="space-y-4">

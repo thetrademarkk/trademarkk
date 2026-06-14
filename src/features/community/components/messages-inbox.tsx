@@ -7,9 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useConversations } from "../api";
 import { CommunityAvatar } from "./avatar";
 
-/** Inbox pane: one row per conversation, unread-first styling, 5s polling. */
+/** Inbox pane: one row per conversation, unread-first styling, ~30s polling. */
 export function MessagesInbox({ selectedId }: { selectedId: string | null }) {
-  const { data, isLoading } = useConversations(true, 5_000);
+  // Inbox only needs ordering/unread, which the documented ~30s cadence (plus a
+  // focus refetch from backgroundAwarePoll) covers; the open thread polls at 5s.
+  const { data, isLoading } = useConversations(true, 30_000);
   const items = data?.conversations ?? [];
 
   if (isLoading) {

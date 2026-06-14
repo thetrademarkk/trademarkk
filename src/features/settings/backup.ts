@@ -35,6 +35,9 @@ export async function importBackup(db: DbClient, json: string): Promise<number> 
     for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
     total += rows.length;
   }
+  // Local writes are debounced; force the restored data to disk before we return
+  // so a navigation right after import can't lose it (no-op on remote adapters).
+  await db.flush?.();
   return total;
 }
 

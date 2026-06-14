@@ -1158,17 +1158,10 @@ export function useStartConversation() {
 
 /** Thread messages — 5s polling keeps both sides in sync (SSE later). */
 export function useThread(conversationId: string | null) {
-  const qc = useQueryClient();
   return useQuery({
     queryKey: ["community-dm", conversationId],
-    queryFn: async () => {
-      const data = await request<ThreadResponse>(
-        `/api/community/dm/conversations/${conversationId}/messages`
-      );
-      // Opening the thread marks incoming messages read — sync inbox badges.
-      void qc.invalidateQueries({ queryKey: ["community-dms"] });
-      return data;
-    },
+    queryFn: () =>
+      request<ThreadResponse>(`/api/community/dm/conversations/${conversationId}/messages`),
     enabled: Boolean(conversationId),
     // A 5s poll is heavy to leave running on a hidden tab; pause it and resync
     // on focus return (the focus handler in MessageThread also re-marks read).
@@ -1412,7 +1405,16 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: (input: UpdateProfileInput) =>
       request("/api/community/profile", { method: "PUT", body: JSON.stringify(input) }),
-    onSuccess: () => qc.invalidateQueries(),
+    // Editing displayName/avatar/accent/bio/website restamps the author card on
+    // every community surface (feed, post detail + comments, profiles, leaderboard,
+    // DM peer/own bubbles, who-to-follow, search, …). Refresh exactly those rather
+    // than nuking the whole client — the journal layer (journal/trades/rules/…) uses
+    // non-"community-" keys and must not be invalidated here.
+    onSuccess: () =>
+      qc.invalidateQueries({
+        predicate: (q) =>
+          typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("community-"),
+      }),
   });
 }
 

@@ -273,6 +273,19 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows (follower_id)`,
   `CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback (created_at)`,
+  // ── Leaderboard contribution sub-aggregates (#3) filter comments/likes by
+  // created_at; without these they fall back to full table scans. ──
+  `CREATE INDEX IF NOT EXISTS idx_comments_created ON comments (created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_likes_created ON likes (created_at)`,
+  // ── Per-user windowed/ordered reads (#9, #11): the notifications LIST query
+  // ORDER BY created_at can't use idx_notifications_user (its 'read' column sits
+  // between user_id and created_at), and reputation aggregates / recent-post
+  // bodies do per-user newest-first reads on posts & comments. A
+  // (user_id, created_at DESC) index backs each; the unread COUNT still uses the
+  // user_id prefix of the existing idx_notifications_user. ──
+  `CREATE INDEX IF NOT EXISTS idx_posts_user_created ON posts (user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_user_created ON comments (user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications (user_id, created_at DESC)`,
   // ── Link OG unfurl cache: one sanitized preview per unfurled URL (TTL refresh) ──
   // url_hash PK = stable hash of the URL; all-empty meta rows are negative caches.
   `CREATE TABLE IF NOT EXISTS link_unfurls (

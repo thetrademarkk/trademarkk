@@ -53,7 +53,12 @@ export function useSaveRule() {
         );
       }
     },
-    onSuccess: () => qc.invalidateQueries(),
+    // Touches the `rules` table: refresh the rule list + adherence (which reads
+    // the active rule set). Activating/deactivating a rule changes both.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rules"] });
+      void qc.invalidateQueries({ queryKey: ["adherence"] });
+    },
   });
 }
 
@@ -67,7 +72,15 @@ export function useDeleteRule() {
         { sql: `DELETE FROM rules WHERE id = ?`, args: [id] },
       ]);
     },
-    onSuccess: () => qc.invalidateQueries(),
+    // Deletes the rule and all of its checks: refresh every rules-domain
+    // surface that reads either table.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rules"] });
+      void qc.invalidateQueries({ queryKey: ["rule-checks"] });
+      void qc.invalidateQueries({ queryKey: ["rule-days"] });
+      void qc.invalidateQueries({ queryKey: ["rule-breaks-by-day"] });
+      void qc.invalidateQueries({ queryKey: ["adherence"] });
+    },
   });
 }
 
