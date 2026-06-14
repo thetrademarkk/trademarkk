@@ -10,7 +10,6 @@ export const metadata: Metadata = {
     "Guides on trading journaling, discipline and risk for Indian intraday & FnO traders.",
   alternates: { canonical: "/blog" },
   // Without this, the page inherits the homepage og:url from the root layout.
-  openGraph: { url: "/blog" },
 };
 
 // Revalidate hourly; approving a community post revalidates on demand.

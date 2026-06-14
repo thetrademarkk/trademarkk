@@ -2,7 +2,18 @@
 
 import * as React from "react";
 import NumberFlow from "@number-flow/react";
-import { BarChart3, Database, FileCheck, Flame, Github, Layers, Upload } from "lucide-react";
+import {
+  BarChart3,
+  Chrome,
+  Database,
+  FileCheck,
+  FlaskConical,
+  Flame,
+  Github,
+  Landmark,
+  Layers,
+  Upload,
+} from "lucide-react";
 import { Reveal } from "./reveal";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +92,33 @@ function StraddleDemo() {
   );
 }
 
+/** A trimmed FY tax-pack summary — the kind of line the reports tab produces. */
+function TaxPackDemo() {
+  const rows: [string, string][] = [
+    ["F&O turnover (ICAI)", "₹12,84,210"],
+    ["Speculative (intraday EQ)", "₹1,42,900"],
+    ["Total charges (est.)", "−₹9,318"],
+  ];
+  return (
+    <div className="mt-4 rounded-lg border bg-surface-2/40 p-3 font-money text-xs">
+      <div className="mb-1.5 flex items-center justify-between border-b pb-1.5 font-sans text-[11px] text-muted">
+        <span>FY 2025–26 · Tax pack</span>
+        <span>CSV · Excel · PDF</span>
+      </div>
+      {rows.map(([k, v]) => (
+        <div key={k} className="flex justify-between py-0.5 text-muted">
+          <span className="font-sans">{k}</span>
+          <span>{v}</span>
+        </div>
+      ))}
+      <div className="mt-1 flex justify-between border-t pt-1.5 text-sm font-semibold">
+        <span className="font-sans">Realised P&L</span>
+        <span className="text-profit">+₹2,18,640</span>
+      </div>
+    </div>
+  );
+}
+
 /** The broker auto-detect banner exactly as it appears in the import dialog. */
 function BrokerDetectDemo() {
   return (
@@ -108,33 +146,51 @@ function BrokerDetectDemo() {
 const CELLS = [
   {
     icon: Layers,
-    title: "Speaks fluent FnO — multi-leg included",
-    text: "Straddles, spreads, iron condors: per-leg strikes, CE/PE, entries and exits in one trade. Every statutory charge computed to the paisa.",
+    title: "Every trader type, multi-leg included",
+    text: "Intraday, swing, positional, F&O, commodity (MCX) and currency (CDS). Log straddles, spreads and iron condors with per-leg strikes, CE/PE, entries and exits in a single trade.",
     demo: <StraddleDemo />,
     className: "md:row-span-2",
   },
   {
+    icon: Landmark,
+    title: "Paise-accurate Indian charges & tax pack",
+    text: "STT, exchange, GST, SEBI, stamp duty and CTT computed per leg to the paisa — then a financial-year tax pack with turnover, speculative split and realised P&L you can export as CSV, Excel or PDF.",
+    demo: <TaxPackDemo />,
+    className: "md:row-span-2",
+  },
+  {
     icon: BarChart3,
-    title: "Your most expensive habit, priced",
-    text: "Tag mistakes on trades. TradeMarkk totals what each habit costs you — in rupees, not feelings — alongside expectancy, R-multiples and win rate.",
+    title: "Insights, tilt & Monte-Carlo",
+    text: "Tag mistakes and TradeMarkk prices each habit in rupees — alongside expectancy, R-multiples, tilt detection (revenge, overtrading) and a Monte-Carlo equity cone for your edge.",
     demo: <CostTicker />,
     className: "md:row-span-2",
   },
   {
     icon: Upload,
     title: "Import from 6 Indian brokers",
-    text: "Drop your tradebook CSV — the broker is auto-detected, buys and sells pair into round trips, and re-imports never duplicate.",
+    text: "Drop a tradebook CSV — the broker is auto-detected, buys and sells pair into round trips, and re-imports never duplicate.",
     demo: <BrokerDetectDemo />,
     className: "md:row-span-2",
   },
   {
+    icon: Chrome,
+    title: "Multi-broker Chrome extension",
+    text: "Capture trades straight from Kite, Upstox, Groww, Dhan and Fyers without leaving your broker tab — with a pre-trade rules checklist where you trade.",
+  },
+  {
+    icon: FlaskConical,
+    title: "Backtesting",
+    text: "Replay your saved playbooks against historical NIFTY & BANKNIFTY data — equity curves, expectancy and walk-forward checks. Coming as the 1-minute dataset goes live.",
+    badge: "Coming soon",
+  },
+  {
     icon: Database,
-    title: "Dual-mode storage — bring your own DB",
-    text: "Hosted in your own isolated database by default, or connect a Turso DB you own and we never see a single trade. Switch directions anytime.",
+    title: "Your data, your database",
+    text: "Hosted in your own isolated database by default, or connect a Turso DB you own and we never see a single trade — even a fully local in-browser mode. Switch directions anytime.",
   },
   {
     icon: Flame,
-    title: "Streaks, leaderboards, community",
+    title: "Streaks & community",
     text: "Journal daily to build a streak, share trade cards with structured R-multiples, and learn from traders who post losses as openly as wins.",
   },
   {
@@ -150,8 +206,15 @@ export function FeatureBento() {
       {CELLS.map((c, i) => (
         <Reveal key={c.title} delay={i * 0.06} className={c.className}>
           <div data-glow className="glow-card group h-full rounded-xl border bg-surface p-5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/15 text-accent transition-transform group-hover:scale-110">
-              <c.icon className="h-4.5 w-4.5" />
+            <div className="flex items-center justify-between">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/15 text-accent transition-transform group-hover:scale-110">
+                <c.icon className="h-4.5 w-4.5" aria-hidden />
+              </div>
+              {"badge" in c && c.badge ? (
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                  {c.badge}
+                </span>
+              ) : null}
             </div>
             <h3 className="mt-4 text-base font-semibold">{c.title}</h3>
             <p className="mt-1.5 text-sm leading-6 text-muted">{c.text}</p>

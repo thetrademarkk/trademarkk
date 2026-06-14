@@ -104,12 +104,15 @@ const authed = (cookie) => (path, init) =>
 
 async function contextWithCookies(browser, cookie) {
   const ctx = await browser.newContext({ viewport: { width: 1380, height: 900 } });
-  await ctx.addCookies(
-    cookie.split("; ").map((pair) => {
+  const cookies = cookie
+    .split("; ")
+    .map((pair) => {
       const i = pair.indexOf("=");
-      return { name: pair.slice(0, i), value: pair.slice(i + 1), url: BASE };
+      if (i <= 0) return null; // skip empty / nameless segments — Playwright rejects them
+      return { name: pair.slice(0, i).trim(), value: pair.slice(i + 1), url: BASE };
     })
-  );
+    .filter((c) => c && c.name);
+  await ctx.addCookies(cookies);
   return ctx;
 }
 
@@ -143,7 +146,8 @@ const browser = await chromium.launch();
     ]) {
       if (!(await mock.getByText(text).first().isVisible())) throw new Error(`missing "${text}"`);
     }
-    // NumberFlow tickers expose their formatted value as aria-label.
+    // Each KPI tile carries the formatted value as an aria-label (NumberFlow's
+    // animated digits are aria-hidden), so screen readers announce the number.
     for (const label of ["₹18,920", "67%", "2.1R"]) {
       if ((await mock.locator(`[aria-label="${label}"]`).count()) === 0)
         throw new Error(`missing ticker "${label}"`);
@@ -267,6 +271,103 @@ const browser = await chromium.launch();
     );
   });
 
+  // ── SEO / metadata ──
+  console.log("— SEO —");
+  await step("refreshed feature pillars cover the full product", async () => {
+    // The grown feature set must be reflected honestly on the landing page.
+    for (const text of [
+      "Every trader type, multi-leg included",
+      "Paise-accurate Indian charges & tax pack",
+      "Insights, tilt & Monte-Carlo",
+      "Multi-broker Chrome extension",
+      "Backtesting",
+    ]) {
+      if ((await page.getByText(text, { exact: false }).count()) === 0)
+        throw new Error(`missing feature pillar "${text}"`);
+    }
+    // Backtesting is honestly framed as upcoming.
+    if ((await page.getByText("Coming soon", { exact: false }).count()) === 0)
+      throw new Error("backtesting is not framed as coming soon");
+  });
+
+  await step("primary CTAs link to the app and GitHub", async () => {
+    const start = page.getByRole("link", { name: /Start free/ }).first();
+    if ((await start.getAttribute("href")) !== "/app/onboarding")
+      throw new Error("Start free does not link to /app/onboarding");
+    const demo = page.getByRole("link", { name: /Try the live demo/ });
+    if (!/\/app\/onboarding\?mode=demo$/.test((await demo.getAttribute("href")) ?? ""))
+      throw new Error("demo CTA missing ?mode=demo");
+    // "Star on GitHub" appears in both the CTA band and the footer — assert
+    // every instance points at GitHub rather than relying on a single match.
+    const stars = page.getByRole("link", { name: /Star on GitHub/ });
+    const starCount = await stars.count();
+    if (starCount === 0) throw new Error("no Star on GitHub link");
+    for (let i = 0; i < starCount; i++) {
+      if (!/github\.com/.test((await stars.nth(i).getAttribute("href")) ?? ""))
+        throw new Error("a Star on GitHub link does not point at GitHub");
+    }
+  });
+
+  await step("<head> carries canonical, description, OG and Twitter tags", async () => {
+    const meta = await page.evaluate(() => ({
+      title: document.title,
+      desc: document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "",
+      canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+      ogTitle: document.querySelector('meta[property="og:title"]')?.getAttribute("content") ?? "",
+      ogImage: document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? "",
+      ogType: document.querySelector('meta[property="og:type"]')?.getAttribute("content") ?? "",
+      twCard: document.querySelector('meta[name="twitter:card"]')?.getAttribute("content") ?? "",
+      twImage: document.querySelector('meta[name="twitter:image"]')?.getAttribute("content") ?? "",
+    }));
+    if (!/TradeMarkk/.test(meta.title)) throw new Error(`title missing brand: "${meta.title}"`);
+    if (meta.desc.length < 50) throw new Error("description too short / missing");
+    if (!/\/$|thetrademarkk|localhost/.test(meta.canonical))
+      throw new Error(`canonical not set: "${meta.canonical}"`);
+    if (!meta.ogTitle) throw new Error("og:title missing");
+    if (!/opengraph-image|\.png/.test(meta.ogImage))
+      throw new Error(`og:image missing: "${meta.ogImage}"`);
+    if (meta.ogType !== "website") throw new Error(`og:type not website: "${meta.ogType}"`);
+    if (meta.twCard !== "summary_large_image")
+      throw new Error("twitter:card not summary_large_image");
+    if (!meta.twImage) throw new Error("twitter:image missing");
+  });
+
+  await step("JSON-LD graph present (Organization + WebSite + SoftwareApplication)", async () => {
+    const blocks = await page.$$eval('script[type="application/ld+json"]', (els) =>
+      els.map((e) => e.textContent ?? "")
+    );
+    if (blocks.length === 0) throw new Error("no JSON-LD script found");
+    const types = new Set();
+    for (const raw of blocks) {
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new Error("JSON-LD did not parse");
+      }
+      const nodes = parsed["@graph"] ?? [parsed];
+      for (const n of nodes) types.add(n["@type"]);
+    }
+    for (const t of ["Organization", "WebSite", "SoftwareApplication"]) {
+      if (!types.has(t))
+        throw new Error(`JSON-LD missing @type ${t} (got ${[...types].join(", ")})`);
+    }
+  });
+
+  await step("/robots.txt and /sitemap.xml resolve with the sitemap ref", async () => {
+    const robotsRes = await fetch(`${BASE}/robots.txt`);
+    if (!robotsRes.ok) throw new Error(`robots.txt → ${robotsRes.status}`);
+    const robotsTxt = await robotsRes.text();
+    if (!/Sitemap:/i.test(robotsTxt)) throw new Error("robots.txt missing Sitemap ref");
+    if (!/Disallow:\s*\/app/.test(robotsTxt)) throw new Error("robots.txt does not disallow /app");
+    const smRes = await fetch(`${BASE}/sitemap.xml`);
+    if (!smRes.ok) throw new Error(`sitemap.xml → ${smRes.status}`);
+    const sm = await smRes.text();
+    for (const path of ["/features", "/community", "/privacy"]) {
+      if (!sm.includes(path)) throw new Error(`sitemap.xml missing ${path}`);
+    }
+  });
+
   // ── Pulse: public stats page ──
   console.log("— Pulse —");
   await step("/pulse renders with real aggregates (traders > 0)", async () => {
@@ -377,6 +478,31 @@ const browser = await chromium.launch();
   });
 
   await ctx.close();
+}
+
+// ── Mobile: no horizontal overflow at small widths ──
+console.log("— Mobile —");
+for (const width of [360, 390]) {
+  await step(`landing has no horizontal overflow at ${width}px`, async () => {
+    const ctx = await browser.newContext({ viewport: { width, height: 780 } });
+    const page = await ctx.newPage();
+    watch(page);
+    await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    // Allow a 1px sub-pixel rounding slack.
+    if (overflow > 1) throw new Error(`horizontal overflow of ${overflow}px at this width`);
+    // The hero CTAs must stay reachable on a phone.
+    if (
+      !(await page
+        .getByRole("link", { name: /Start free/ })
+        .first()
+        .isVisible())
+    )
+      throw new Error("Start free CTA not visible on mobile");
+    await ctx.close();
+  });
 }
 
 // ── Admin authz ──

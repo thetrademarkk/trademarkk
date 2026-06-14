@@ -53,6 +53,16 @@ export function HeroShowcase() {
   }, [reduced]);
 
   const s = SCENES[scene]!;
+  // NumberFlow paints the value into a custom element whose text isn't exposed
+  // to the a11y/innerText tree — so we label each tile with the formatted value
+  // for screen readers (and mark the animated digits aria-hidden).
+  const pnlLabel = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(s.pnl);
+  const winLabel = `${s.win}%`;
+  const rLabel = `${s.r.toFixed(1)}R`;
 
   return (
     <motion.div
@@ -78,28 +88,37 @@ export function HeroShowcase() {
           {/* KPI tiles */}
           <div className="rounded-lg border bg-surface-2/40 p-3">
             <div className="micro-label">Net P&L · 30d</div>
-            <div className="mt-1 font-money text-xl font-semibold text-profit">
-              <NumberFlow
-                value={s.pnl}
-                format={{ style: "currency", currency: "INR", maximumFractionDigits: 0 }}
-                locales="en-IN"
-              />
+            <div
+              className="mt-1 font-money text-xl font-semibold text-profit"
+              aria-label={pnlLabel}
+            >
+              <span aria-hidden>
+                <NumberFlow
+                  value={s.pnl}
+                  format={{ style: "currency", currency: "INR", maximumFractionDigits: 0 }}
+                  locales="en-IN"
+                />
+              </span>
             </div>
           </div>
           <div className="rounded-lg border bg-surface-2/40 p-3">
             <div className="micro-label">Win rate</div>
-            <div className="mt-1 font-money text-xl font-semibold">
-              <NumberFlow value={s.win} suffix="%" />
+            <div className="mt-1 font-money text-xl font-semibold" aria-label={winLabel}>
+              <span aria-hidden>
+                <NumberFlow value={s.win} suffix="%" />
+              </span>
             </div>
           </div>
           <div className="rounded-lg border bg-surface-2/40 p-3">
             <div className="micro-label">Avg R</div>
-            <div className="mt-1 font-money text-xl font-semibold">
-              <NumberFlow
-                value={s.r}
-                format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
-                suffix="R"
-              />
+            <div className="mt-1 font-money text-xl font-semibold" aria-label={rLabel}>
+              <span aria-hidden>
+                <NumberFlow
+                  value={s.r}
+                  format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+                  suffix="R"
+                />
+              </span>
             </div>
           </div>
 
