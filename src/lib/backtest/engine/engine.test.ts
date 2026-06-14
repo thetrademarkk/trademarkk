@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { computeCharges } from "../../charges/charges";
 import { getChargeProfile } from "../../../config/brokers";
 import { FixtureDataSource } from "./adapters/fixture-source";
+import type { DataSource } from "./data-source";
 import { runBacktest } from "./engine";
 import {
   bar,
@@ -296,5 +297,108 @@ describe("BT-04 engine — hard invariants", () => {
     const res = runBacktest(strat, src, { ranAt: 0 });
     const ceLegs = res.blotter[0]!.legs.filter((l) => l.optionType === "CE");
     expect(ceLegs.length).toBe(2); // original + 1 re-entry
+  });
+
+  // ── Finding 43: a single, consistent expiry source (first ENABLED leg) drives
+  //    BOTH the data fetch AND the daysFromExpiry gate; a DISABLED legs[0] must
+  //    NOT pick the contract chain or the expiry-distance the strategy trades on.
+  it("43) disabled legs[0] does not drive expiry — data fetch + daysFromExpiry use the first ENABLED leg", () => {
+    // DAY 2024-07-25 is the NIFTY weekly expiry: WEEKLY → expiry 2024-07-25
+    // (daysToExpiry 0); NEXT_WEEKLY → expiry 2024-08-01 (daysToExpiry 5).
+    const idx = flatIndex(DAY, 24250);
+    const ce = flatContract(DAY, 24250, "CE", 100);
+    const pe = flatContract(DAY, 24250, "PE", 100);
+
+    // Record every expiry the engine actually fetches data for.
+    const fetchedExpiries: string[] = [];
+    const inner = srcOf(idx, [ce, pe]);
+    const spy: DataSource = {
+      snapshotId: inner.snapshotId,
+      loadIndex: (i, d) => inner.loadIndex(i, d),
+      loadOption: (i, e, d, s, t) => inner.loadOption(i, e, d, s, t),
+      resolveStrike: (i, e, d, t, intent, spot) => inner.resolveStrike(i, e, d, t, intent, spot),
+      atmStrike: (i, e, d, spot) => inner.atmStrike(i, e, d, spot),
+      optionChainAt: (i, e, d) => inner.optionChainAt(i, e, d),
+      coverageFor: (i, e, d, s, t) => inner.coverageFor(i, e, d, s, t),
+      dayData: (i, e, d) => {
+        fetchedExpiries.push(e);
+        return inner.dayData(i, e, d);
+      },
+    };
+
+    // legs[0] is DISABLED with a DIFFERENT expiry rule (NEXT_WEEKLY → 2024-08-01,
+    // daysToExpiry 5). The first ENABLED leg is WEEKLY (→ 2024-07-25, dte 0).
+    // daysFromExpiry:[0] passes ONLY against WEEKLY; if the disabled leg drove the
+    // gate (dte 5) the day would be filtered out and no row would book.
+    const strat = strategyFor(
+      DAY,
+      [
+        leg("ce", "CE", "sell", { enabled: false, expiry: "NEXT_WEEKLY" }),
+        leg("pe", "PE", "sell", { enabled: true, expiry: "WEEKLY" }),
+      ],
+      {
+        timing: {
+          mode: "fixed_time",
+          entryTime: "09:20",
+          exitTime: "15:15",
+          daysFromExpiry: [0],
+        },
+      }
+    );
+    const res = runBacktest(strat, spy, { ranAt: 0 });
+
+    // Filter resolved against the first ENABLED leg (WEEKLY, dte 0 ∈ [0]) → traded.
+    expect(res.blotter.length).toBe(1);
+    expect(res.blotter[0]!.legs.map((l) => l.optionType)).toEqual(["PE"]);
+    // Data was fetched for the first ENABLED leg's expiry (WEEKLY → 2024-07-25),
+    // NOT the disabled legs[0]'s NEXT_WEEKLY (2024-08-01).
+    expect(fetchedExpiries).toContain(EXP);
+    expect(fetchedExpiries).not.toContain("2024-08-01");
+  });
+
+  // ── Finding 42: filledBarFraction must describe only the TRADED sample —
+  //    non-traded (filtered / excluded) spine days must NOT inflate the numerator
+  //    or denominator.
+  it("42) filledBarFraction counts only days that book a row (filtered days excluded)", () => {
+    // Two-day spine: 2024-07-24 (daysToExpiry 1, FILTERED by daysFromExpiry:[0])
+    // and 2024-07-25 (daysToExpiry 0, TRADED). The traded day carries only 200 of
+    // 375 index bars (partial coverage); the filtered day carries a FULL 376-bar
+    // index. If the filtered day were counted, the fraction would be pulled up.
+    const D0 = "2024-07-24"; // filtered out
+    const D1 = "2024-07-25"; // traded
+    const EXP1 = "2024-07-25";
+
+    const tradedIdx = flatIndex(D1, 24250, 200); // 200 bars, entry minute 5 present
+    const tradedCe = flatContract(D1, 24250, "CE", 100, 200);
+    const tradedPe = flatContract(D1, 24250, "PE", 100, 200);
+
+    const filteredIdx = flatIndex(D0, 24250, 376); // FULL session — would inflate
+    const filteredCe = flatContract(D0, 24250, "CE", 100, 376);
+    const filteredPe = flatContract(D0, 24250, "PE", 100, 376);
+
+    const src = new FixtureDataSource(
+      snapshot([
+        makeDay(D0, EXP, filteredIdx, [filteredCe, filteredPe]),
+        makeDay(D1, EXP1, tradedIdx, [tradedCe, tradedPe]),
+      ])
+    );
+
+    const strat = strategyFor(D1, [leg("ce", "CE", "sell", { enabled: true })], {
+      market: { symbol: "NIFTY", interval: "1m", dateRange: { start: D0, end: D1 } },
+      timing: {
+        mode: "fixed_time",
+        entryTime: "09:20",
+        exitTime: "15:15",
+        daysFromExpiry: [0],
+      },
+    });
+    const res = runBacktest(strat, src, { ranAt: 0 });
+
+    // Only the traded day books a row.
+    expect(res.blotter.length).toBe(1);
+    expect(res.blotter[0]!.day).toBe(D1);
+    // filledBarFraction = traded barsPresent / barsExpected = 200 / 375 ≈ 0.5333.
+    // (If the FILTERED day were counted it would be (200+376)/(375+375) ≈ 0.7680.)
+    expect(res.coverage.filledBarFraction).toBeCloseTo(200 / 375, 4);
   });
 });

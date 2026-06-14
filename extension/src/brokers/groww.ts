@@ -59,7 +59,9 @@ export function normalizeGrowwInstrumentText(raw: string): string {
     // Leading "<EXCHANGE>:" / "<EXCHANGE> " — parseContractName also strips the
     // colon form, but doing it here keeps the standalone-token filter below from
     // misfiring on a spaced "NSE RELIANCE".
-    .replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCD|BCD)(?::\s*|\s+)/, " ")
+    // NCDEX must precede NCD — regex alternation is ordered, so "NCD" would
+    // otherwise match first and leave a stray "EX" on "NCDEX: GUARSEED10".
+    .replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCDEX|NCD|BCD)(?::\s*|\s+)/, " ")
     .replace(/(\d+)(?:ST|ND|RD|TH)\b/g, "$1") // "25TH JUN" → "25 JUN"
     .replace(/[^\w&.\- :]/g, " ") // drop decorations, keep symbol punctuation
     .replace(/\s+/g, " ")

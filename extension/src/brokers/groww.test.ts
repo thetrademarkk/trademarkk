@@ -31,6 +31,13 @@ describe("normalizeGrowwInstrumentText", () => {
     expect(normalizeGrowwInstrumentText("NIFTY 24500 CE NFO")).toBe("NIFTY 24500 CE");
   });
 
+  it("strips a leading NCDEX prefix without leaving a stray 'EX'", () => {
+    // The real exchange code is "NCDEX"; the truncated "NCD" alternation alone
+    // would match "NCD" first and leave "EX: GUARSEED10" behind.
+    expect(normalizeGrowwInstrumentText("NCDEX: GUARSEED10")).toBe("GUARSEED10");
+    expect(normalizeGrowwInstrumentText("NCDEX DHANIYA")).toBe("DHANIYA");
+  });
+
   it("preserves Groww's spaced F&O contract names for the parser", () => {
     // Groww renders derivatives as spaced names with CALL/PUT words.
     expect(normalizeGrowwInstrumentText("NIFTY 25 JUN 2026 24500 CALL")).toBe(
@@ -89,6 +96,11 @@ describe("normalizeGrowwExchange", () => {
     expect(normalizeGrowwExchange("NSE_EQ")).toBe("NSE");
     expect(normalizeGrowwExchange("NSE • Equity")).toBe("NSE");
     expect(normalizeGrowwExchange("BSE F&O")).toBe("BSE");
+  });
+
+  it("reads the National Commodity & Derivatives Exchange code 'NCDEX'", () => {
+    expect(normalizeGrowwExchange("NCDEX")).toBe("NCDEX");
+    expect(normalizeGrowwExchange("NCDEX • Commodity")).toBe("NCDEX");
   });
 
   it("unknown / missing exchange text → null", () => {
@@ -199,6 +211,20 @@ describe("assembleGrowwCapture", () => {
   it("reads exchange out of Groww's segment styling", () => {
     const c = assembleGrowwCapture({ ...baseFields, exchangeText: "NSE • Equity" });
     expect(c?.exchange).toBe("NSE");
+  });
+
+  it("NCDEX agri commodity → exchange survives as NCDEX with a clean symbol", () => {
+    const c = assembleGrowwCapture({
+      ...baseFields,
+      symbolText: "NCDEX: GUARSEED10",
+      // The real National Commodity & Derivatives Exchange code is "NCDEX".
+      exchangeText: "NCDEX • Commodity",
+      qtyText: "10",
+      priceText: "5125",
+    });
+    expect(c).toMatchObject({ exchange: "NCDEX" });
+    expect(c!.symbol).toBe("GUARSEED10"); // prefix stripped, no leading-space corruption
+    expect(parseContractName(c!.symbol)).toMatchObject({ segment: "COMM", agri: true });
   });
 
   it("sell-side spaced option order maps cleanly to the contract parser", () => {

@@ -81,6 +81,32 @@ describe("leg-level validation refinements", () => {
     });
     expect(safeParseStrategyDef(ok).success).toBe(true);
   });
+
+  it("rejects underlying-basis triggers (engine marks off premium only)", () => {
+    // The engine's computeRiskLevel never branches on basis — an underlying-basis
+    // SL/Target would be silently computed in premium space, so we reject it until
+    // spot-referenced stops are implemented (the enum value stays for forward-compat).
+    const badSl = withLeg({
+      stopLoss: { unit: "pts", basis: "underlying", value: 50, refPrice: "traded" },
+    });
+    const slRes = safeParseStrategyDef(badSl);
+    expect(slRes.success).toBe(false);
+    if (!slRes.success) {
+      expect(slRes.error.issues.some((i) => /Underlying-basis/.test(i.message))).toBe(true);
+    }
+
+    const badTarget = withLeg({
+      target: { unit: "pct", basis: "underlying", value: 30, refPrice: "traded" },
+    });
+    expect(safeParseStrategyDef(badTarget).success).toBe(false);
+
+    // Premium basis still passes for both SL and target.
+    const ok = withLeg({
+      stopLoss: { unit: "pct", basis: "premium", value: 40, refPrice: "traded" },
+      target: { unit: "pct", basis: "premium", value: 30, refPrice: "traded" },
+    });
+    expect(safeParseStrategyDef(ok).success).toBe(true);
+  });
 });
 
 describe("strategy-level constraints", () => {

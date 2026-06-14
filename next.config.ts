@@ -27,6 +27,14 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Tree-shake barrel imports from heavy UI/chart/animation libs so a single
+  // `import { X } from "pkg"` doesn't drag the whole package into a chunk. The
+  // landing hero pulls motion + @number-flow/react, and recharts is used across
+  // the analytics/backtesting views. This is a build-time transform with a
+  // graceful fallback (Next no-ops it for packages it can't optimize).
+  experimental: {
+    optimizePackageImports: ["motion", "recharts", "@number-flow/react", "lucide-react"],
+  },
   // Link-unfurl preview images are remote https URLs (extracted from a page's
   // og:image). They render through next/image, so the BROWSER only ever loads
   // `/_next/image?url=…` (same-origin — satisfies the strict img-src CSP). The

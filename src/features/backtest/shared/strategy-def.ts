@@ -132,6 +132,18 @@ export const legSchema = z
   .refine((l) => !(l.reEntry?.mode === "RE_MOMENTUM" && !l.reEntry.momentum), {
     message: "RE_MOMENTUM requires a momentum threshold",
     path: ["reEntry", "momentum"],
+  })
+  // The engine (computeRiskLevel) only marks SL/Target off the OPTION PREMIUM —
+  // it has no per-bar spot reference, so a basis:"underlying" trigger would be
+  // silently computed in premium space (materially wrong). Reject it until
+  // spot-referenced stops are implemented. The enum value stays for forward-compat.
+  .refine((l) => l.stopLoss?.basis !== "underlying", {
+    message: "Underlying-basis stops/targets aren't supported yet — use premium basis.",
+    path: ["stopLoss", "basis"],
+  })
+  .refine((l) => l.target?.basis !== "underlying", {
+    message: "Underlying-basis stops/targets aren't supported yet — use premium basis.",
+    path: ["target", "basis"],
   });
 export type LegDef = z.infer<typeof legSchema>;
 

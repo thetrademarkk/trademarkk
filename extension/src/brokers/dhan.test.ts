@@ -86,10 +86,14 @@ describe("normalizeDhanInstrumentText", () => {
 });
 
 describe("normalizeDhanExchange", () => {
-  it("reads MCX / CDS / NCD commodity & currency exchange tokens", () => {
+  it("reads MCX / CDS / NCDEX commodity & currency exchange tokens", () => {
     expect(normalizeDhanExchange("MCX")).toBe("MCX");
     expect(normalizeDhanExchange("MCX • Commodity")).toBe("MCX");
     expect(normalizeDhanExchange("CDS")).toBe("CDS");
+    // The real National Commodity & Derivatives Exchange code is "NCDEX".
+    expect(normalizeDhanExchange("NCDEX")).toBe("NCDEX");
+    expect(normalizeDhanExchange("NCDEX • Commodity")).toBe("NCDEX");
+    // Some brokers still emit the truncated segment tag "NCD".
     expect(normalizeDhanExchange("NCD")).toBe("NCD");
   });
 
@@ -270,14 +274,19 @@ describe("assembleDhanCapture", () => {
     });
   });
 
-  it("NCDEX agri commodity (spaced security name) → COMM flagged agri", () => {
+  it("NCDEX agri commodity (NCDEX-prefixed security name) → COMM flagged agri", () => {
     const c = assembleDhanCapture({
       ...baseFields,
+      // The leading "NCDEX:" prefix must be stripped — the truncated "NCD"
+      // alternation alone would leave a stray "EX: " and corrupt the symbol.
       symbolText: "NCDEX: GUARSEED10",
-      exchangeText: "NCD",
+      // The real National Commodity & Derivatives Exchange code is "NCDEX".
+      exchangeText: "NCDEX",
       qtyText: "10",
       priceText: "5125",
     });
+    expect(c).toMatchObject({ exchange: "NCDEX" });
+    expect(c!.symbol).toBe("GUARSEED10"); // prefix stripped, no leading-space corruption
     // The contract parser still classifies the agri commodity from its base.
     expect(parseContractName(c!.symbol)).toMatchObject({ segment: "COMM", agri: true });
   });

@@ -228,15 +228,20 @@ export function runBacktest(
   let barsExpected = 0;
   const legCoverage = new Map<string, { sum: number; n: number }>();
 
+  // SINGLE expiry source for BOTH the data fetch/spine and the daysFromExpiry
+  // gate in replayDay: the FIRST ENABLED leg's rule (disabled legs must not drive
+  // which expiry's chain is loaded). Falls back to legs[0] only when no leg is
+  // enabled (such days are filtered out by replayDay anyway).
+  const expiryRule = (config.legs.find((l) => l.enabled) ?? config.legs[0]!)
+    .expiry as ExpiryRuleKind;
+
   for (const day of days) {
-    const expiry = expiryFor(index, day, config.legs[0]!.expiry as ExpiryRuleKind);
+    const expiry = expiryFor(index, day, expiryRule);
     const dd = source.dayData(index, expiry, day);
-    barsExpected += SESSION_MINUTES;
-    barsPresent += dd.index.length;
 
     // Day filters (daysOfWeek / daysFromExpiry handled in spine for DOW; expiry
     // filter handled here so it can use the resolved expiry).
-    const dayResult = replayDay(config, index, expiry, dd, {
+    const dayResult = replayDay(config, index, expiry, expiryRule, dd, {
       entryMin,
       exitMin,
       profile,
@@ -249,6 +254,13 @@ export function runBacktest(
       flags.add("MISSING_LEG");
       continue;
     }
+
+    // Coverage accounting (finding 42): accumulate ONLY for days that actually
+    // book a row. Days filtered out (no qualifying entry / daysFromExpiry) or
+    // excluded (MISSING_LEG) above must not inflate the numerator OR denominator,
+    // so filledBarFraction describes the TRADED sample, not the whole spine.
+    barsExpected += SESSION_MINUTES;
+    barsPresent += dd.index.length;
 
     const row = dayResult.row;
     blotter.push(row);
@@ -430,16 +442,19 @@ function replayDay(
   config: StrategyDef,
   index: IndexSymbol,
   expiry: string,
+  expiryRule: ExpiryRuleKind,
   dd: DayData,
   ctx: ReplayCtx
 ): ReplayDayResult | null {
   const enabledLegs = config.legs.filter((l) => l.enabled);
   if (enabledLegs.length === 0) return null;
 
-  // daysFromExpiry filter (uses the resolved expiry vs the trade day).
+  // daysFromExpiry filter (uses the resolved expiry vs the trade day). MUST use
+  // the SAME expiryRule the caller resolved the loaded chain with (first enabled
+  // leg), so the gate evaluates the expiry whose data we actually fetched.
   const dfe = config.timing.daysFromExpiry;
   if (dfe && dfe.length > 0) {
-    const n = tradingDaysToExpiry(index, dd.day, enabledLegs[0]!.expiry as ExpiryRuleKind);
+    const n = tradingDaysToExpiry(index, dd.day, expiryRule);
     if (!dfe.includes(n)) return null;
   }
 

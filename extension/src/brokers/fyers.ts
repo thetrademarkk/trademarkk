@@ -41,7 +41,7 @@ export const FYERS_ADAPTER_VERSION = 1;
 /* ── Pure text parsing (unit-tested in fyers.test.ts) ────────────────────── */
 
 /** A Fyers-native instrument key: "<EXCHANGE>:SYMBOL[-SERIES]". */
-const FYERS_KEY = /^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCD|BCD):\S/;
+const FYERS_KEY = /^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCDEX|NCD|BCD):\S/;
 
 /**
  * Fyers order-window instrument text → something the app's contract-name parser
@@ -68,7 +68,9 @@ export function normalizeFyersInstrumentText(raw: string): string {
   }
   const cleaned = s
     // Leading "<EXCHANGE>:" / "<EXCHANGE> " on a non-native name.
-    .replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCD|BCD)(?::\s*|\s+)/, " ")
+    // NCDEX must precede NCD — regex alternation is ordered, so "NCD" would
+    // otherwise match first and leave a stray "EX" on "NCDEX: GUARSEED10".
+    .replace(/^(?:NSE|BSE|NFO|BFO|MCX|CDS|NCDEX|NCD|BCD)(?::\s*|\s+)/, " ")
     .replace(/(\d+)(?:ST|ND|RD|TH)\b/g, "$1") // "25TH JUN" → "25 JUN"
     .replace(/[^\w&.\- :]/g, " ") // drop decorations, keep symbol punctuation
     .replace(/\s+/g, " ")

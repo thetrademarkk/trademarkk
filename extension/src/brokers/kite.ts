@@ -26,6 +26,9 @@ export const EXCHANGE_TOKENS = new Set([
   "BFO",
   "MCX",
   "CDS",
+  // National Commodity & Derivatives Exchange — the real exchange code is
+  // "NCDEX"; some brokers emit the truncated "NCD" segment tag, so keep both.
+  "NCDEX",
   "NCD",
   "BCD",
 ]);

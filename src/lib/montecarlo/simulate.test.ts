@@ -212,6 +212,52 @@ describe("runSimulation — bootstrap distribution sampling", () => {
   });
 });
 
+describe("runSimulation — empty rSamples guard", () => {
+  const isFiniteNum = (x: number) => typeof x === "number" && Number.isFinite(x);
+
+  it("returns a finite, non-NaN neutral result when there are no R-samples", () => {
+    const r = runSimulation(baseInput({ rSamples: [], trades: 40, paths: 1000 }));
+
+    // Cone: flat line at startEquity, one band per step, every figure finite.
+    expect(r.cone).toHaveLength(41);
+    for (const band of r.cone) {
+      for (const v of [band.p5, band.p25, band.p50, band.p75, band.p95]) {
+        expect(isFiniteNum(v)).toBe(true);
+        expect(Number.isNaN(v)).toBe(false);
+        expect(v).toBe(100); // startEquityR
+      }
+    }
+
+    // Finals all sit on the starting equity (no path ever moves).
+    expect(r.finalEquity.p5).toBe(100);
+    expect(r.finalEquity.p50).toBe(100);
+    expect(r.finalEquity.p95).toBe(100);
+
+    // Drawdowns are exactly zero; nothing is NaN.
+    expect(r.medianMaxDrawdown).toBe(0);
+    expect(r.worstMaxDrawdown).toBe(0);
+
+    // Probabilities are finite, well-defined, and in range.
+    expect(isFiniteNum(r.riskOfRuin)).toBe(true);
+    expect(isFiniteNum(r.probNetPositive)).toBe(true);
+    // Floor at 50% of 100 = 50R < 100R start ⇒ a motionless path is not ruined.
+    expect(r.riskOfRuin).toBe(0);
+    // No path ends strictly above its start.
+    expect(r.probNetPositive).toBe(0);
+
+    expect(r.meta.sampleSize).toBe(0);
+  });
+
+  it("marks the motionless path ruined when the floor sits at the start", () => {
+    // ruinFloorFraction 1 ⇒ floor == startEquity, so equity (which never moves)
+    // is already at/below the floor.
+    const r = runSimulation(baseInput({ rSamples: [], ruinFloorFraction: 1, trades: 10 }));
+    expect(r.riskOfRuin).toBe(1);
+    expect(r.probNetPositive).toBe(0);
+    expect(Number.isNaN(r.finalEquity.p50)).toBe(false);
+  });
+});
+
 describe("extractRSamples", () => {
   const t = (r: number | null, status = "closed") => ({ r_multiple: r, status });
   it("keeps only finite, non-null R of closed trades", () => {
