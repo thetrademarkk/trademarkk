@@ -48,13 +48,15 @@ describe("classifyHorizon", () => {
     expect(classifyHorizon(mk())).toBe("intraday");
   });
 
-  it("forces MIS to intraday even when the timestamps span days", () => {
+  it("classifies by holding period, not product: a multi-day MIS row is positional", () => {
+    // MIS is auto-squared-off intraday so this is bad data; we trust the
+    // timestamps (18 days) rather than letting the margin product override them.
     const t = mk({
       product: "MIS",
       opened_at: "2025-06-02T05:00:00Z",
       closed_at: "2025-06-20T08:00:00Z",
     });
-    expect(classifyHorizon(t)).toBe("intraday");
+    expect(classifyHorizon(t)).toBe("positional");
   });
 
   it("treats overnight CNC delivery as swing, never intraday", () => {
@@ -66,14 +68,36 @@ describe("classifyHorizon", () => {
     expect(classifyHorizon(t)).toBe("swing");
   });
 
-  it("treats a CNC trade with same-day timestamps as swing (overnight by product)", () => {
-    // Date-only import: both stamped at IST midnight on the same day, but CNC ⇒ held.
+  // Regression (reported June 14): intraday trades logged with a CNC/NRML
+  // product were mislabelled "swing" because the classifier short-circuited on
+  // the margin product. Product is margin, not holding period — a same-IST-day
+  // close is intraday regardless of CNC/NRML/MIS.
+  it("a same-IST-day CNC round trip is intraday (intraday delivery, not swing)", () => {
+    const t = mk({
+      product: "CNC",
+      opened_at: "2025-06-02T04:00:00Z", // 09:30 IST
+      closed_at: "2025-06-02T09:30:00Z", // 15:00 IST (same IST day)
+    });
+    expect(classifyHorizon(t)).toBe("intraday");
+  });
+
+  it("a same-IST-day NRML F&O round trip is intraday, not swing", () => {
+    const t = mk({
+      product: "NRML",
+      segment: "OPT",
+      opened_at: "2025-06-02T04:00:00Z",
+      closed_at: "2025-06-02T09:30:00Z",
+    });
+    expect(classifyHorizon(t)).toBe("intraday");
+  });
+
+  it("a date-only same-day row reads as intraday (same calendar date both sides)", () => {
     const t = mk({
       product: "CNC",
       opened_at: "2025-06-02T00:00:00Z",
       closed_at: "2025-06-02T00:00:00Z",
     });
-    expect(classifyHorizon(t)).toBe("swing");
+    expect(classifyHorizon(t)).toBe("intraday");
   });
 
   it("legacy null-product same-IST-day is intraday", () => {
