@@ -10,7 +10,9 @@
  */
 
 import { computeCharges, type Product, type Segment } from "@/lib/charges/charges";
+import { classifyAgriCommodity } from "@/features/trades/instrument-parse";
 import { getChargeProfile } from "@/config/brokers";
+import { capitalGainsTerm, type CapitalGainsTerm } from "@/lib/stats/horizon";
 import { sameIstDate } from "./fy";
 
 /** The trade shape this module needs (a subset of TradeRow). */
@@ -20,6 +22,10 @@ export interface TaxTrade {
   symbol: string;
   segment: Segment;
   product?: Product | null;
+  /** Exchange (SEG-CHG) — optional; resolveExchange falls back per segment. */
+  exchange?: string | null;
+  /** Set for an option leg — distinguishes a COMM/CDS option from a future. */
+  option_type?: "CE" | "PE" | null;
   direction: "long" | "short";
   qty: number;
   avg_entry: number;
@@ -52,6 +58,62 @@ export function classifyTrade(t: TaxTrade): TaxCategory {
 }
 
 export const isFno = (t: TaxTrade) => t.segment === "FUT" || t.segment === "OPT";
+
+/* ────────────────────────── Three-way classification (SEG-07) ──────────────────────────
+ *
+ * Indian traders have THREE distinct heads of income, not two:
+ *   1. Speculative business income     — intraday equity (same-IST-day / MIS).
+ *   2. Non-speculative business income — F&O (FUT/OPT) + commodity (COMM/MCX/NCDEX)
+ *                                        + currency (CDS). All derivatives.
+ *   3. Capital gains                   — DELIVERY equity (CNC, EQ held overnight),
+ *                                        split STCG (held ≤ 12 months) / LTCG (> 12 months).
+ *
+ * This is a CLASSIFICATION + realised-gains statement, NOT a tax-liability
+ * computation: we present the realised STCG / LTCG totals and the statutory
+ * rate/exemption *labels* below, but never compute the user's final tax.
+ */
+
+export type TaxBucketKind = "speculative" | "non-speculative-business" | "capital-gains";
+
+/** A delivery-equity round trip is intraday only when product=MIS or same IST day. */
+function isIntradayEquity(t: TaxTrade): boolean {
+  if (t.product === "MIS") return true;
+  // CNC / BTST / STBT are delivery-basis by definition (overnight).
+  if (t.product === "CNC" || t.product === "BTST" || t.product === "STBT") return false;
+  // NRML is not an equity product, but guard anyway. Legacy null → fall back to
+  // the timestamps: same IST day ⇒ intraday, otherwise delivery.
+  return !!t.closed_at && sameIstDate(t.opened_at, t.closed_at);
+}
+
+/**
+ * Three-way income-head classification of a single trade.
+ *  - intraday equity                       → speculative
+ *  - delivery equity (CNC / overnight EQ)  → capital-gains
+ *  - F&O / commodity / currency            → non-speculative-business
+ */
+export function classifyTaxBucket(t: TaxTrade): TaxBucketKind {
+  if (t.segment === "EQ") {
+    return isIntradayEquity(t) ? "speculative" : "capital-gains";
+  }
+  // FUT/OPT/COMM/CDS — all non-speculative business income.
+  return "non-speculative-business";
+}
+
+/* ── Capital-gains statutory reference (post-Budget-2024, in force 23 Jul 2024) ──
+ *
+ * For LISTED equity on which STT is paid (sec. 111A / 112A):
+ *   - STCG (held ≤ 12 months): taxed at 20% (raised from 15% w.e.f. 23 Jul 2024).
+ *   - LTCG (held  > 12 months): taxed at 12.5% (was 10%), with a yearly
+ *     exemption of ₹1,25,000 (raised from ₹1,00,000) on aggregate LTCG.
+ * These are DISPLAY labels only — we do NOT apply them to compute a liability.
+ */
+export const CG_STCG_RATE_PCT = 20;
+export const CG_LTCG_RATE_PCT = 12.5;
+/** Yearly LTCG exemption on listed equity (₹), post 23 Jul 2024 (was ₹1,00,000). */
+export const CG_LTCG_EXEMPTION = 125000;
+export const CG_LONG_TERM_MONTHS = 12;
+/** Effective date of the revised rates/exemption, for the informational note. */
+export const CG_RATE_EFFECTIVE_FROM = "23 Jul 2024";
 
 /** Buy/sell turnover (premium turnover for options) of one round trip. */
 export function tradeTurnover(t: TaxTrade): {
@@ -168,6 +230,104 @@ export function speculativeSplit(trades: TaxTrade[]): {
   return acc;
 }
 
+export interface TaxBucket {
+  kind: TaxBucketKind;
+  trades: number;
+  grossPnl: number;
+  charges: number;
+  netPnl: number;
+}
+
+/**
+ * Realised STCG / LTCG totals for the delivery-equity capital-gains bucket.
+ * "Realised gain" here is the after-cost NET P&L on each closed delivery-equity
+ * round trip (gains and losses both flow in, so the figures net out as a CA
+ * would aggregate them). STCG = held ≤ 12 months, LTCG = held > 12 months.
+ */
+export interface CapitalGainsSplit {
+  /** Closed delivery-equity (CNC) trades feeding the split. */
+  trades: number;
+  shortTerm: { trades: number; grossPnl: number; netPnl: number };
+  longTerm: { trades: number; grossPnl: number; netPnl: number };
+  /** Yearly LTCG exemption applied for *display* (post 23 Jul 2024). */
+  ltcgExemption: number;
+  /** LTCG net P&L after the exemption, floored at 0 (informational only). */
+  ltcgTaxableAfterExemption: number;
+}
+
+/**
+ * Split realised DELIVERY-equity P&L into STCG (≤12m) and LTCG (>12m).
+ * Open positions (no close date) are excluded — they are unrealised. Intraday
+ * equity and all derivatives are excluded (they are not capital gains).
+ */
+export function capitalGainsSplit(trades: TaxTrade[]): CapitalGainsSplit {
+  const short = { trades: 0, grossPnl: 0, netPnl: 0 };
+  const long = { trades: 0, grossPnl: 0, netPnl: 0 };
+  for (const t of trades) {
+    if (!t.closed_at) continue; // unrealised — excluded
+    if (classifyTaxBucket(t) !== "capital-gains") continue;
+    const term: CapitalGainsTerm = capitalGainsTerm(t.opened_at, t.closed_at);
+    const bucket = term === "long" ? long : short;
+    bucket.trades += 1;
+    bucket.grossPnl += t.gross_pnl;
+    bucket.netPnl += t.net_pnl;
+  }
+  const ltcgNet = r2(long.netPnl);
+  return {
+    trades: short.trades + long.trades,
+    shortTerm: { trades: short.trades, grossPnl: r2(short.grossPnl), netPnl: r2(short.netPnl) },
+    longTerm: { trades: long.trades, grossPnl: r2(long.grossPnl), netPnl: ltcgNet },
+    ltcgExemption: CG_LTCG_EXEMPTION,
+    ltcgTaxableAfterExemption: r2(Math.max(0, ltcgNet - CG_LTCG_EXEMPTION)),
+  };
+}
+
+/**
+ * Full three-way split: speculative (intraday EQ), non-speculative business
+ * (F&O + commodity + currency) and capital gains (delivery EQ). Each bucket is
+ * always present (zero-trade buckets included so the UI shows a clean "none"
+ * row). The capital-gains bucket is further broken into STCG/LTCG via
+ * `capitalGainsSplit`.
+ */
+export function taxBucketSplit(trades: TaxTrade[]): {
+  speculative: TaxBucket;
+  nonSpeculativeBusiness: TaxBucket;
+  capitalGains: TaxBucket;
+  cg: CapitalGainsSplit;
+} {
+  const blank = (kind: TaxBucketKind): TaxBucket => ({
+    kind,
+    trades: 0,
+    grossPnl: 0,
+    charges: 0,
+    netPnl: 0,
+  });
+  const acc = {
+    speculative: blank("speculative"),
+    nonSpeculativeBusiness: blank("non-speculative-business"),
+    capitalGains: blank("capital-gains"),
+  };
+  for (const t of trades) {
+    const kind = classifyTaxBucket(t);
+    const bucket =
+      kind === "speculative"
+        ? acc.speculative
+        : kind === "capital-gains"
+          ? acc.capitalGains
+          : acc.nonSpeculativeBusiness;
+    bucket.trades += 1;
+    bucket.grossPnl += t.gross_pnl;
+    bucket.charges += t.charges;
+    bucket.netPnl += t.net_pnl;
+  }
+  for (const b of [acc.speculative, acc.nonSpeculativeBusiness, acc.capitalGains]) {
+    b.grossPnl = r2(b.grossPnl);
+    b.charges = r2(b.charges);
+    b.netPnl = r2(b.netPnl);
+  }
+  return { ...acc, cg: capitalGainsSplit(trades) };
+}
+
 export interface ChargesBreakdown {
   brokerage: number;
   stt: number;
@@ -218,10 +378,14 @@ export function chargesBreakdown(
     const c = computeCharges(profile, {
       segment: t.segment,
       product: t.product ?? null,
+      exchange: t.exchange ?? null,
       qty: t.qty,
       entryPrice: t.avg_entry,
       exitPrice: exit,
       direction: t.direction,
+      commodityOption: t.segment === "COMM" && t.option_type != null,
+      agriCommodity: t.segment === "COMM" && classifyAgriCommodity(t.symbol),
+      isOption: t.segment === "CDS" && t.option_type != null,
     });
     brokerage += c.brokerage;
     stt += c.stt;
@@ -315,7 +479,10 @@ export interface FyTaxSummary {
   /** Charges as a fraction of |gross P&L| (drag). 0 when gross is 0. */
   chargeDragPct: number;
   turnover: TurnoverStatement;
+  /** Legacy two-way speculative / non-speculative split (kept for back-compat). */
   split: ReturnType<typeof speculativeSplit>;
+  /** Three-way split: speculative / non-speculative business / capital gains. */
+  buckets: ReturnType<typeof taxBucketSplit>;
   byInstrument: InstrumentPnl[];
 }
 
@@ -338,6 +505,7 @@ export function fyTaxSummary(trades: TaxTrade[]): FyTaxSummary {
     chargeDragPct: drag,
     turnover: fnoTurnover(trades),
     split: speculativeSplit(trades),
+    buckets: taxBucketSplit(trades),
     byInstrument: realisedPnlByInstrument(trades),
   };
 }

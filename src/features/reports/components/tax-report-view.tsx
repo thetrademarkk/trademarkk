@@ -1,11 +1,27 @@
 "use client";
 
 import * as React from "react";
-import { Download, FileSpreadsheet, Info, Landmark, Printer, Receipt, Scale } from "lucide-react";
+import {
+  Coins,
+  Download,
+  FileSpreadsheet,
+  Info,
+  Landmark,
+  Printer,
+  Receipt,
+  Scale,
+} from "lucide-react";
 import { useTrades, useAccounts } from "@/features/trades";
 import { downloadFile } from "@/features/settings";
 import { availableFyYears, currentFyStartYear, fyLabel, fyRange, fyStartYear } from "@/lib/tax/fy";
-import { chargesBreakdown, fyTaxSummary, type TaxTrade } from "@/lib/tax/turnover";
+import {
+  CG_LTCG_RATE_PCT,
+  CG_RATE_EFFECTIVE_FROM,
+  CG_STCG_RATE_PCT,
+  chargesBreakdown,
+  fyTaxSummary,
+  type TaxTrade,
+} from "@/lib/tax/turnover";
 import { buildTaxCsv, toExcelCsv } from "@/lib/tax/csv";
 import { formatINR, formatPct } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,7 +35,13 @@ import {
 } from "@/components/ui/select";
 import { PnlText } from "@/components/shared/pnl-text";
 
-const SEGMENT_LABEL: Record<string, string> = { EQ: "Equity", FUT: "Futures", OPT: "Options" };
+const SEGMENT_LABEL: Record<string, string> = {
+  EQ: "Equity",
+  FUT: "Futures",
+  OPT: "Options",
+  COMM: "Commodity",
+  CDS: "Currency",
+};
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -168,49 +190,154 @@ export function TaxReportView() {
             </CardContent>
           </Card>
 
-          {/* Speculative vs non-speculative */}
-          <Card>
+          {/* Three-way income classification */}
+          <Card data-testid="tax-classification">
             <CardHeader>
               <CardTitle className="flex items-center gap-1.5 text-base">
-                <Scale className="h-4 w-4 text-muted" aria-hidden /> Speculative vs non-speculative
+                <Scale className="h-4 w-4 text-muted" aria-hidden /> Income classification
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted">
-                Intraday equity (same-day buy &amp; sell) is{" "}
-                <span className="font-medium">speculative business income</span>. F&amp;O and
-                delivery equity are <span className="font-medium">non-speculative</span>.
+                Three heads of income: <span className="font-medium">speculative</span> (intraday
+                equity), <span className="font-medium">non-speculative business</span> (F&amp;O,
+                commodity &amp; currency) and <span className="font-medium">capital gains</span>{" "}
+                (delivery equity).
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted">
-                      <th className="py-1.5 pr-2 font-medium">Category</th>
+                      <th className="py-1.5 pr-2 font-medium">Head of income</th>
                       <th className="py-1.5 px-2 text-right font-medium">Trades</th>
-                      <th className="py-1.5 px-2 text-right font-medium">Net P&amp;L</th>
-                      <th className="py-1.5 pl-2 text-right font-medium">Turnover</th>
+                      <th className="py-1.5 px-2 text-right font-medium">Gross P&amp;L</th>
+                      <th className="py-1.5 pl-2 text-right font-medium">Net P&amp;L</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[summary.split.speculative, summary.split.nonSpeculative].map((b) => (
-                      <tr key={b.category} className="border-b last:border-0">
-                        <td className="py-1.5 pr-2">
-                          {b.category === "speculative"
-                            ? "Speculative (intraday equity)"
-                            : "Non-speculative (F&O + delivery)"}
+                    {[
+                      {
+                        key: "speculative",
+                        label: "Speculative (intraday equity)",
+                        b: summary.buckets.speculative,
+                      },
+                      {
+                        key: "business",
+                        label: "Non-speculative business (F&O / commodity / currency)",
+                        b: summary.buckets.nonSpeculativeBusiness,
+                      },
+                      {
+                        key: "capital-gains",
+                        label: "Capital gains (delivery equity)",
+                        b: summary.buckets.capitalGains,
+                      },
+                    ].map(({ key, label, b }) => (
+                      <tr key={key} data-bucket={key} className="border-b last:border-0">
+                        <td className="py-1.5 pr-2">{label}</td>
+                        <td className="py-1.5 px-2 text-right font-money" data-bucket-trades>
+                          {b.trades}
                         </td>
-                        <td className="py-1.5 px-2 text-right font-money">{b.trades}</td>
                         <td className="py-1.5 px-2 text-right">
-                          <Money value={b.netPnl} />
+                          <Money value={b.grossPnl} />
                         </td>
-                        <td className="py-1.5 pl-2 text-right font-money">
-                          {formatINR(b.turnover, { decimals: true })}
+                        <td className="py-1.5 pl-2 text-right" data-bucket-net>
+                          <Money value={b.netPnl} />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Capital gains — STCG / LTCG */}
+          <Card data-testid="tax-capital-gains">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-1.5 text-base">
+                <Coins className="h-4 w-4 text-muted" aria-hidden /> Capital gains — STCG / LTCG
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {summary.buckets.cg.trades === 0 ? (
+                <p className="text-sm text-muted">
+                  No realised delivery-equity (CNC) trades in this FY.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-muted">
+                    Realised gains on delivery equity, split by holding period:{" "}
+                    <span className="font-medium">STCG</span> when held ≤ 12 months,{" "}
+                    <span className="font-medium">LTCG</span> when held &gt; 12 months. Open
+                    positions are excluded (unrealised).
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted">
+                          <th className="py-1.5 pr-2 font-medium">Term</th>
+                          <th className="py-1.5 px-2 text-right font-medium">Trades</th>
+                          <th className="py-1.5 px-2 text-right font-medium">Gross P&amp;L</th>
+                          <th className="py-1.5 pl-2 text-right font-medium">Net P&amp;L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr data-cg="stcg" className="border-b">
+                          <td className="py-1.5 pr-2">STCG (held ≤ 12 months)</td>
+                          <td className="py-1.5 px-2 text-right font-money" data-cg-trades>
+                            {summary.buckets.cg.shortTerm.trades}
+                          </td>
+                          <td className="py-1.5 px-2 text-right">
+                            <Money value={summary.buckets.cg.shortTerm.grossPnl} />
+                          </td>
+                          <td className="py-1.5 pl-2 text-right" data-cg-net>
+                            <Money value={summary.buckets.cg.shortTerm.netPnl} />
+                          </td>
+                        </tr>
+                        <tr data-cg="ltcg" className="border-b last:border-0">
+                          <td className="py-1.5 pr-2">LTCG (held &gt; 12 months)</td>
+                          <td className="py-1.5 px-2 text-right font-money" data-cg-trades>
+                            {summary.buckets.cg.longTerm.trades}
+                          </td>
+                          <td className="py-1.5 px-2 text-right">
+                            <Money value={summary.buckets.cg.longTerm.grossPnl} />
+                          </td>
+                          <td className="py-1.5 pl-2 text-right" data-cg-net>
+                            <Money value={summary.buckets.cg.longTerm.netPnl} />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="rounded-lg border border-dashed p-3 text-xs text-muted">
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                      <span data-cg-exemption>
+                        LTCG yearly exemption:{" "}
+                        <span className="font-money text-foreground">
+                          {formatINR(summary.buckets.cg.ltcgExemption, { decimals: true })}
+                        </span>
+                      </span>
+                      <span>
+                        LTCG net after exemption:{" "}
+                        <span className="font-money text-foreground">
+                          {formatINR(summary.buckets.cg.ltcgTaxableAfterExemption, {
+                            decimals: true,
+                          })}
+                        </span>
+                      </span>
+                    </div>
+                    <p className="mt-2">
+                      Informational rate labels ({CG_RATE_EFFECTIVE_FROM} onward, listed equity):{" "}
+                      <span className="font-medium text-foreground">STCG {CG_STCG_RATE_PCT}%</span>{" "}
+                      ·{" "}
+                      <span className="font-medium text-foreground">LTCG {CG_LTCG_RATE_PCT}%</span>{" "}
+                      above the ₹1.25L exemption. These are a classification &amp; realised-gains
+                      statement — <span className="font-medium">not</span> a tax-liability
+                      computation. Verify with a CA.
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

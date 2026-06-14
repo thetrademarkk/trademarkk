@@ -16,6 +16,7 @@ import {
   TradesTable,
   useTrades,
   type AdvancedTradeFilters,
+  type GroupBy,
 } from "@/features/trades";
 import { useRuleDays } from "@/features/rules";
 import { RiskGuardrailBanner } from "@/features/goals";
@@ -35,20 +36,26 @@ export default function TradesPage() {
   // applied client-side on the fetched list, so filters work identically in
   // hosted, BYOD and local modes.
   const [filters, setFilters] = React.useState<AdvancedTradeFilters>({});
+  const [groupBy, setGroupBy] = React.useState<GroupBy>("none");
   const hydrated = React.useRef(false);
 
-  // Hydrate from the URL once (shareable filter links), then mirror filter
-  // state back into the query string so reloads and copied links restore it.
+  // Hydrate from the URL once (shareable filter links), then mirror filter +
+  // grouping state back into the query string so reloads and copied links
+  // restore the exact view.
   React.useEffect(() => {
     setFilters(decodeFiltersFromSearch(window.location.search));
+    const g = new URLSearchParams(window.location.search).get("group");
+    if (g === "segment" || g === "product" || g === "horizon") setGroupBy(g);
     hydrated.current = true;
   }, []);
   React.useEffect(() => {
     if (!hydrated.current) return;
-    const qs = encodeFiltersToSearch(filters);
+    const params = new URLSearchParams(encodeFiltersToSearch(filters));
+    if (groupBy !== "none") params.set("group", groupBy);
+    const qs = params.toString();
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     window.history.replaceState(window.history.state, "", url);
-  }, [filters]);
+  }, [filters, groupBy]);
 
   const { data: trades, isLoading } = useTrades({ from, to });
   const { data: ruleDays } = useRuleDays();
@@ -121,7 +128,12 @@ export default function TradesPage() {
         </div>
       )}
 
-      <TradeFiltersBar filters={filters} onChange={setFilters} />
+      <TradeFiltersBar
+        filters={filters}
+        onChange={setFilters}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
+      />
 
       {pending ? (
         <Skeleton className="h-64" />
@@ -146,6 +158,7 @@ export default function TradesPage() {
       ) : isDesktop ? (
         <TradesTable
           trades={filtered}
+          groupBy={groupBy}
           selection={
             selectMode
               ? {
@@ -160,6 +173,7 @@ export default function TradesPage() {
       ) : (
         <TradeCards
           trades={filtered}
+          groupBy={groupBy}
           selection={selectMode ? { active: true, selected, onToggle: toggle } : undefined}
         />
       )}

@@ -1,4 +1,5 @@
 import { computeCharges, computeGrossPnl, computeRMultiple } from "@/lib/charges/charges";
+import { classifyAgriCommodity } from "./instrument-parse";
 import { getChargeProfile } from "@/config/brokers";
 import { parseContractName } from "./instrument-parse";
 import type { TradeFormValues, TradeLeg } from "./schemas";
@@ -44,7 +45,6 @@ export function deriveTradeNumbers(
   // KAPAS/COTTON/CARDAMOM/MENTHAOIL on MCX) is CTT-exempt. Both are derived
   // from the symbol/segment so the form + extension charge identically to
   // the CSV-import path.
-  const commodityOption = values.segment === "COMM" && values.optionType != null;
   const agriCommodity = values.segment === "COMM" && parseContractName(values.symbol).agri;
   let gross = 0;
   let charges = 0;
@@ -62,8 +62,9 @@ export function deriveTradeNumbers(
       entryPrice: leg.avgEntry,
       exitPrice: leg.avgExit!,
       direction: leg.direction,
-      commodityOption,
+      commodityOption: values.segment === "COMM" && leg.optionType != null,
       agriCommodity,
+      isOption: values.segment === "CDS" && leg.optionType != null,
     }).total;
   }
   gross = Math.round(gross * 100) / 100;

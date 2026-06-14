@@ -41,16 +41,182 @@ behaviour, so existing P&L never regresses.
 - [x] **SEG-02** Charge-engine golden tests for every (segment,product) combo
 - [x] **SEG-03** Ingest: parse broker Product column + MCX/CDS segments on import
 - [x] **SEG-04** Backfill product for existing trades + recompute-charges action
-- [ ] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
-- [ ] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
-- [ ] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m)
-- [ ] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data
-- [ ] **SEG-09** Filters, table & grouping for segment/product/holding-period
-- [ ] **SEG-10** Lot-size modelling for derivatives (optional)
+- [x] **SEG-05** Hold-horizon-aware analytics + irrelevant-panel gating (hide expiry-day/entry-hour for multi-day holds; add holding-period buckets)
+- [x] **SEG-06** Trader-type-adaptive dashboard + position-hold calendar
+- [x] **SEG-07** Tax pack v2 — three-way: intraday-speculative / FnO-business / delivery capital-gains (STCG<12m, LTCG>12m) — Shipped (accumulated, pending batch deploy)
+- [x] **SEG-08** Onboarding asks trader type + sets defaults + seeds matching sample data — Shipped (accumulated, pending batch deploy)
+- [x] **SEG-09** Filters, table & grouping for segment/product/holding-period — Shipped (accumulated, pending batch deploy)
+- [x] **SEG-10** Lot-size modelling for derivatives — Shipped (accumulated, pending batch deploy)
 - [ ] **SEG-11** Extension capture carries product + exchange (+ MCX/CDS adapters)
 - [ ] **SEG-12** Community surfaces respect new segments/products
+- [x] **SEG-CHG** Exchange/segment charge coverage (MCX/NCDEX/BSE/CDS fixes + golden tests) — Shipped (accumulated, pending batch deploy)
 
 ## Shipped by the loop
+
+- **SEG-10** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Lot-size modelling for derivatives**. New pure single-source-of-truth module
+  `src/lib/instruments/lot-sizes.ts`: a typed `LOT_SIZE_REFERENCE` (symbol /
+  segment / exchange / lotSize / optional tickSize / `asOf` 2026-06-01) covering
+  index F&O (NIFTY 75, BANKNIFTY 35, FINNIFTY 65, MIDCPNIFTY 140, NIFTYNXT50 25,
+  SENSEX 20, BANKEX 30, SENSEX50 60), a representative, documented-as-overridable
+  subset of stock-F&O underlyings (RELIANCE 500, HDFCBANK 550, TCS 175, INFY 400,
+  …20 names), MCX commodity lots + ticks (GOLD 100 / GOLDM 10 / SILVER 30 /
+  SILVERM 5 / CRUDEOIL 100 / CRUDEOILM 10 / NATURALGAS 1250 / COPPER 2500 / ZINC /
+  ALUMINIUM / LEAD / NICKEL / COTTON / MENTHAOIL), and CDS currency lots (USD/EUR/
+  GBP-INR = 1000, JPYINR = 100000). Helpers: `lookupLotSize`/`defaultLotSize`
+  (symbol-base normalised like `commodityBase`, FUT answers from the OPT entry,
+  EQ → null, unknown → null so a trade is never blocked), `segmentUsesLots`,
+  `lotsToUnits`/`unitsToLots`/`exactLotCount`. The demo seed's old local
+  `LOT_SIZES` map was REPLACED with `defaultLotSize` imports — no duplication /
+  divergence. Entry UX: a new `LotQtyHelper` (lucide `Layers`) renders beneath
+  Qty for derivative legs only (per active leg), auto-fills the lot size from the
+  reference, shows a live "= N qty" readout and WRITES units (lots × size) into
+  the existing Qty field — Qty stays the single source of truth (units, the
+  unchanged stored schema), so a lot-entered quantity is byte-identical to typing
+  units (manual Qty always wins; an unknown symbol just invites a manual size).
+  EQ never shows the helper. Non-breaking: a "N lots" chip in `TradeMetaBadges`
+  (SEG-09 area) + "(N lots)" in the trade quick-view, shown only when a
+  derivative's stored qty is an EXACT multiple of the reference lot (never a
+  fractional lot). No schema change, no `charges.ts` change. +26 vitest in
+  `lot-sizes.test.ts` (reference integrity / no-duplicates, known index+commodity
+  +currency+stock lots, base normalisation, EQ→null + FUT-from-OPT + unknown
+  passthrough + no cross-segment, lots↔units + exactLotCount round-trips, and
+  CHARGE PARITY: 2-lot NIFTY-OPT (150) / 1-lot CRUDEOIL-MCX (100) / 1-lot
+  USDINR-CDS (1000) all compute charges IDENTICAL to the equivalent unit qty and
+  land on the charges.golden row quantities) → full suite **1348** green; tsc +
+  ext:typecheck + lint (0 warnings) + build clean; feature e2e
+  `scripts/e2e-seg-lots.mjs` 13/13 (2-lot NIFTY option → qty 150 + live readout +
+  saved with a "2 lots" badge + quick-view "150 (2 lots)"; 1-lot CRUDEOIL MCX →
+  qty 100; unknown-symbol lot-size override → units still written + manual qty
+  wins; equity shows no helper; 360px clean, zero console errors), e2e-smoke
+  34/34, mobile-audit clean.
+
+- **SEG-09** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Filters, trades table & grouping by segment / product / holding-period** —
+  the journal is now first-class for ALL trader types, not just F&O. Extended the
+  existing TradeZella-grade composable filter bar (journal iter 4) with three new
+  multi-select criteria — **Product** (MIS/CNC/NRML/BTST/STBT), **Holding period**
+  (intraday / swing / positional, derived via `classifyHorizon`), and **Exchange**
+  (NSE/BSE/MCX/NCDEX) — each as an editable chip, URL-shareable (compact keys
+  `prod`/`exch`/`hold`), sanitised on decode + saved-view apply, with active-filter
+  chips, a clearable count and the existing zero-match empty state. Legacy
+  null-product trades match **MIS** (charge parity); open trades never match a
+  holding-period filter. New pure `src/features/trades/grouping.ts`: `groupTrades`
+  partitions the fetched list by `segment` / `product` / `horizon` in canonical
+  order (open trades route to an explicit "Open" bucket so nothing disappears),
+  `subtotalFor` computes **paise-correct** per-group subtotals (trade count, net
+  P&L summed over the stored integer-paise `net_pnl` of CLOSED trades only, win
+  rate) — the group nets sum exactly to the ungrouped whole; a dependency-free
+  `normalizeExchange` mirrors `resolveExchange` for filter/display. UI: a Group-by
+  menu in the filter bar (default = ungrouped, no behaviour change), collapsible
+  group headers carrying the subtotals on both the desktop table and the mobile
+  card list, plus a shared `TradeMetaBadges` (segment/product/non-default-exchange/
+  holding-period chips, reusing the semantic Badge tokens) added as a new "Type"
+  column on the table and a meta row on the cards. Existing date/symbol/search
+  filters, multi-select, bulk-select and column sorting (now sorting WITHIN each
+  group) all keep working. lucide icons only, no emoji, 360px clean. +46 vitest
+  (16 new `grouping.test.ts`: legacy-null=MIS, exchange normalisation, closed-only
+  paise-exact subtotals, group ordering + Open bucket, sum-to-whole invariant,
+  label-map sync; +30 in `filter-predicate.test.ts` for the three new predicates +
+  sanitiser + URL roundtrip) → full suite **1323** green; tsc + ext-typecheck +
+  next lint (0 warnings) + build clean; feature e2e `scripts/e2e-seg-filters.mjs`
+  12/12 (mixed EQ/OPT/COMM book → segment-badge per row, filter→Options shows only
+  3 option rows + chip + `seg=OPT` URL, clear resets, Product→CNC shows 2 delivery
+  rows, group-by-holding-period renders intraday+swing headers with 100%-win
+  intraday subtotal + collapse/expand + `group=horizon` URL, Currency filter →
+  zero-match empty state, 360px clean, zero console errors), e2e-smoke 34/34,
+  mobile-audit clean.
+
+- **SEG-08** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Onboarding asks the trader type, sets defaults, seeds matching sample data.**
+  New pure `src/features/onboarding/trader-profile.ts`: a `TraderType`
+  (`intraday-equity` / `swing` / `fno` / `commodity` / `currency` / `mixed`),
+  `traderTypeDefaults()` mapping each to a default (segment, product) — intraday
+  equity → EQ+MIS, swing → EQ+CNC, F&O → OPT+NRML, commodity → COMM+NRML,
+  currency → CDS+NRML, mixed → EQ+MIS — `dashboardEmphasisForTraderType()`
+  (intraday → intraday, the overnight books → positional, mixed → balanced), and
+  a `sanitizeTraderProfile()` that clamps untrusted JSON to the `mixed` default.
+  The profile persists as an **additive, idempotent** `settings` row keyed
+  `trader_profile.v1` (no migration — the table already exists), so it works
+  identically across hosted / BYOD / local and travels with mode-switch copies +
+  backups. (1) The first-run setup step (`SetupForm`) gained a clean trader-type
+  picker (lucide icons, 360px-clean, optional → defaults to "A bit of
+  everything" = mixed). (2) The trade form reads the profile and applies the
+  default segment + product to a blank new-trade form (via `form.reset()` so the
+  controlled Radix segment select re-initialises atomically and the form isn't
+  marked dirty) — never on edit, a restored draft, or after the user touches it,
+  and the user can always change it per trade. (3) The adaptive dashboard
+  (SEG-06) falls back to the profile's emphasis until there are enough
+  classifiable trades (`GATE_MIN_TRADES`) to read the style from the data, so a
+  brand-new swing/F&O trader gets a relevant layout from session one. (4)
+  `seedSampleData(db, traderType)` is parameterised: a swing pick seeds multi-day
+  CNC equity, F&O seeds OPT + the multi-leg strategy catalogue, commodity seeds
+  MCX (COMM/NRML) futures, currency seeds CDS, and `mixed` blends every recipe
+  (the prior demo behaviour preserved) — all paise-correct through the existing
+  per-(segment,product,exchange) charge engine. Back-compat: `seedDefaults` /
+  `seedSampleData` default to `mixed` so `scripts/seed-demo-user.ts` is
+  unchanged. +22 vitest (trader-type→default mapping + form-validation parity,
+  emphasis defaults, sanitize/round-trip, `trader_profile.v1` persistence over
+  real migration SQL, per-type sample-seed shape via sql.js) → full suite 1299;
+  feature e2e (`e2e-seg-onboarding`) 9/9 (pick Swing → form defaults EQ+CNC + samples are
+  multi-day + dashboard reads positional; pick F&O → OPT+NRML defaults + option
+  samples; skip → Mixed EQ+MIS default; 360px clean; zero console errors).
+
+- **SEG-07** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  **Tax pack v2**: a correct THREE-WAY income classification for Indian traders,
+  layered onto the existing FY tax pack on `/app/reports` → **Tax & charges**.
+  Pure additions in `src/lib/stats/horizon.ts` (`heldOverTwelveMonths` /
+  `capitalGainsTerm` — a calendar-month, IST-correct 12-month boundary: exactly
+  12 months is short-term, strictly more is long-term) and `src/lib/tax/turnover.ts`
+  (`classifyTaxBucket` → **speculative** = intraday equity (MIS / same-IST-day),
+  **non-speculative business** = F&O + commodity (COMM/MCX/NCDEX) + currency (CDS),
+  **capital gains** = delivery equity (CNC, EQ held overnight, incl. BTST/STBT);
+  `capitalGainsSplit` → realised **STCG** (held ≤ 12 months) vs **LTCG** (held > 12
+  months) net P&L with the **₹1,25,000** yearly LTCG exemption applied for display;
+  `taxBucketSplit` rolls all three buckets, exposed via `fyTaxSummary.buckets`).
+  Open positions are excluded (unrealised). The Tax tab renders an **Income
+  classification** card (all three heads, per FY) + a **Capital gains — STCG / LTCG**
+  card showing the exemption note and the **STCG 20% / LTCG 12.5%** statutory rate
+  labels (23 Jul 2024 onward) — clearly DISPLAY-ONLY: this is a classification +
+  realised-gains statement, NOT a tax-liability computation, with the
+  "informational, not tax advice — verify with a CA" disclaimer. CSV / Excel export
+  carries the three-way split + the STCG/LTCG section + rate labels; the trade
+  ledger's category column now annotates Capital gains (STCG)/(LTCG). Money in
+  paise, rounded only at display, IST throughout, all 3 storage modes, no market
+  data, no LLM. +21 vitest in `capital-gains.test.ts` (three-way classification,
+  STCG/LTCG at the 12-month IST boundary incl. exactly-12-months, exemption,
+  open-trade exclusion, BTST→STCG, FY exposure) → full suite **1277** green; tsc +
+  ext-typecheck + lint (0 warnings) + build clean; feature e2e
+  `scripts/e2e-seg-tax-v2.mjs` 8/8 (mixed book → 3 speculative / 1 non-spec
+  business / 6 capital gains = 3 STCG + 3 LTCG, open position excluded, exemption +
+  rate labels + disclaimer, CSV carries the split, 360px clean, zero console
+  errors), e2e-smoke 34/34, mobile-audit clean.
+
+- **SEG-CHG** (Shipped 2026-06-14, accumulated locally — pending batch deploy) —
+  money-critical exchange/segment charge coverage. Added an **Exchange** dimension
+  (`NSE`/`BSE`/`MCX`/`NCDEX`) with a back-compat `resolveExchange(segment, exchange)`
+  (undefined/empty/unknown → the segment default: EQ/FUT/OPT/CDS → NSE, COMM → MCX),
+  so every pre-SEG-CHG trade charges byte-identically. `ChargeProfile` now carries a
+  per-exchange transaction-charge map (`exchangeTxn`) read by the engine.
+  **Bugs fixed:** MCX commodity-futures txn 0.00266%→**0.0021%** (post-SEBI uniform);
+  commodity-options now bill the **0.0418%** option txn rate (was wrongly using the
+  futures rate, ~20x understated) + the option stamp 0.003% + flat ₹20 brokerage;
+  CDS-futures txn 0.00009%→**0.00035%** (was ~4x too low) + a dedicated currency stamp
+  **0.0001%** (was reusing the futures 0.002%, ~20x too high). **Added:** CDS **options**
+  branch (0.0311% premium txn, still zero STT/CTT); **BSE** equity 0.00375% / futures **0%**
+  / options 0.0325%; **NCDEX** agri-futures 0.003% / non-agri 0.0058% / options 0.03%;
+  a `sebiPerCroreAgri` ₹1/cr slab for agri commodities. Import & recompute classify
+  agri via the SEBI **Rule-3** exempt list (whole-base match, NOT substring — Guar SEED
+  exempt vs Guar GUM not; oilcakes/refined oils/AGRIDEX excluded). `exchange` +
+  commodity/currency option + agri threaded through `computeCharges` at every call site
+  (csv buildTrade, utils.deriveTradeNumbers, recompute, tax/turnover). STT/CTT/stamp/GST
+  stay exchange-agnostic in `statutory`; the zero profile zeroes every new field.
+  Accepted omission (rare): exercise-leg CTT/STT on physical delivery/exercise.
+  GOLDEN TABLE redone — buggy locked COMM/CDS rows corrected + 6 new rows (NSE CDS
+  option, NCDEX agri & Guar-Gum futures, BSE futures/options/equity) at hand-computed
+  paise totals, plus exchange back-compat + agri Rule-3 + per-exchange unit tests.
+  Full local gates green: tsc, ext:typecheck, next lint (0 warnings), vitest 1211,
+  next build, e2e-smoke 34/34 (0 console errors), mobile-audit clean.
 
 - **SEG-01** — journal-DB **v4** migration (`product` column + holding-pattern
   backfill, idempotent), widened `Segment` (EQ/FUT/OPT/COMM/CDS) + new `Product`
@@ -121,3 +287,60 @@ behaviour, so existing P&L never regresses.
   (`e2e-seg-recompute`): seed a stale delivery EQ trade, preview shows the delta
   in the confirm dialog, confirm corrects charges + net (gross preserved),
   re-run is a no-op; 360px clean, zero console errors.
+
+- **SEG-05** (Shipped 2026-06-14, accumulated - pending batch deploy) -
+  hold-horizon-aware analytics. New pure `src/lib/stats/horizon.ts`:
+  `classifyHorizon` derives intraday / swing (1-7 calendar days) / positional
+  (>7 days) per trade from `opened_at`->`closed_at` interpreted in IST
+  (reusing `istDateKey`) and the product - MIS forces intraday, CNC/NRML/
+  BTST/STBT are overnight-by-definition (never intraday even on same-day
+  timestamps), legacy null-product falls back to the IST same-day test.
+  `holdingPeriodBuckets` (count + net P&L + win rate per horizon, MIN_SAMPLE>=5
+  gate via `enough`), `horizonMix` (fractions + multi-day share),
+  `shouldGateIntradayPanels` (data-driven: gate only when multi-day >= 70% of
+
+  > =5 classifiable trades - thin journals never hide anything), and
+  > `tradingStyle` ("Mostly positional - 68% of trades held >7 days" / "Mixed
+  > style" / empty state). UI: a "Holding period" card + "Your trading style"
+  > summary on /app/analytics (Time tab + header) and a compact style line on the
+  > dashboard; the entry-hour and expiry-day panels are relabelled "intraday only"
+  > with an explanatory note when the book is predominantly multi-day; the Insights
+  > page hides the minutes-between-trades tilt checks (`tilt-pace`/`tilt-fade`) and
+  > the entry-hour insight when gated, with a banner explaining why. n>=5 honesty
+  > gates + explicit empty states throughout; lucide icons, no emoji, paise-correct,
+  > 360px clean. +23 vitest (IST same-day vs overnight CNC vs 7d/8d boundaries,
+  > bucket aggregation + n<5 suppression, gating predicate over a trade mix,
+  > style summary). Feature e2e (`e2e-seg-horizon`): a mostly-positional Fyers CSV
+  > -> "Mostly positional" + positional bucket real / intraday suppressed +
+  > panels labelled intraday-only + tilt checks gated; a mostly-intraday CSV ->
+  > panels ungated; thin single-trade honesty; 360px clean, zero console errors.
+
+- **SEG-06** (Shipped 2026-06-14, accumulated - pending batch deploy) -
+  trader-type-adaptive dashboard + position-hold calendar. New pure
+  `src/lib/stats/open-positions.ts` (`openPositions`/`openPositionsSummary`:
+  still-open trades with IST days-held via `istCalendarDaysOpen` + cost-basis
+  exposure = |qty x avg entry|, paise-correct, NEVER marked-to-market - no live
+  prices; longest/avg/over-a-week roll-ups) and `dashboardEmphasis(mix)` added
+  to `horizon.ts` (intraday / positional / balanced, mirroring the SEG-05
+  intraday-panel gate's >=5-trade + 70% thresholds so a thin/mixed book stays
+  balanced and hides nothing). The dashboard reorders by emphasis: a
+  predominantly-positional/swing book promotes an "Open positions" card +
+  "Holding period" card above the equity curve and relabels the 7th KPI tile to
+  the open-positions count; intraday/balanced books keep the day-focused layout
+  with open positions kept (not hidden) below. New pure
+  `src/lib/calendar/position-spans.ts` (`spanCoverage`: a closed swing/positional
+  trade marks every IST day open->close as `held`, a still-open trade marks
+  open->today as `open`, intraday round-trips get NO span; `spanMonthSummary`
+  splits a hold across month boundaries) drives a horizon-aware `MonthHeatmap` -
+  a hold bar under every day a position was live (muted = closed multi-day,
+  accent = open) plus a legend - while P&L stays exactly on the close day so
+  nothing is double-counted. lucide icons (Layers/Timer/CalendarRange), no emoji,
+  explicit "No open positions" empty state, 360px clean. +22 vitest (days-held +
+  exposure + summary roll-up; span mapping incl. month boundary + overlap + open
+  spans; emphasis predicate by style incl. thin-journal balance; no-P&L-double-
+  count guard). Feature e2e (`e2e-seg-dashboard`): a positional CSV -> open-
+  positions card (count/exposure/days) promoted above the equity curve + style
+  verdict + calendar hold/open spans + month-total not double-counted; an
+  intraday CSV -> day-focused layout + "No open positions"; thin journal stays
+  balanced; 360px clean, zero console errors. 14/14 e2e, smoke 34/34,
+  mobile-audit clean.

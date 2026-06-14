@@ -9,18 +9,22 @@ import { toast } from "sonner";
 import {
   Bookmark,
   BookOpenText,
+  Building2,
   CalendarDays,
   CalendarRange,
   Check,
+  Group,
   Gauge,
   IndianRupee,
   Layers,
   Link2,
   ListFilter,
   MoveRight,
+  Package,
   Search,
   ShieldCheck,
   Tags,
+  Timer,
   Trash2,
   Trophy,
   X,
@@ -38,15 +42,28 @@ import {
   countActiveFilters,
   hasActiveFilters,
   sanitizeFilters,
+  HORIZON_FILTER_LABELS,
+  PRODUCT_FILTER_LABELS,
   SEGMENT_LABELS,
   WEEKDAY_LABELS,
   type AdvancedTradeFilters,
   type Segment,
 } from "../filter-predicate";
-import type { PlaybookRow, Tag } from "../types";
+import {
+  EXCHANGE_FILTERS,
+  EXCHANGE_LABELS,
+  GROUP_BY_LABELS,
+  type ExchangeFilter,
+  type GroupBy,
+} from "../grouping";
+import type { Horizon } from "@/lib/stats/horizon";
+import type { PlaybookRow, Product, Tag } from "../types";
 
 type CriterionKey =
   | "segments"
+  | "products"
+  | "exchanges"
+  | "horizons"
   | "direction"
   | "result"
   | "playbookIds"
@@ -59,6 +76,9 @@ type CriterionKey =
 
 const CRITERIA: { key: CriterionKey; label: string; icon: LucideIcon }[] = [
   { key: "segments", label: "Segment", icon: Layers },
+  { key: "products", label: "Product", icon: Package },
+  { key: "horizons", label: "Holding period", icon: Timer },
+  { key: "exchanges", label: "Exchange", icon: Building2 },
   { key: "direction", label: "Direction", icon: MoveRight },
   { key: "result", label: "Result", icon: Trophy },
   { key: "playbookIds", label: "Setup", icon: BookOpenText },
@@ -72,6 +92,9 @@ const CRITERIA: { key: CriterionKey; label: string; icon: LucideIcon }[] = [
 
 const CLEAR_PATCH: Record<CriterionKey, Partial<AdvancedTradeFilters>> = {
   segments: { segments: undefined },
+  products: { products: undefined },
+  exchanges: { exchanges: undefined },
+  horizons: { horizons: undefined },
   direction: { direction: undefined },
   result: { result: undefined },
   playbookIds: { playbookIds: undefined },
@@ -83,10 +106,19 @@ const CLEAR_PATCH: Record<CriterionKey, Partial<AdvancedTradeFilters>> = {
   ruleCheck: { ruleCheck: undefined },
 };
 
+const PRODUCT_FILTER_ORDER: Product[] = ["MIS", "CNC", "NRML", "BTST", "STBT"];
+const HORIZON_FILTER_ORDER: Horizon[] = ["intraday", "swing", "positional"];
+
 function isActive(key: CriterionKey, f: AdvancedTradeFilters): boolean {
   switch (key) {
     case "segments":
       return Boolean(f.segments?.length);
+    case "products":
+      return Boolean(f.products?.length);
+    case "exchanges":
+      return Boolean(f.exchanges?.length);
+    case "horizons":
+      return Boolean(f.horizons?.length);
     case "direction":
       return Boolean(f.direction);
     case "result":
@@ -134,6 +166,12 @@ function chipLabel(
   switch (key) {
     case "segments":
       return (f.segments ?? []).map((s) => SEGMENT_LABELS[s]).join(", ");
+    case "products":
+      return (f.products ?? []).map((p) => PRODUCT_FILTER_LABELS[p]).join(", ");
+    case "exchanges":
+      return (f.exchanges ?? []).map((e) => EXCHANGE_LABELS[e]).join(", ");
+    case "horizons":
+      return (f.horizons ?? []).map((h) => HORIZON_FILTER_LABELS[h]).join(", ");
     case "direction":
       return f.direction === "long" ? "Long" : "Short";
     case "result":
@@ -348,6 +386,36 @@ function CriterionEditor({
           selected={filters.segments ?? []}
           onToggle={(value, on) =>
             set({ segments: toggleIn(filters.segments, value as Segment, on) })
+          }
+        />
+      );
+    case "products":
+      return (
+        <MultiList
+          options={PRODUCT_FILTER_ORDER.map((p) => ({ value: p, label: PRODUCT_FILTER_LABELS[p] }))}
+          selected={filters.products ?? []}
+          onToggle={(value, on) =>
+            set({ products: toggleIn(filters.products, value as Product, on) })
+          }
+        />
+      );
+    case "exchanges":
+      return (
+        <MultiList
+          options={EXCHANGE_FILTERS.map((e) => ({ value: e, label: EXCHANGE_LABELS[e] }))}
+          selected={filters.exchanges ?? []}
+          onToggle={(value, on) =>
+            set({ exchanges: toggleIn(filters.exchanges, value as ExchangeFilter, on) })
+          }
+        />
+      );
+    case "horizons":
+      return (
+        <MultiList
+          options={HORIZON_FILTER_ORDER.map((h) => ({ value: h, label: HORIZON_FILTER_LABELS[h] }))}
+          selected={filters.horizons ?? []}
+          onToggle={(value, on) =>
+            set({ horizons: toggleIn(filters.horizons, value as Horizon, on) })
           }
         />
       );
@@ -648,14 +716,74 @@ function ViewsMenu({
   );
 }
 
+// --- group-by --------------------------------------------------------------
+
+const GROUP_OPTIONS: GroupBy[] = ["none", "segment", "product", "horizon"];
+
+/** Pick how the trades table is grouped (default = no grouping). */
+function GroupByMenu({
+  groupBy,
+  onGroupByChange,
+}: {
+  groupBy: GroupBy;
+  onGroupByChange: (g: GroupBy) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const active = groupBy !== "none";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant={active ? "default" : "outline"}
+          size="sm"
+          className="h-8 rounded-full"
+          aria-label="Group trades"
+        >
+          <Group className="h-3.5 w-3.5" />
+          {active ? `Grouped: ${GROUP_BY_LABELS[groupBy]}` : "Group"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-1" align="end">
+        <div className="space-y-0.5">
+          {GROUP_OPTIONS.map((g) => {
+            const sel = groupBy === g;
+            return (
+              <button
+                key={g}
+                type="button"
+                aria-pressed={sel}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-2",
+                  sel && "bg-surface-2 font-medium"
+                )}
+                onClick={() => {
+                  onGroupByChange(g);
+                  setOpen(false);
+                }}
+              >
+                {GROUP_BY_LABELS[g]}
+                {sel && <Check className="h-3.5 w-3.5 shrink-0 text-accent" />}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // --- bar -------------------------------------------------------------------
 
 export function TradeFiltersBar({
   filters,
   onChange,
+  groupBy = "none",
+  onGroupByChange,
 }: {
   filters: AdvancedTradeFilters;
   onChange: (f: AdvancedTradeFilters) => void;
+  groupBy?: GroupBy;
+  onGroupByChange?: (g: GroupBy) => void;
 }) {
   const { data: playbooks = [] } = usePlaybooks();
   const { data: tags = [] } = useTags();
@@ -708,7 +836,8 @@ export function TradeFiltersBar({
         </>
       )}
 
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        {onGroupByChange && <GroupByMenu groupBy={groupBy} onGroupByChange={onGroupByChange} />}
         <ViewsMenu filters={filters} onChange={onChange} />
       </div>
     </div>
