@@ -1,5 +1,25 @@
 /** Pure trading-performance statistics. All functions take closed trades. */
 
+import { istDateKey } from "@/lib/tax/fy";
+
+/**
+ * Hour-of-day (0–23) and weekday (Sun=0…Sat=6) of an ISO instant in IST — the
+ * timezone Indian brokers settle on (UTC+5:30, no DST). Shifting the instant by
+ * the IST offset and reading the UTC getters gives IST wall-clock parts without
+ * depending on the viewer's local zone (CORR-04). Falls back to local getters
+ * only when the timestamp is unparseable.
+ */
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+function istHourWeekday(iso: string): { hour: number; weekday: number } {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) {
+    const d = new Date(iso);
+    return { hour: d.getHours(), weekday: d.getDay() };
+  }
+  const shifted = new Date(t + IST_OFFSET_MS);
+  return { hour: shifted.getUTCHours(), weekday: shifted.getUTCDay() };
+}
+
 export interface TradeLike {
   id: string;
   net_pnl: number;
@@ -91,12 +111,18 @@ export function withStartBaseline(points: EquityPoint[], startingCapital = 0): E
   ];
 }
 
-/** Map of YYYY-MM-DD → net P&L for that day (by close time). */
+/**
+ * Map of YYYY-MM-DD → net P&L for that day, bucketed by the IST calendar date of
+ * the close (CORR-03). ISO timestamps are stored in UTC, so a trade closed at
+ * 2026-03-31T20:00:00Z is 2026-04-01 IST — keying on the raw UTC date would put
+ * 00:00–05:30 IST closes on the previous day and disagree with horizon/FY/spans,
+ * which all bucket in IST. The equity curve inherits this via dailyPnl.
+ */
 export function dailyPnl(trades: TradeLike[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const t of trades) {
     if (!t.closed_at) continue;
-    const d = t.closed_at.slice(0, 10);
+    const d = istDateKey(t.closed_at);
     map.set(d, (map.get(d) ?? 0) + t.net_pnl);
   }
   return map;
@@ -164,26 +190,33 @@ export function groupBy(trades: TradeLike[], keyFn: (t: TradeLike) => string): G
     .sort((a, b) => b.netPnl - a.netPnl);
 }
 
+// Entry-time grouping is bucketed in IST (CORR-04) so the day/hour stats match
+// the trading session the user actually traded, independent of the viewer's
+// local timezone.
 export const byHourOfDay = (trades: TradeLike[]) =>
   groupBy(trades, (t) => {
-    const h = new Date(t.opened_at).getHours();
+    const h = istHourWeekday(t.opened_at).hour;
     return `${String(h).padStart(2, "0")}:00`;
   }).sort((a, b) => a.key.localeCompare(b.key));
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const byWeekday = (trades: TradeLike[]) =>
-  groupBy(trades, (t) => WEEKDAYS[new Date(t.opened_at).getDay()] ?? "?").sort(
+  groupBy(trades, (t) => WEEKDAYS[istHourWeekday(t.opened_at).weekday] ?? "?").sort(
     (a, b) => WEEKDAYS.indexOf(a.key) - WEEKDAYS.indexOf(b.key)
   );
 
 export const bySymbol = (trades: TradeLike[]) => groupBy(trades, (t) => t.symbol);
 
-/** Options trades on expiry day vs other days — the classic Indian FnO question. */
+/**
+ * Options trades on expiry day vs other days — the classic Indian FnO question.
+ * The expiry date is an IST calendar day, so the entry is compared against the
+ * IST date of `opened_at` (CORR-04), not its raw UTC date.
+ */
 export const byExpiryDay = (trades: (TradeLike & { expiry?: string | null })[]) =>
   groupBy(
     trades.filter((t) => t.segment === "OPT" && t.expiry),
     (t) =>
-      (t as { expiry?: string | null }).expiry === t.opened_at.slice(0, 10)
+      (t as { expiry?: string | null }).expiry === istDateKey(t.opened_at)
         ? "Expiry day"
         : "Before expiry"
   );
@@ -283,7 +316,7 @@ export function durationBuckets(trades: TradeLike[]): DurationBucket[] {
 
 export interface HeatCell {
   weekday: number; // 0 = Sun … 6 = Sat
-  hour: number; // entry hour, 0–23, local time
+  hour: number; // entry hour, 0–23, IST
   trades: number;
   netPnl: number;
   winRate: number;
@@ -292,14 +325,13 @@ export interface HeatCell {
 /**
  * Weekday × entry-hour aggregation for the heatmap. Returns only populated
  * cells; the component lays them onto a fixed weekday×hour grid. Entry time is
- * `opened_at` in the viewer's local zone (matches byHourOfDay/byWeekday).
+ * `opened_at` in IST (CORR-04), matching byHourOfDay/byWeekday so the day-stats
+ * tell the same story regardless of the viewer's local zone.
  */
 export function dayTimeHeatmap(trades: TradeLike[]): HeatCell[] {
   const groups = new Map<string, TradeLike[]>();
   for (const t of trades) {
-    const d = new Date(t.opened_at);
-    const wd = d.getDay();
-    const h = d.getHours();
+    const { hour: h, weekday: wd } = istHourWeekday(t.opened_at);
     if (Number.isNaN(wd) || Number.isNaN(h)) continue;
     const k = `${wd}:${h}`;
     const arr = groups.get(k);
