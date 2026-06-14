@@ -1,10 +1,10 @@
 # Code owners for TradeMarkk.
 #
-# Every path is owned by @raashish1601. With branch protection's
-# "Require review from Code Owners" + "Do not allow bypassing the above settings"
-# (enforce admins) enabled on `main`, this makes @raashish1601's approval
-# MANDATORY for every pull request before it can be merged — no direct pushes,
-# no admin bypass. This is how merge authority is held to one account on a
-# personal-account repo (a per-user "only X can click merge" restriction itself
-# requires the repo to live in a GitHub Organization).
-*       @raashish1601
+# Every path is owned by @thetrademarkk (the repo owner = the designated merge
+# authority). With branch protection's "Require review from Code Owners" enabled
+# on `main`, @thetrademarkk's approval is MANDATORY on every pull request before
+# it can be merged. Contributors (e.g. @raashish1601) open PRs but cannot get a
+# change into `main` without @thetrademarkk's review — so merge control rests
+# with @thetrademarkk. (A hard per-user "only @thetrademarkk may click Merge"
+# restriction additionally requires the repo to live in a GitHub Organization.)
+*       @thetrademarkk
