@@ -7,6 +7,7 @@
 # next.js
 /.next/
 /.next-e2e/
+/.next-*/
 /out/
 next-env.d.ts
 
@@ -39,6 +40,13 @@ public/sqljs/
 # browser extension build output + signing key material (key.pem covered by *.pem)
 extension/dist/
 extension/.key.json
+# packaged extension zips (Web Store upload artifacts — built, not source)
+extension/*.zip
+
+# scratch screenshots / captures at the repo root (never source)
+/*.png
+/*.jpg
+/*.webm
 
 .vercel
 
