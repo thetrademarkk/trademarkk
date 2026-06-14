@@ -144,8 +144,8 @@ export function buildTaxCsv(
   lines.push(row(["This is a classification + realised statement, not a tax computation.", ""]));
   lines.push("");
 
-  lines.push(row(["F&O turnover statement", ""]));
-  lines.push(row(["F&O trades", s.turnover.trades]));
+  lines.push(row(["F&O / commodity / currency turnover statement", ""]));
+  lines.push(row(["Derivative trades", s.turnover.trades]));
   lines.push(
     row(["Turnover — absolute-profit convention (INR)", money(s.turnover.absoluteProfitTurnover)])
   );

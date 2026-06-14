@@ -30,6 +30,7 @@ describe("buildTradeSaveStatements", () => {
     const args = trades[0]!.args!;
     expect(args[0]).toBe(id);
     expect(args[2]).toBe("BANKNIFTY"); // uppercased symbol
+    expect(args[3]).toBe("NSE"); // exchange: NSE segment default for an index option
     expect(args[5]).toBe("MIS"); // product defaults to MIS when the form omits it
     expect(args[10]).toBe("closed");
     expect(args[11]).toBe(30);
@@ -114,6 +115,43 @@ describe("buildTradeSaveStatements", () => {
     const args = insertOf(statements, "trades")[0]!.args!;
     expect(args[4]).toBe("EQ"); // segment
     expect(args[5]).toBe("CNC"); // product
+  });
+
+  it("manually-entered NCDEX agri commodity persists exchange='NCDEX' (not the MCX default)", () => {
+    const { statements } = buildTradeSaveStatements(
+      {
+        ...base,
+        symbol: "guarseed10",
+        segment: "COMM",
+        strike: undefined,
+        optionType: undefined,
+        expiry: undefined,
+        product: "NRML",
+      },
+      "zerodha"
+    );
+    const args = insertOf(statements, "trades")[0]!.args!;
+    expect(args[2]).toBe("GUARSEED10"); // raw symbol stored uppercased
+    expect(args[3]).toBe("NCDEX"); // contract-name exchange wins over the COMM→MCX default
+    expect(args[4]).toBe("COMM");
+  });
+
+  it("manually-entered MCX commodity falls back to the COMM→MCX segment default", () => {
+    const { statements } = buildTradeSaveStatements(
+      {
+        ...base,
+        symbol: "crudeoil",
+        segment: "COMM",
+        strike: undefined,
+        optionType: undefined,
+        expiry: undefined,
+        product: "NRML",
+      },
+      "zerodha"
+    );
+    const args = insertOf(statements, "trades")[0]!.args!;
+    expect(args[3]).toBe("MCX");
+    expect(args[4]).toBe("COMM");
   });
 
   it("tags become INSERT OR IGNORE junction rows", () => {

@@ -32,6 +32,13 @@ interface ChargeLeg {
   entryPrice: number;
   exitPrice: number;
   direction: "long" | "short";
+  /**
+   * The leg's own option_type ("CE"/"PE" for an option leg, null for a future
+   * leg). Drives the per-leg COMM/CDS option charge flags so a multi-leg trade
+   * mixing a future leg and an option leg is charged leg-by-leg, exactly like
+   * the form ({@link deriveTradeNumbers}) and CSV-import paths.
+   */
+  optionType: "CE" | "PE" | null;
 }
 
 /** Money is paise-precise; round only at the boundary, exactly like the engine. */
@@ -52,6 +59,7 @@ export function chargeLegsForTrade(trade: TradeRow, legs: TradeLegRow[] | undefi
         entryPrice: l.avg_entry,
         exitPrice: l.avg_exit!,
         direction: l.direction,
+        optionType: l.option_type,
       }));
   }
   if (trade.avg_exit == null) return [];
@@ -61,6 +69,7 @@ export function chargeLegsForTrade(trade: TradeRow, legs: TradeLegRow[] | undefi
       entryPrice: trade.avg_entry,
       exitPrice: trade.avg_exit,
       direction: trade.direction,
+      optionType: trade.option_type,
     },
   ];
 }
@@ -76,10 +85,12 @@ export function recomputeTradeCharges(
   trade: Pick<TradeRow, "segment" | "product" | "exchange" | "option_type" | "symbol">,
   legs: ChargeLeg[]
 ): number {
-  // Commodity CTT flags (SEG-09): a COMM option carries CTT on the sell
-  // premium, an agri commodity is exempt. Derived from the stored symbol so
-  // recompute matches the form/CSV charge engine exactly.
-  const commodityOption = trade.segment === "COMM" && trade.option_type != null;
+  // Commodity CTT flag (SEG-09): an agri commodity is CTT-exempt. Agri is a
+  // per-instrument (symbol) property, so it is derived once from the stored
+  // symbol. The COMM-option / CDS-option flags, by contrast, are PER LEG —
+  // a multi-leg COMM (or CDS) trade can mix a future leg (option_type null)
+  // and an option leg, so each leg's own option_type drives its charge,
+  // matching the form ({@link deriveTradeNumbers}) and CSV-import paths exactly.
   const agriCommodity = trade.segment === "COMM" && parseContractName(trade.symbol).agri;
   let charges = 0;
   for (const leg of legs) {
@@ -91,9 +102,9 @@ export function recomputeTradeCharges(
       entryPrice: leg.entryPrice,
       exitPrice: leg.exitPrice,
       direction: leg.direction,
-      commodityOption,
+      commodityOption: trade.segment === "COMM" && leg.optionType != null,
       agriCommodity,
-      isOption: trade.segment === "CDS" && trade.option_type != null,
+      isOption: trade.segment === "CDS" && leg.optionType != null,
     }).total;
   }
   return r2(charges);

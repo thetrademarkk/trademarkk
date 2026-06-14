@@ -132,7 +132,17 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
   // turnover capped at the flat fee. Commodity OPTIONS bill flat like F&O
   // options. Zero-brokerage-delivery brokers charge no brokerage on an equity
   // delivery (CNC/BTST/STBT) round trip.
-  const perOrderTurnover = totalTurnover / orders;
+  //
+  // The percentage cap is statutory PER ORDER (per leg), capped against THAT
+  // leg's own turnover — NOT the average across legs. For a lopsided round trip
+  // (e.g. a long whose price ran up: buyTurnover ≪ sellTurnover) the average
+  // misprices, because one leg's % may clear the flat cap while the other does
+  // not. The standard round trip is two legs (buy + sell), so cap each side
+  // against its own turnover: min(flat, buyTurnover×pct) + min(flat, sellTurnover×pct).
+  // For the rare multi-fill case (orders ≠ 2) we still only know aggregate
+  // buy/sell turnover, so we split the flat capacity evenly across the two
+  // sides — flat × (orders/2) per side — keeping total flat capacity = flat ×
+  // orders, identical to the old behaviour when orders === 2.
   const commodityFuture = t.segment === "COMM" && !t.commodityOption;
   const maxPct =
     t.segment === "EQ"
@@ -140,10 +150,14 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
       : t.segment === "FUT" || commodityFuture
         ? profile.brokerageFutMaxPct
         : 0;
-  let brokerage =
-    maxPct > 0
-      ? Math.min(profile.brokeragePerOrder, perOrderTurnover * maxPct) * orders
-      : profile.brokeragePerOrder * orders;
+  let brokerage: number;
+  if (maxPct > 0) {
+    const flatPerSide = profile.brokeragePerOrder * (orders / 2);
+    brokerage =
+      Math.min(flatPerSide, buyTurnover * maxPct) + Math.min(flatPerSide, sellTurnover * maxPct);
+  } else {
+    brokerage = profile.brokeragePerOrder * orders;
+  }
   if (equityDelivery && profile.zeroBrokerageDelivery) brokerage = 0;
 
   let stt = 0;

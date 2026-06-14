@@ -74,7 +74,9 @@ describe("chargeLegsForTrade", () => {
   it("single-leg trade (no leg rows) → leg 1 is the trade row", () => {
     const t = trade({ qty: 50, avg_entry: 100, avg_exit: 120, direction: "long" });
     const legs = chargeLegsForTrade(t, []);
-    expect(legs).toEqual([{ qty: 50, entryPrice: 100, exitPrice: 120, direction: "long" }]);
+    expect(legs).toEqual([
+      { qty: 50, entryPrice: 100, exitPrice: 120, direction: "long", optionType: null },
+    ]);
   });
 
   it("multi-leg trade → one charge leg per closed trade_legs row", () => {
@@ -105,7 +107,13 @@ describe("chargeLegsForTrade", () => {
     ];
     const legs = chargeLegsForTrade(t, legRows);
     expect(legs).toHaveLength(2);
-    expect(legs[0]).toEqual({ qty: 75, entryPrice: 90, exitPrice: 140, direction: "long" });
+    expect(legs[0]).toEqual({
+      qty: 75,
+      entryPrice: 90,
+      exitPrice: 140,
+      direction: "long",
+      optionType: "CE",
+    });
   });
 
   it("skips a still-open leg (no exit)", () => {
@@ -252,6 +260,110 @@ describe("recomputeTradeCharges — commodity CTT (SEG-09)", () => {
     expect(recomputeTradeCharges(profile, cotton, chargeLegsForTrade(cotton, []))).toBeLessThan(
       recomputeTradeCharges(profile, gold, chargeLegsForTrade(gold, []))
     );
+  });
+
+  it("multi-leg COMM mixing a future leg and an option leg charges each leg by ITS OWN option_type", () => {
+    // A COMM trade whose trade row reflects LEG 1 (a future: option_type null)
+    // but which carries a second OPTION leg. The pre-fix engine derived ONE
+    // commodityOption flag from trade.option_type (=null), mischarging the
+    // option leg as a future (CTT 0.01% instead of 0.05% on the sell premium).
+    const t = trade({
+      id: "cm1",
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      product: "NRML",
+      strike: null,
+      option_type: null, // trade row mirrors LEG 1 (the future)
+      qty: 100,
+      avg_entry: 6500,
+      avg_exit: 6600,
+    });
+    const legRows: TradeLegRow[] = [
+      {
+        id: "l1",
+        trade_id: "cm1",
+        leg_no: 1,
+        strike: null,
+        option_type: null, // future leg
+        direction: "long",
+        qty: 100,
+        avg_entry: 6500,
+        avg_exit: 6600,
+      },
+      {
+        id: "l2",
+        trade_id: "cm1",
+        leg_no: 2,
+        strike: 6500,
+        option_type: "CE", // option leg
+        direction: "long",
+        qty: 100,
+        avg_entry: 120,
+        avg_exit: 160,
+      },
+    ];
+
+    const perLeg = recomputeTradeCharges(profile, t, chargeLegsForTrade(t, legRows));
+
+    // Reference: the CORRECT per-leg sum, computed directly via the engine —
+    // future leg as a COMM future, option leg as a COMM option.
+    const expected =
+      computeCharges(profile, {
+        segment: "COMM",
+        product: "NRML",
+        qty: 100,
+        entryPrice: 6500,
+        exitPrice: 6600,
+        direction: "long",
+        commodityOption: false,
+        agriCommodity: false,
+      }).total +
+      computeCharges(profile, {
+        segment: "COMM",
+        product: "NRML",
+        qty: 100,
+        entryPrice: 120,
+        exitPrice: 160,
+        direction: "long",
+        commodityOption: true,
+        agriCommodity: false,
+      }).total;
+    expect(perLeg).toBeCloseTo(Math.round(expected * 100) / 100, 2);
+
+    // The BUGGY single-flag behaviour — one commodityOption flag (from the
+    // trade row's option_type = null → false) applied to BOTH legs — would
+    // charge the option leg as a future. Recompute must NOT equal that.
+    const allFutureFlag =
+      computeCharges(profile, {
+        segment: "COMM",
+        product: "NRML",
+        qty: 100,
+        entryPrice: 6500,
+        exitPrice: 6600,
+        direction: "long",
+        commodityOption: false,
+        agriCommodity: false,
+      }).total +
+      computeCharges(profile, {
+        segment: "COMM",
+        product: "NRML",
+        qty: 100,
+        entryPrice: 120,
+        exitPrice: 160,
+        direction: "long",
+        commodityOption: false, // WRONG: option leg charged as future
+        agriCommodity: false,
+      }).total;
+    expect(perLeg).not.toBeCloseTo(Math.round(allFutureFlag * 100) / 100, 2);
+
+    // Idempotent: feeding the recompute its own corrected charge yields no
+    // change (matches the form/CSV charge engine, so a second pass is a no-op).
+    t.gross_pnl = 20000;
+    t.charges = perLeg;
+    t.net_pnl = Math.round((t.gross_pnl - t.charges) * 100) / 100;
+    const p = previewRecompute("zerodha", [{ trade: t, legs: legRows }]);
+    expect(p.changedCount).toBe(0);
+    expect(buildRecomputeStatements(p.items)).toHaveLength(0);
   });
 });
 

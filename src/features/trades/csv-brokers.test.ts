@@ -253,6 +253,28 @@ describe("Zerodha Console tradebook (legacy path preserved)", () => {
   });
 });
 
+// The generic rowsToFills path (Zerodha mapper) must read day-first broker
+// timestamps via parseTimestamp — `new Date("12-06-2026")` would misread it as
+// Dec 06, shifting the trade to the wrong calendar day (and wrong tax FY).
+const ZERODHA_DAYFIRST = `
+symbol,isin,trade_date,exchange,segment,series,trade_type,auction,quantity,price,trade_id,order_id,order_execution_time,expiry_date
+RELIANCE,,12-06-2026,NSE,EQ,EQ,buy,false,10,2950.00,Z1,ZO1,12-06-2026 09:21:34,
+RELIANCE,,12-06-2026,NSE,EQ,EQ,sell,false,10,2980.00,Z2,ZO2,12-06-2026 15:05:12,
+`;
+
+describe("Zerodha day-first timestamp parses to the correct calendar date", () => {
+  const { headers, rows } = load(ZERODHA_DAYFIRST);
+  it("parses '12-06-2026' as 12 Jun (day-first), not 06 Dec", () => {
+    const trades = pairFillsToTrades(detectBroker(headers)!.toFills(rows, headers), "acc", "zero");
+    expect(trades).toHaveLength(1);
+    // 12 Jun (the broker's day-first date), not 06 Dec. `iso()` applies the same
+    // local→UTC conversion as parseTimestamp, so the assert is timezone-agnostic;
+    // the old `new Date("12-06-2026")` path would have yielded a December date.
+    expect(trades[0]!.opened_at).toBe(iso("2026-06-12T09:21:34"));
+    expect(trades[0]!.closed_at).toBe(iso("2026-06-12T15:05:12"));
+  });
+});
+
 // ───────────────────── SEG-03: Product column mapping ─────────────────────
 describe("mapProduct — broker product code → Product enum", () => {
   it("maps the canonical codes", () => {
@@ -374,6 +396,31 @@ describe("Fyers MCX symbol → COMM segment on import", () => {
       segment: "COMM",
       product: "NRML",
       status: "closed",
+      // Non-agri MCX commodity persists the MCX segment default (SEG-CHG).
+      exchange: "MCX",
+    });
+  });
+});
+
+// An NCDEX agri commodity must persist exchange === "NCDEX" so the charge engine
+// applies the NCDEX exchange-transaction rate (the MCX default undercharges it).
+const FYERS_NCDEX = `
+Client ID,Symbol,Trade Date and Time,Exchange,Segment,Transaction Type,Product,Qty,Traded Price,Order No,Trade No
+AB1,NCDEX:GUARSEED10,12-06-2026 11:00:00,NCDEX,COM,BUY,NRML,10,5400.00,O1,T1
+AB1,NCDEX:GUARSEED10,12-06-2026 14:00:00,NCDEX,COM,SELL,NRML,10,5460.00,O2,T2
+`;
+
+describe("NCDEX agri commodity → exchange 'NCDEX' on import (SEG-CHG)", () => {
+  const { headers, rows } = load(FYERS_NCDEX);
+  it("persists exchange='NCDEX' (not the MCX default) for an NCDEX agri base", () => {
+    const fills = detectBroker(headers)!.toFills(rows, headers);
+    expect(fills[0]).toMatchObject({ symbol: "GUARSEED10", segment: "COMM" });
+    const trades = pairFillsToTrades(fills, "acc", "fyers");
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      symbol: "GUARSEED10",
+      segment: "COMM",
+      exchange: "NCDEX",
     });
   });
 });
