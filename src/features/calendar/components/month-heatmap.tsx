@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatINR, toDateKey } from "@/lib/utils";
+import { calendarCellAriaLabel } from "@/features/analytics/chart-aria";
 
 const WEEKDAY_HEADERS = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -15,7 +16,15 @@ interface MonthHeatmapProps {
 }
 
 /** Month grid heatmap — cell intensity scales with |day P&L|. */
-export function MonthHeatmap({ year, month, dailyPnl, journaledDates, selected, onSelect, compact }: MonthHeatmapProps) {
+export function MonthHeatmap({
+  year,
+  month,
+  dailyPnl,
+  journaledDates,
+  selected,
+  onSelect,
+  compact,
+}: MonthHeatmapProps) {
   const first = new Date(year, month, 1);
   const offset = (first.getDay() + 6) % 7; // Monday-start
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -31,7 +40,9 @@ export function MonthHeatmap({ year, month, dailyPnl, journaledDates, selected, 
     <div>
       <div className="grid grid-cols-7 gap-1 text-center">
         {WEEKDAY_HEADERS.map((d, i) => (
-          <div key={i} className="micro-label py-1">{d}</div>
+          <div key={i} className="micro-label py-1">
+            {d}
+          </div>
         ))}
         {cells.map((key, i) => {
           if (!key) return <div key={`empty-${i}`} />;
@@ -49,6 +60,11 @@ export function MonthHeatmap({ year, month, dailyPnl, journaledDates, selected, 
               type="button"
               onClick={() => onSelect?.(key)}
               title={pnl != null ? `${key}: ${formatINR(pnl, { signed: true })}` : key}
+              aria-label={
+                journaledDates?.has(key)
+                  ? `${calendarCellAriaLabel(key, pnl)} — journalled`
+                  : calendarCellAriaLabel(key, pnl)
+              }
               className={cn(
                 "relative rounded-md border text-xs transition-colors",
                 compact ? "h-9" : "h-12 md:h-16",
@@ -60,7 +76,12 @@ export function MonthHeatmap({ year, month, dailyPnl, journaledDates, selected, 
             >
               <span className="absolute left-1 top-0.5 opacity-70">{Number(key.slice(8))}</span>
               {!compact && pnl != null && (
-                <span className={cn("absolute inset-x-0 bottom-1 font-money text-[10px] md:text-[11px]", pnl >= 0 ? "text-profit" : "text-loss")}>
+                <span
+                  className={cn(
+                    "absolute inset-x-0 bottom-1 font-money text-[10px] md:text-[11px]",
+                    pnl >= 0 ? "text-profit" : "text-loss"
+                  )}
+                >
                   {formatINR(pnl)}
                 </span>
               )}

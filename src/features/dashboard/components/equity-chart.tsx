@@ -12,9 +12,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatINR } from "@/lib/utils";
 import { equityCurve, withStartBaseline, closedOnly, type TradeLike } from "@/lib/stats/stats";
+import { useReducedMotion } from "@/hooks/use-media-query";
+import { equityCurveAriaSummary } from "@/features/analytics/chart-aria";
 
 export function EquityChart({ trades }: { trades: TradeLike[] }) {
   const points = withStartBaseline(equityCurve(closedOnly(trades)));
+  const reduced = useReducedMotion();
   if (points.length < 2) {
     return (
       <Card className="h-full">
@@ -35,7 +38,11 @@ export function EquityChart({ trades }: { trades: TradeLike[] }) {
       <CardHeader>
         <CardTitle>Equity curve (cumulative net P&L)</CardTitle>
       </CardHeader>
-      <CardContent className="h-56 md:h-64 pl-0">
+      <CardContent
+        className="h-56 md:h-64 pl-0"
+        role="img"
+        aria-label={equityCurveAriaSummary(points)}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <defs>
@@ -82,6 +89,7 @@ export function EquityChart({ trades }: { trades: TradeLike[] }) {
               strokeWidth={1.5}
               fill="url(#equityFill)"
               dot={points.length <= 5 ? { r: 3, fill: color, strokeWidth: 0 } : false}
+              isAnimationActive={!reduced}
             />
           </AreaChart>
         </ResponsiveContainer>

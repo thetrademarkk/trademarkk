@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { dayTimeHeatmap, MIN_SAMPLE, type HeatCell, type TradeLike } from "@/lib/stats/stats";
 import { formatINR, formatPct, cn } from "@/lib/utils";
+import { heatCellAriaLabel } from "../chart-aria";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 type Metric = "pnl" | "win";
@@ -125,10 +126,23 @@ export function DayTimeHeatmap({ trades }: { trades: TradeLike[] }) {
                     <td className="pr-1 text-right text-[10px] text-muted">{label}</td>
                     {hours.map((h) => {
                       const c = byKey.get(`${wd}:${h}`);
+                      // Only cells with trades get an accessible name; empty
+                      // market-closed slots stay silent so SR isn't flooded.
+                      const ariaLabel = c
+                        ? heatCellAriaLabel({
+                            weekday: WEEKDAYS[wd]!,
+                            hour: h,
+                            trades: c.trades,
+                            winRate: c.winRate,
+                            netPnl: c.netPnl,
+                            minSample: MIN_SAMPLE,
+                          })
+                        : undefined;
                       return (
                         <td key={h} className="p-0">
                           <div
                             title={cellTitle(c, wd, h)}
+                            {...(ariaLabel ? { role: "img", "aria-label": ariaLabel } : {})}
                             className="h-6 min-w-6 rounded-sm border border-border/40"
                             style={{ background: cellFill(c) }}
                             data-cell={`${wd}:${h}`}

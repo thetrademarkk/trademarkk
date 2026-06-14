@@ -15,6 +15,7 @@ import { Clock, ListOrdered, Gauge, Percent, Boxes, type LucideIcon } from "luci
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PnlText } from "@/components/shared/pnl-text";
 import { formatINR, formatNumber, formatPct, cn } from "@/lib/utils";
+import { useReducedMotion } from "@/hooks/use-media-query";
 import {
   durationBuckets,
   streakLengthDistribution,
@@ -63,10 +64,12 @@ function StatCard({
 
 /** Hold-duration buckets — count, avg net P&L, win rate per bucket (n≥MIN_SAMPLE). */
 function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
+  const reduced = useReducedMotion();
   const buckets = useMemo(
     () => durationBuckets(trades).filter((b) => b.trades >= MIN_SAMPLE),
     [trades]
   );
+  const aria = `Hold duration, average net profit and loss across ${buckets.length} duration bucket${buckets.length === 1 ? "" : "s"}.`;
   return (
     <StatCard
       title="Hold duration"
@@ -74,7 +77,7 @@ function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
       empty={buckets.length === 0}
       emptyLabel={`No hold-duration bucket has ${MIN_SAMPLE}+ trades yet.`}
     >
-      <div className="h-44">
+      <div className="h-44" role="img" aria-label={aria}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -100,7 +103,7 @@ function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
                 "Avg P&L",
               ]}
             />
-            <Bar dataKey="avgPnl" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="avgPnl" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
               {buckets.map((b) => (
                 <Cell
                   key={b.key}
@@ -129,12 +132,14 @@ function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
 
 /** Win/loss streak-length distribution histogram (needs MIN_SAMPLE decided trades). */
 function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
+  const reduced = useReducedMotion();
   const dist = useMemo(() => streakLengthDistribution(trades), [trades]);
   const decided = useMemo(
     () => trades.filter((t) => t.closed_at && t.net_pnl !== 0).length,
     [trades]
   );
   const data = dist.map((r) => ({ label: `${r.length}`, wins: r.wins, losses: r.losses }));
+  const aria = `Streak-length distribution: how often runs of N consecutive wins or losses occurred, across ${data.length} run length${data.length === 1 ? "" : "s"}.`;
   return (
     <StatCard
       title="Streak-length distribution"
@@ -142,7 +147,7 @@ function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
       empty={data.length === 0 || decided < MIN_SAMPLE}
       emptyLabel={`Need ${MIN_SAMPLE}+ decided trades to chart streak lengths.`}
     >
-      <div className="h-44">
+      <div className="h-44" role="img" aria-label={aria}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -167,6 +172,7 @@ function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
               fill="var(--profit)"
               fillOpacity={0.85}
               radius={[3, 3, 0, 0]}
+              isAnimationActive={!reduced}
             />
             <Bar
               dataKey="losses"
@@ -174,6 +180,7 @@ function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
               fill="var(--loss)"
               fillOpacity={0.85}
               radius={[3, 3, 0, 0]}
+              isAnimationActive={!reduced}
             />
           </BarChart>
         </ResponsiveContainer>
@@ -276,8 +283,10 @@ function RPercentilesCard({ trades }: { trades: TradeLike[] }) {
 
 /** Position-size (notional) buckets vs win rate — flags over/under-sizing (n≥MIN_SAMPLE). */
 function PositionSizeCard({ trades }: { trades: TradeLike[] }) {
+  const reduced = useReducedMotion();
   const all = useMemo(() => notionalBuckets(trades), [trades]);
   const buckets = all.filter((b) => b.trades >= MIN_SAMPLE);
+  const aria = `Position size, win rate by notional size across ${buckets.length} size bucket${buckets.length === 1 ? "" : "s"}.`;
   return (
     <StatCard
       title="Position size"
@@ -289,7 +298,7 @@ function PositionSizeCard({ trades }: { trades: TradeLike[] }) {
           : `No size bucket has ${MIN_SAMPLE}+ trades yet.`
       }
     >
-      <div className="h-44">
+      <div className="h-44" role="img" aria-label={aria}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -316,7 +325,7 @@ function PositionSizeCard({ trades }: { trades: TradeLike[] }) {
               contentStyle={CHART_TOOLTIP}
               formatter={(value: number | string) => [formatPct(Number(value), 0), "Win rate"]}
             />
-            <Bar dataKey="winRate" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="winRate" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
               {buckets.map((b) => (
                 <Cell
                   key={b.key}

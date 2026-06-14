@@ -307,7 +307,7 @@ function StatTile({
             "font-money text-2xl tabular-nums",
             tone === "profit" && "text-profit",
             tone === "loss" && "text-loss",
-            tone === "warn" && "text-amber-500"
+            tone === "warn" && "text-warning"
           )}
         >
           {value}

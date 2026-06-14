@@ -26,6 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PnlText } from "@/components/shared/pnl-text";
 import { cn, formatPct } from "@/lib/utils";
+import { disciplineTrendAriaSummary } from "@/features/analytics/chart-aria";
 import { MIN_SAMPLE } from "../compute";
 import {
   MIN_TREND_DAYS,
@@ -128,7 +129,7 @@ function ScoreTrendCard({ trend }: { trend: DisciplineTrend }) {
         )}
       </div>
 
-      <div className="h-40">
+      <div className="h-40" role="img" aria-label={disciplineTrendAriaSummary(data, trend.average)}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
