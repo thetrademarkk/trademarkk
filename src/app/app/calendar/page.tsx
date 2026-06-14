@@ -87,7 +87,10 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Calendar" description="Your P&L, day by day. Dots mark journaled days." />
+      <PageHeader
+        title="Calendar"
+        description="Your P&L, day by day. Dots mark journaled days; the bar under a day shows a position was held across it."
+      />
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon" onClick={() => shift(-1)}>
           <ChevronLeft />
@@ -111,6 +114,7 @@ export default function CalendarPage() {
               month={month}
               dailyPnl={pnlMap}
               journaledDates={new Set(journalDates)}
+              trades={trades}
               selected={selected}
               onSelect={setSelected}
             />

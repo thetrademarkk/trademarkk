@@ -176,6 +176,21 @@ label:has(> input[type="file"].hidden) {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+/* Backtest results — "no data" hatched fill. Honesty marker for missing months /
+   cells: a diagonal hatch over the surface so an empty cell can NEVER be mistaken
+   for a real ₹0. Uses semantic tokens (border over surface), so it inherits every
+   theme + colorblind palette for free. */
+.bt-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--border) 70%, transparent),
+    color-mix(in srgb, var(--border) 70%, transparent) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  background-color: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
 /* Thin scrollbars for data-dense panes */
 * {
   scrollbar-width: thin;

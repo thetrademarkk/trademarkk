@@ -31,6 +31,10 @@ const MonteCarlo = dynamic(
   () => import("@/features/analytics/components/monte-carlo").then((m) => m.MonteCarlo),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
+import {
+  HoldingPeriodCard,
+  TradingStyleSummary,
+} from "@/features/analytics/components/horizon-stats";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,8 +49,19 @@ import {
   groupBy,
   streaks,
 } from "@/lib/stats/stats";
+import { horizonMix, shouldGateIntradayPanels } from "@/lib/stats/horizon";
 import { EmotionsPanel } from "@/features/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+/** Tells multi-day traders why an intraday-only panel is dimmed. */
+function IntradayOnlyNote() {
+  return (
+    <p className="text-xs text-muted" role="note">
+      Intraday only — most of your trades are held overnight, so the timing panels below carry
+      little signal for your style. They&rsquo;re kept for your intraday trades.
+    </p>
+  );
+}
 
 export default function AnalyticsPage() {
   const { period } = useFilterStore();
@@ -82,9 +97,15 @@ export default function AnalyticsPage() {
   );
   const streakInfo = streaks(closed);
 
+  // Horizon mix drives which intraday-only timing panels are relevant.
+  const mix = horizonMix(closed);
+  const gateIntraday = shouldGateIntradayPanels(mix);
+
   return (
     <div className="space-y-4">
       <PageHeader title="Analytics" description="Where your edge actually is — and isn't." />
+
+      <TradingStyleSummary trades={closed} />
 
       <Tabs defaultValue="time">
         <TabsList className="flex max-w-full justify-start overflow-x-auto">
@@ -97,10 +118,27 @@ export default function AnalyticsPage() {
           <TabsTrigger value="more">More</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="time" className="grid gap-4 md:grid-cols-2">
-          <GroupBar title="By entry hour" stats={byHourOfDay(closed)} />
-          <GroupBar title="By day of week" stats={byWeekday(closed)} />
-          <GroupBar title="Expiry day vs other days (options)" stats={byExpiryDay(closed)} />
+        <TabsContent value="time" className="space-y-4">
+          {/* Holding period is relevant to every trader type — always shown. */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <HoldingPeriodCard trades={closed} />
+            <GroupBar title="By day of week" stats={byWeekday(closed)} />
+          </div>
+          {gateIntraday && <IntradayOnlyNote />}
+          <div className="grid gap-4 md:grid-cols-2">
+            <GroupBar
+              title={gateIntraday ? "By entry hour (intraday only)" : "By entry hour"}
+              stats={byHourOfDay(closed)}
+            />
+            <GroupBar
+              title={
+                gateIntraday
+                  ? "Expiry day vs other days (intraday only)"
+                  : "Expiry day vs other days (options)"
+              }
+              stats={byExpiryDay(closed)}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="setup">
@@ -152,6 +190,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="more" className="space-y-4">
+          {gateIntraday && <IntradayOnlyNote />}
           <DayTimeHeatmap trades={closed} />
           <MoreStats trades={closed} />
         </TabsContent>

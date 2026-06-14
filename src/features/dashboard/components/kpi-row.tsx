@@ -13,6 +13,8 @@ import {
   type TradeLike,
 } from "@/lib/stats/stats";
 import { cn } from "@/lib/utils";
+import { openPositionsSummary, type OpenTradeLike } from "@/lib/stats/open-positions";
+import type { DashboardEmphasis } from "@/lib/stats/horizon";
 
 /** Wraps a KPI so it lands on the page that explains it. */
 function KpiLink({
@@ -39,11 +41,24 @@ function KpiLink({
   );
 }
 
-export function KpiRow({ trades, adherencePct }: { trades: TradeLike[]; adherencePct?: number }) {
+export function KpiRow({
+  trades,
+  adherencePct,
+  emphasis = "balanced",
+}: {
+  trades: TradeLike[];
+  adherencePct?: number;
+  emphasis?: DashboardEmphasis;
+}) {
   const closed = closedOnly(trades);
   const pf = profitFactor(closed);
   const r = avgR(closed);
   const streak = streaks(closed).current;
+  // Positional/swing traders care about live carry more than the last KPI's
+  // streak: when their style leans multi-day AND positions are open, the 7th
+  // tile becomes "Open positions". Intraday/balanced keeps the day-focused KPI.
+  const open = openPositionsSummary(trades as OpenTradeLike[]);
+  const showOpenKpi = emphasis === "positional" && open.count > 0;
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
@@ -87,14 +102,25 @@ export function KpiRow({ trades, adherencePct }: { trades: TradeLike[]; adherenc
           sub={r == null ? "set SLs to track R" : undefined}
         />
       </KpiLink>
-      <KpiLink href={adherencePct != null ? "/app/rules" : "/app/analytics"}>
-        <StatCard
-          label={adherencePct != null ? "Rule adherence" : "Streak"}
-          value={adherencePct != null ? adherencePct * 100 : Math.abs(streak)}
-          format={{ maximumFractionDigits: 0 }}
-          suffix={adherencePct != null ? "%" : streak >= 0 ? " wins" : " losses"}
-        />
-      </KpiLink>
+      {showOpenKpi ? (
+        <KpiLink href="/app/trades">
+          <StatCard
+            label="Open positions"
+            value={open.count}
+            format={{ maximumFractionDigits: 0 }}
+            sub={open.maxDaysHeld > 0 ? `${open.maxDaysHeld}d longest held` : "held today"}
+          />
+        </KpiLink>
+      ) : (
+        <KpiLink href={adherencePct != null ? "/app/rules" : "/app/analytics"}>
+          <StatCard
+            label={adherencePct != null ? "Rule adherence" : "Streak"}
+            value={adherencePct != null ? adherencePct * 100 : Math.abs(streak)}
+            format={{ maximumFractionDigits: 0 }}
+            suffix={adherencePct != null ? "%" : streak >= 0 ? " wins" : " losses"}
+          />
+        </KpiLink>
+      )}
     </div>
   );
 }

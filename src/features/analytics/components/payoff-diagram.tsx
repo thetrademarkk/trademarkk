@@ -11,6 +11,7 @@ import {
   type LegShape,
   type PayoffLeg,
 } from "@/lib/options/payoff";
+import { payoffAriaSummary } from "../chart-aria";
 
 /** Plot geometry (viewBox units; the SVG scales responsively via width=100%). */
 const W = 640;
@@ -83,13 +84,13 @@ export function PayoffDiagram({ symbol, legs }: PayoffDiagramProps) {
   const yMax = yMaxRaw + yPad;
   const yMin = yMinRaw - yPad;
 
-  const sx = (u: number) =>
-    PAD.left + ((u - xMin) / (xMax - xMin || 1)) * PLOT_W;
-  const sy = (v: number) =>
-    PAD.top + (1 - (v - yMin) / (yMax - yMin || 1)) * PLOT_H;
+  const sx = (u: number) => PAD.left + ((u - xMin) / (xMax - xMin || 1)) * PLOT_W;
+  const sy = (v: number) => PAD.top + (1 - (v - yMin) / (yMax - yMin || 1)) * PLOT_H;
 
   const zeroY = sy(0);
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.underlying)},${sy(p.pnl)}`).join(" ");
+  const linePath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.underlying)},${sy(p.pnl)}`)
+    .join(" ");
   // Fill the area between the curve and the zero line, clipped to profit/loss.
   const areaPath = `${linePath} L${sx(points[points.length - 1]!.underlying)},${zeroY} L${sx(points[0]!.underlying)},${zeroY} Z`;
 
@@ -117,7 +118,13 @@ export function PayoffDiagram({ symbol, legs }: PayoffDiagramProps) {
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full"
           role="img"
-          aria-label={`${symbol} ${label} payoff at expiry`}
+          aria-label={payoffAriaSummary({
+            symbol,
+            strategy: label,
+            maxProfit: maxProfitLabel,
+            maxLoss: maxLossLabel,
+            breakevens,
+          })}
           data-testid="payoff-svg"
         >
           {/* Profit (above zero) and loss (below zero) tinted bands, clipped to the curve area. */}
@@ -178,13 +185,7 @@ export function PayoffDiagram({ symbol, legs }: PayoffDiagramProps) {
                 strokeWidth={1}
                 strokeDasharray="3 3"
               />
-              <text
-                x={sx(k)}
-                y={H - 8}
-                fontSize={10}
-                fill="var(--text-muted)"
-                textAnchor="middle"
-              >
+              <text x={sx(k)} y={H - 8} fontSize={10} fill="var(--text-muted)" textAnchor="middle">
                 {formatNumber(k, 0)}
               </text>
             </g>

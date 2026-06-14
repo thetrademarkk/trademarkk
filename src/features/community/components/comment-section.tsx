@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Heart, Loader2, Pencil, Reply, Trash2, UserRound } from "lucide-react";
+import { EyeOff, Heart, Loader2, Pencil, Reply, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { cn, timeAgo } from "@/lib/utils";
@@ -49,6 +49,30 @@ function CommentItem({
   const [draft, setDraft] = React.useState(comment.body);
   const [saving, setSaving] = React.useState(false);
   const editRef = React.useRef<HTMLTextAreaElement>(null);
+  // Personal muted words: a matching comment is COLLAPSED with a reveal (never
+  // hard-hidden — that would break reply chains). Revealing is local-only.
+  const [revealed, setRevealed] = React.useState(false);
+  const collapsedByMute = Boolean(comment.mutedReason) && !revealed;
+
+  if (collapsedByMute) {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-lg bg-surface-2/40 px-3 py-2 text-xs text-muted"
+        data-muted-comment
+      >
+        <EyeOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">
+          Hidden by your muted word {comment.mutedReason}
+        </span>
+        <button
+          className="shrink-0 font-medium text-accent hover:underline"
+          onClick={() => setRevealed(true)}
+        >
+          Show anyway
+        </button>
+      </div>
+    );
+  }
 
   const startEdit = () => {
     setDraft(comment.body);

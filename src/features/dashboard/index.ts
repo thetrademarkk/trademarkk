@@ -3,3 +3,4 @@ export { KpiRow } from "./components/kpi-row";
 // dashboard lazy-loads it via next/dynamic to keep the route bundle lean.
 export { RecentTrades } from "./components/recent-trades";
 export { Greeting } from "./components/greeting";
+export { OpenPositionsCard } from "./components/open-positions-card";

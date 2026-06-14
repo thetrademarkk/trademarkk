@@ -1,0 +1,231 @@
+"use client";
+
+import * as React from "react";
+import { Loader2, Pencil, Play, Square, TriangleAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { formatINR, formatNumber } from "@/lib/utils";
+import { useBacktestRunner } from "@/components/backtesting/backtest-runner-provider";
+import { STATUS_LABEL, isActive } from "@/features/backtest/shared/backtest-status";
+import { INDEX_META } from "@/features/backtest/shared/instruments";
+import {
+  adaptDraftForGoldenRun,
+  builderDataPayload,
+} from "@/features/backtest/builder/run-adapter";
+import type { StrategyDef, WizardStep } from "@/features/backtest/builder/types";
+import { ResultsView } from "@/components/backtesting/results/results-view";
+import { CoverageBadge } from "@/components/backtesting/presets/coverage-badge";
+import { useCoverage } from "@/features/backtest/presets/use-coverage";
+
+/**
+ * Step 5 — Review & run. Read-only recap of the whole strategy with inline
+ * "edit" jumps, an overfitting disclaimer, and the big Run button. Run is
+ * anonymous-allowed and drives the LAYOUT-owned worker runner (BT-05). Once a run
+ * is started the full BT-07 ResultsView renders inline (verdict → evidence →
+ * drill-down, with the 5 run states), and "Change one thing" jumps back to the
+ * Legs step so the next run is compared against this one (per-stat deltas).
+ */
+export function ReviewStep({
+  draft,
+  onEdit,
+  autoRun = false,
+  onAutoRunConsumed,
+}: {
+  draft: StrategyDef;
+  onEdit: (step: WizardStep) => void;
+  /** Kick off a run once on mount (preset card "Run" deep link). */
+  autoRun?: boolean;
+  onAutoRunConsumed?: () => void;
+}) {
+  const { status, result, progress, error, emptyReason, run, cancel } = useBacktestRunner();
+  const active = isActive(status);
+  const meta = INDEX_META[draft.market.symbol];
+
+  // Keep the data payload so the results benchmark overlay can read the same
+  // fixture the engine ran against (no extra data fetch).
+  const payload = React.useMemo(() => builderDataPayload(), []);
+  const snapshot = payload.kind === "fixture" ? payload.snapshot : null;
+
+  // Coverage for the data the engine actually ran against (the served expiries
+  // in the snapshot). MANDATORY on any run result — never hidden.
+  const servedExpiries = React.useMemo(
+    () => (snapshot ? [...new Set(snapshot.days.map((d) => d.expiry))].sort() : []),
+    [snapshot]
+  );
+  const runCoverage = useCoverage(snapshot?.symbol ?? null, servedExpiries);
+
+  // The EXACT strategy fed to the engine — also what Save/Share persists, so a
+  // saved run round-trips to the same definition that produced it.
+  const ranStrategy = React.useMemo(() => adaptDraftForGoldenRun(draft), [draft]);
+  const onRun = React.useCallback(() => run(ranStrategy, payload), [run, ranStrategy, payload]);
+
+  // Auto-run once for a preset "Run" deep link (the data-backed presets execute
+  // immediately; the honest-locked ones never reach here — their card Run is
+  // disabled). Guarded so it fires exactly once.
+  const autoRan = React.useRef(false);
+  React.useEffect(() => {
+    if (autoRun && !autoRan.current) {
+      autoRan.current = true;
+      onRun();
+      onAutoRunConsumed?.();
+    }
+  }, [autoRun, onRun, onAutoRunConsumed]);
+
+  return (
+    <div className="space-y-5" data-testid="bt-step-review">
+      <header>
+        <h2 className="text-lg font-semibold">Review your backtest</h2>
+        <p className="mt-1 text-sm text-muted">A final recap, then run it in your browser.</p>
+      </header>
+
+      <dl className="divide-y rounded-xl border bg-surface/40 text-sm">
+        <Row label="Strategy" onEdit={() => onEdit("legs")}>
+          <span className="font-medium">{draft.name}</span> · {meta.label}
+        </Row>
+        <Row label="Range" onEdit={() => onEdit("setup")}>
+          {draft.market.dateRange.start} → {draft.market.dateRange.end} · {draft.market.interval}
+        </Row>
+        <Row label="Legs" onEdit={() => onEdit("legs")}>
+          <ul className="space-y-0.5">
+            {draft.legs.map((l) => (
+              <li key={l.id}>
+                {l.side === "sell" ? "Sell" : "Buy"} {l.lots}× {l.optionType} ·{" "}
+                {strikeLabel(l.strike)}
+              </li>
+            ))}
+          </ul>
+        </Row>
+        <Row label="Timing" onEdit={() => onEdit("timing")}>
+          {draft.timing.entryTime} → {draft.timing.exitTime} IST
+        </Row>
+        <Row label="Risk" onEdit={() => onEdit("risk")}>
+          {riskLabel(draft)}
+        </Row>
+      </dl>
+
+      <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning">
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        Backtests can over-fit. Past results never guarantee future returns. This educational run
+        executes your legs against a committed sample window; the full historical data layer is on
+        the way.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" size="lg" onClick={onRun} disabled={active} data-testid="bt-run">
+          {active ? (
+            <>
+              <Loader2 className="animate-spin" aria-hidden /> Running…
+            </>
+          ) : (
+            <>
+              <Play aria-hidden /> Run backtest
+            </>
+          )}
+        </Button>
+        {active && (
+          <Button type="button" variant="outline" onClick={cancel} data-testid="bt-cancel">
+            <Square aria-hidden /> Cancel
+          </Button>
+        )}
+        <span
+          className="text-sm tabular-nums text-muted"
+          data-testid="bt-status"
+          data-status={status}
+          role="status"
+          aria-live="polite"
+        >
+          {STATUS_LABEL[status]}
+          {active && progress ? ` · ${Math.round(progress.fraction * 100)}%` : ""}
+        </span>
+      </div>
+
+      {/* The full BT-07 results UI (verdict → evidence → drill-down) renders once
+          a run has been started. "Change one thing" jumps back to Legs (ghosting
+          the prev run via the per-stat deltas); Re-run replays the same draft. */}
+      {status !== "idle" && (
+        <div data-testid="bt-result" className="pt-1">
+          {/* MANDATORY coverage honesty on the run result (BT-10). */}
+          {snapshot && (
+            <div
+              className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted"
+              data-testid="bt-result-coverage"
+            >
+              <span>Data coverage for this run:</span>
+              <CoverageBadge
+                fraction={runCoverage.fraction}
+                symbol={snapshot.symbol}
+                scope="over the run window"
+              />
+              <span className="text-[11px]">
+                Ran against the committed {snapshot.symbol} sample window — the full historical data
+                layer is on the way.
+              </span>
+            </div>
+          )}
+          <ResultsView
+            status={status}
+            result={result}
+            progress={progress}
+            error={error}
+            emptyReason={emptyReason}
+            snapshot={snapshot}
+            strategy={ranStrategy}
+            onEdit={() => onEdit("legs")}
+            onReRun={onRun}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Row({
+  label,
+  onEdit,
+  children,
+}: {
+  label: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
+      <div className="flex-1">
+        <dt className="text-[11px] uppercase tracking-wide text-muted">{label}</dt>
+        <dd className="mt-0.5">{children}</dd>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+        aria-label={`Edit ${label}`}
+      >
+        <Pencil className="h-3 w-3" aria-hidden />
+        Edit
+      </button>
+    </div>
+  );
+}
+
+function strikeLabel(s: StrategyDef["legs"][number]["strike"]): string {
+  switch (s.mode) {
+    case "ATM_OFFSET":
+      return s.steps === 0 ? "ATM" : `ATM ${s.steps > 0 ? "+" : ""}${s.steps}`;
+    case "PERCENT":
+      return `${s.pct > 0 ? "+" : ""}${s.pct}%`;
+    case "PREMIUM":
+      return `premium ≈ ${formatINR(s.target, { decimals: true })}`;
+    case "EXACT":
+      return `${formatNumber(s.strike, 0)} exact`;
+  }
+}
+
+function riskLabel(draft: StrategyDef): string {
+  const parts: string[] = [];
+  const sl = draft.risk.stopLoss;
+  const tgt = draft.risk.target;
+  if (sl) parts.push(`SL ${sl.unit === "pct" ? `${sl.value}%` : formatINR(sl.value)}`);
+  if (tgt) parts.push(`Target ${tgt.unit === "pct" ? `${tgt.value}%` : formatINR(tgt.value)}`);
+  const perLeg = draft.legs.filter((l) => l.stopLoss || l.target).length;
+  if (perLeg) parts.push(`${perLeg} per-leg rule${perLeg === 1 ? "" : "s"}`);
+  return parts.length ? parts.join(" · ") : "No stops set — square-off at exit time only";
+}

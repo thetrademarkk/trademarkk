@@ -1,4 +1,4 @@
-import { computeCharges, computeGrossPnl } from "@/lib/charges/charges";
+import { computeCharges, computeGrossPnl, resolveExchange } from "@/lib/charges/charges";
 import { getChargeProfile, type ChargeProfile } from "@/config/brokers";
 import { parseContractName } from "./instrument-parse";
 import type { Product, Segment, TradeRow } from "./types";
@@ -69,9 +69,16 @@ function guessInstrument(symbol: string, expiry: string | null) {
       segment: "FUT" as const,
       strike: null,
       optionType: null,
+      agri: false,
     };
   }
-  return { symbol: p.symbol, segment: p.segment, strike: p.strike, optionType: p.optionType };
+  return {
+    symbol: p.symbol,
+    segment: p.segment,
+    strike: p.strike,
+    optionType: p.optionType,
+    agri: p.agri,
+  };
 }
 
 export function rowsToFills(rows: Record<string, string>[], map: ColumnMapping): RawFill[] {
@@ -176,6 +183,9 @@ function buildTrade(
         segment: first.segment,
         strike: first.strike ?? null,
         optionType: first.optionType ?? null,
+        // Agri (CTT-exempt) is symbol-derived even when the broker already
+        // mapped the segment, so an MCX/NCDEX agri commodity is charged right.
+        agri: first.segment === "COMM" && parseContractName(first.symbol).agri,
       }
     : guessInstrument(first.symbol, first.expiry ?? null);
   const closed = exits.length > 0;
@@ -199,6 +209,10 @@ function buildTrade(
       : "NRML";
   const product: TradeRow["product"] = first.product ?? inferredProduct;
 
+  // Exchange (SEG-CHG). New imports record the segment default (COMM → MCX,
+  // CDS/EQ/FUT/OPT → NSE); a broker exchange column may override later. The
+  // charge engine resolves it identically, so legacy rows stay byte-identical.
+  const exchange = resolveExchange(inst.segment);
   let gross = 0;
   let charges = 0;
   if (closed && x) {
@@ -206,11 +220,17 @@ function buildTrade(
     charges = computeCharges(profile, {
       segment: inst.segment,
       product,
+      exchange,
       qty: e.qty,
       entryPrice: e.price,
       exitPrice: x.price,
       direction,
       orders: entries.length + exits.length,
+      // Commodity CTT (SEG-09): an option carries CTT on the sell premium,
+      // an agri commodity is CTT-exempt. Both derived from the parsed symbol.
+      commodityOption: inst.segment === "COMM" && inst.optionType != null,
+      agriCommodity: inst.segment === "COMM" && inst.agri,
+      isOption: inst.segment === "CDS" && inst.optionType != null,
     }).total;
   }
   const ts = new Date().toISOString();
@@ -231,7 +251,7 @@ function buildTrade(
     id: stableId(idParts),
     account_id: accountId,
     symbol: inst.symbol,
-    exchange: "NSE",
+    exchange,
     segment: inst.segment,
     product,
     expiry: first.expiry ?? null,

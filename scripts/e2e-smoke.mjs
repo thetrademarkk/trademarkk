@@ -58,10 +58,26 @@ for (const path of [
 }
 
 console.log("— Community —");
-await step("per-symbol stream renders with the not-advice banner", async () => {
+await step("per-symbol stream renders with the not-advice banner + Watch button", async () => {
   // Signed-out /community never reaches networkidle (polling) → domcontentloaded.
   await page.goto(`${BASE}/community/s/NIFTY`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "$NIFTY" }).first().waitFor({ timeout: 30000 });
+  await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
+  // The Watch button (Watchlist feed scope) is rendered for everyone; clicking
+  // it signed-out prompts sign-in rather than mutating.
+  await page
+    .getByRole("button", { name: /^Watch$/ })
+    .first()
+    .waitFor({ timeout: 15000 });
+});
+
+await step("topic/tag page renders with header + Follow + not-advice banner", async () => {
+  await page.goto(`${BASE}/community/t/options`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "#options" }).first().waitFor({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: /^Follow$/ })
+    .first()
+    .waitFor({ timeout: 15000 });
   await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
 });
 
@@ -83,6 +99,75 @@ await step("community feed renders; post cards expose the reshare control", asyn
       .first()
       .waitFor({ timeout: 10000 });
   }
+});
+
+console.log("— Backtesting —");
+await step("backtesting landing renders the pre-baked sample + Build CTA", async () => {
+  await page.goto(`${BASE}/backtesting`, { waitUntil: "domcontentloaded" });
+  await page
+    .getByRole("heading", { name: /Backtest options strategies/ })
+    .first()
+    .waitFor({ timeout: 30000 });
+  // The pre-baked sample card (instant, zero WASM) carries a "Sample" badge.
+  await page.getByText("Sample", { exact: true }).first().waitFor({ timeout: 15000 });
+  await page.getByText("NIFTY 9:20 short straddle").first().waitFor({ timeout: 10000 });
+  // The flagship nav entry is present (peer to Community).
+  await page
+    .getByRole("link", { name: "Backtesting", exact: true })
+    .first()
+    .waitFor({ timeout: 10000 });
+});
+
+await step("backtesting Explore surface renders the preset grid + CoverageBadges", async () => {
+  await page.goto(`${BASE}/backtesting/explore`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("preset-grid").waitFor({ timeout: 20000 });
+  if ((await page.getByTestId("preset-card").count()) < 10)
+    throw new Error("expected >=10 preset cards on Explore");
+  await page.getByTestId("coverage-badge").first().waitFor({ timeout: 10000 });
+  await page.getByTestId("explore-disclaimer").waitFor({ timeout: 8000 });
+});
+
+await step("/app/backtesting 308-redirects to /backtesting", async () => {
+  const resp = await page.goto(`${BASE}/app/backtesting`, { waitUntil: "domcontentloaded" });
+  if (!page.url().endsWith("/backtesting")) {
+    throw new Error(`expected redirect to /backtesting, got ${page.url()}`);
+  }
+  // The landing must render after the redirect.
+  await page
+    .getByRole("heading", { name: /Backtest options strategies/ })
+    .first()
+    .waitFor({ timeout: 15000 });
+  if (resp && resp.status() >= 400) throw new Error(`redirect ended at ${resp.status()}`);
+await step("For-You + starter-suggestions endpoints respond", async () => {
+  // Signed-out callers get the safe fallback shape (For-You is a signed-in tab;
+  // the signed-in ranking is covered by scripts/e2e-foryou.mjs).
+  const fy = await page.request.get(`${BASE}/api/community/foryou`, { headers: { origin: BASE } });
+  if (fy.status() !== 200) throw new Error(`/foryou status ${fy.status()}`);
+  const fyData = await fy.json();
+  if (!Array.isArray(fyData.posts)) throw new Error("/foryou missing posts array");
+  const sg = await page.request.get(`${BASE}/api/community/suggestions`, {
+    headers: { origin: BASE },
+  });
+  if (sg.status() !== 200) throw new Error(`/suggestions status ${sg.status()}`);
+  const sgData = await sg.json();
+  if (typeof sgData.show !== "boolean") throw new Error("/suggestions missing show flag");
+});
+
+await step("new-posts count endpoint responds (cheap, safe) — rank-15 pill", async () => {
+  // The "N new posts" pill polls this count-only endpoint. With a far-past
+  // `since` it returns a non-negative integer; with no `since` it safely 0s.
+  const ok = await page.request.get(
+    `${BASE}/api/community/posts/new-count?since=2020-01-01T00:00:00.000Z`,
+    { headers: { origin: BASE } }
+  );
+  if (ok.status() !== 200) throw new Error(`/new-count status ${ok.status()}`);
+  const okData = await ok.json();
+  if (typeof okData.count !== "number" || okData.count < 0)
+    throw new Error(`/new-count bad shape: ${JSON.stringify(okData)}`);
+  const bad = await page.request.get(`${BASE}/api/community/posts/new-count`, {
+    headers: { origin: BASE },
+  });
+  if ((await bad.json()).count !== 0) throw new Error("/new-count without since should be 0");
 });
 
 console.log("— Demo onboarding —");

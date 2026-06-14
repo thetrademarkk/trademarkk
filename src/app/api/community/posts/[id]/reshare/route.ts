@@ -4,6 +4,7 @@ import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
 import { createReshareSchema } from "@/features/community/schemas";
+import { isUserBanned } from "@/server/moderation";
 
 /**
  * Reshare (empty body) or quote (with commentary) the post `[id]`.
@@ -19,6 +20,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to reshare" }, { status: 401 });
+  // Suspended accounts cannot create content (clear 403; existing content stays).
+  if (await isUserBanned(session.user.id))
+    return NextResponse.json(
+      { error: "Your account is suspended and cannot post or comment." },
+      { status: 403 }
+    );
 
   const { allowed } = await rateLimit(`reshare:${session.user.id}`, 30, 3600);
   if (!allowed)

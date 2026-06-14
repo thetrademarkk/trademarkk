@@ -62,6 +62,18 @@ const STATEMENTS = [
     created_at INTEGER,
     updated_at INTEGER
   )`,
+  // ── Two-factor (TOTP) plugin store: one row per user with 2FA enabled.
+  // Holds the TOTP secret + encoded backup codes (never returned to clients).
+  // Idempotent; only used when a user opts into 2FA. ──
+  `CREATE TABLE IF NOT EXISTS two_factor (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    secret TEXT NOT NULL,
+    backup_codes TEXT NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 1
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_two_factor_user ON two_factor (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_two_factor_secret ON two_factor (secret)`,
   `CREATE TABLE IF NOT EXISTS user_databases (
     user_id TEXT PRIMARY KEY,
     db_name TEXT NOT NULL,
@@ -225,6 +237,24 @@ const STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_post_symbols_symbol ON post_symbols (symbol, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_post_symbols_post ON post_symbols (post_id)`,
+  // ── Follow-a-tag: tags a user follows surface in their Following feed ──
+  `CREATE TABLE IF NOT EXISTS followed_tags (
+    user_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, tag)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_followed_tags_user ON followed_tags (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_followed_tags_tag ON followed_tags (tag)`,
+  // ── Watchlist: symbols a user watches surface in their Watchlist feed scope ──
+  `CREATE TABLE IF NOT EXISTS watched_symbols (
+    user_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, symbol)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_watched_symbols_user ON watched_symbols (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_watched_symbols_symbol ON watched_symbols (symbol)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,
@@ -254,6 +284,57 @@ const STATEMENTS = [
     site_name TEXT,
     fetched_at TEXT NOT NULL
   )`,
+  // ── Backtesting (BT-09): saved strategies + immutable run snapshots ──
+  // Public-universe data (like community) — lives centrally, never in the
+  // per-user journal DB. share_id is an unguessable opt-in public permalink.
+  `CREATE TABLE IF NOT EXISTS backtest_strategies (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    strategy_def TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS backtest_runs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
+    strategy_id TEXT,
+    run_result TEXT NOT NULL,
+    data_snapshot_id TEXT NOT NULL,
+    engine_version TEXT NOT NULL,
+    share_id TEXT UNIQUE,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_runs_user ON backtest_runs (user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_runs_share ON backtest_runs (share_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_bt_strats_user ON backtest_strategies (user_id, updated_at DESC)`,
+  // ── Moderation audit log: one append-only row per moderator action so every
+  // dismiss / delete / ban is traceable (who, what, which target, when). Simple
+  // by design — no soft-delete, no edits. ──
+  `CREATE TABLE IF NOT EXISTS mod_actions (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_mod_actions_time ON mod_actions (created_at DESC)`,
+  // ── Event / market-session threads (rank-18): one row per (event_type,
+  // event_date), UNIQUE so lazy visit-triggered materialization is race-safe
+  // (INSERT OR IGNORE → exactly one thread per active day). post_id references
+  // the auto-created house-account thread. No cron. ──
+  `CREATE TABLE IF NOT EXISTS event_threads (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (event_type, event_date)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_event_threads_date ON event_threads (event_date DESC)`,
 ];
 
 async function main() {
@@ -299,6 +380,29 @@ async function main() {
     // Existing rows default to 0 / NULL — additive, idempotent. ──
     `ALTER TABLE posts ADD COLUMN reshare_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE posts ADD COLUMN quote_post_id TEXT`,
+    // ── Optional bullish/bearish sentiment tag: 'bull' | 'bear' | NULL.
+    // NEVER a recommendation — feeds an aggregate per-symbol gauge. Existing
+    // rows default to NULL (no lean) — additive, idempotent. ──
+    `ALTER TABLE posts ADD COLUMN sentiment TEXT`,
+    // ── Content-quality moderation flag: 'tip' | 'all-caps' | NULL (clean).
+    // Set by the create/edit quality gate for borderline posts (genuine analysis
+    // is never flagged; egregious spam is blocked outright, never stored).
+    // Existing rows default to NULL — additive, idempotent. ──
+    `ALTER TABLE posts ADD COLUMN quality_flag TEXT`,
+    // ── User suspension/ban: 'banned' | NULL (active). A banned user is blocked
+    // from creating posts/comments/reshares at the create endpoints with a 403;
+    // their existing content stays (a moderator can also delete it). Additive,
+    // idempotent — existing rows default to NULL (active). ──
+    `ALTER TABLE user ADD COLUMN status TEXT`,
+    // ── Report lifecycle: 'open' (needs review) | 'actioned' (dismissed/resolved).
+    // Dismissing a report now marks it actioned instead of deleting the row, so the
+    // moderation queue can show an open-vs-actioned history. Existing rows backfill
+    // to 'open' via the UPDATE below. Additive, idempotent. ──
+    `ALTER TABLE reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'`,
+    // ── Two-factor (TOTP) opt-in flag on the user row (set/cleared by the
+    // twoFactor plugin on enable/verify/disable). Additive, idempotent —
+    // existing rows default to 0 (no 2FA), so accounts are unaffected. ──
+    `ALTER TABLE user ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,
@@ -307,6 +411,57 @@ async function main() {
     `ALTER TABLE user ADD COLUMN verification_email_count_today INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE user ADD COLUMN last_otp_email_at INTEGER`,
     `ALTER TABLE user ADD COLUMN otp_email_count_today INTEGER NOT NULL DEFAULT 0`,
+    // ── Backtesting (BT-09, D6): link a backtest notification to its run.
+    // NULL for every existing community notification — additive, idempotent. ──
+    `ALTER TABLE notifications ADD COLUMN backtest_id TEXT`,
+    // ── Community reputation cache (see features/community/reputation.ts) ──
+    // Denormalized participation/credibility STANDING (NOT trading skill/P&L):
+    // a bounded 0–100 score + discrete tier, computed from earned anti-gaming
+    // signals and refreshed LAZILY on a stale read (no cron). Pure caches —
+    // recomputable from scratch. Existing rows default to NULL (compute on read).
+    `ALTER TABLE profiles ADD COLUMN reputation_score INTEGER`,
+    `ALTER TABLE profiles ADD COLUMN reputation_tier TEXT`,
+    `ALTER TABLE profiles ADD COLUMN reputation_computed_at TEXT`,
+    // ── Per-type in-app notification preferences (notification-prefs.ts) ──
+    // A compact JSON map of ONLY the types the user has switched OFF; NULL means
+    // every type is enabled (the default — existing users see no behaviour
+    // change). `notify()` consults this at emit time and skips opted-out types.
+    `ALTER TABLE profiles ADD COLUMN notification_prefs TEXT`,
+    // ── Achievement awards / badges cache (see features/community/awards.ts) ──
+    // A compact JSON array of EARNED badge-ids, computed in the SAME pass as the
+    // reputation cache from the SAME earned signal bundle and refreshed LAZILY on
+    // the same 6h stale read (no extra cron). Pure cache — recomputable from
+    // scratch. NULL = never computed (compute on read). Badges reflect community
+    // participation only, never trading skill / P&L; banned/flagged members earn
+    // none.
+    `ALTER TABLE profiles ADD COLUMN awards TEXT`,
+    // ── Personal muted-words content filter (muted-words.ts) ──
+    // A compact JSON array of the user's mute entries (term + match mode +
+    // optional case-sensitivity / scope / expiry). NULL = no mutes (the default —
+    // existing users see no behaviour change). Strictly PERSONAL: hides matching
+    // posts/comments from THIS user's own feeds/threads, never global moderation.
+    `ALTER TABLE profiles ADD COLUMN muted_words TEXT`,
+    // ── DM v2: per-participant read/seen/typing state on conversations ──
+    // last_read_* = each participant's last-read message ISO timestamp (unread
+    // badges + sender's sent→delivered→seen ticks); last_seen_* = last thread
+    // activity ISO (drives "delivered"); typing_* = short-TTL typing heartbeat
+    // ISO (see features/community/dm-v2.ts). All NULL by default — additive,
+    // idempotent, no behaviour change for existing v1 threads.
+    `ALTER TABLE conversations ADD COLUMN last_read_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_read_b TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_seen_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN last_seen_b TEXT`,
+    `ALTER TABLE conversations ADD COLUMN typing_a TEXT`,
+    `ALTER TABLE conversations ADD COLUMN typing_b TEXT`,
+    // ── DM v2: per-message reactions + edit window + soft-delete tombstone ──
+    // reactions = compact JSON userId->kind map; edited_at/edit_history reuse the
+    // post/comment edit-window model; deleted_at = soft-delete (the row stays as a
+    // "message deleted" tombstone so thread continuity is preserved). All NULL by
+    // default — additive, idempotent.
+    `ALTER TABLE dm_messages ADD COLUMN reactions TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN edited_at TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN edit_history TEXT`,
+    `ALTER TABLE dm_messages ADD COLUMN deleted_at TEXT`,
   ];
   for (const sql of ALTERS) {
     try {
@@ -316,6 +471,21 @@ async function main() {
       console.log("skip (exists):", sql);
     }
   }
+
+  // Indexes that reference columns added in ALTERS must run AFTER them (on a
+  // fresh DB the column wouldn't exist when STATEMENTS run). Idempotent.
+  const POST_ALTER_INDEXES = [
+    // Moderation: cheap "show me flagged posts, newest first" scan for the admin
+    // queue. The vast majority of rows have a NULL quality_flag (cheap to skip).
+    `CREATE INDEX IF NOT EXISTS idx_posts_quality_flag ON posts (quality_flag, created_at DESC)`,
+    // Moderation queue scan: "open reports, newest first".
+    `CREATE INDEX IF NOT EXISTS idx_reports_status ON reports (status, created_at DESC)`,
+  ];
+  for (const sql of POST_ALTER_INDEXES) {
+    await client.execute(sql);
+    console.log("OK:", sql);
+  }
+
   const tables = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`
   );

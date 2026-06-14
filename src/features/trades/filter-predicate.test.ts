@@ -74,6 +74,52 @@ describe("matchesTrade — single criteria", () => {
     expect(matchesTrade(mk({ segment: "EQ" }), { segments: ["OPT", "FUT"] })).toBe(false);
   });
 
+  it("products: any-of multi-select; legacy null product matches MIS only", () => {
+    expect(matchesTrade(mk({ product: "CNC" }), { products: ["CNC", "NRML"] })).toBe(true);
+    expect(matchesTrade(mk({ product: "MIS" }), { products: ["CNC"] })).toBe(false);
+    // legacy null-product is treated as MIS (charge parity)
+    expect(matchesTrade(mk({ product: null }), { products: ["MIS"] })).toBe(true);
+    expect(matchesTrade(mk({ product: null }), { products: ["CNC"] })).toBe(false);
+  });
+
+  it("exchanges: normalised free-text matches the chosen exchange bucket", () => {
+    expect(matchesTrade(mk({ segment: "EQ", exchange: "NSE_EQ" }), { exchanges: ["NSE"] })).toBe(
+      true
+    );
+    expect(matchesTrade(mk({ segment: "EQ", exchange: "BFO" }), { exchanges: ["BSE"] })).toBe(true);
+    expect(matchesTrade(mk({ segment: "EQ", exchange: "BFO" }), { exchanges: ["NSE"] })).toBe(
+      false
+    );
+    // COMM with blank exchange defaults to MCX
+    expect(matchesTrade(mk({ segment: "COMM", exchange: "" }), { exchanges: ["MCX"] })).toBe(true);
+  });
+
+  it("horizons: intraday/swing/positional; open trades never match", () => {
+    const intraday = mk({
+      product: "MIS",
+      opened_at: at(2026, 6, 8),
+      closed_at: at(2026, 6, 8, 14),
+    });
+    const swing = mk({
+      segment: "EQ",
+      product: "CNC",
+      opened_at: at(2026, 6, 8),
+      closed_at: at(2026, 6, 11),
+    });
+    const positional = mk({
+      segment: "EQ",
+      product: "CNC",
+      opened_at: at(2026, 6, 1),
+      closed_at: at(2026, 6, 21),
+    });
+    const open = mk({ status: "open", closed_at: null, avg_exit: null });
+    expect(matchesTrade(intraday, { horizons: ["intraday"] })).toBe(true);
+    expect(matchesTrade(intraday, { horizons: ["swing", "positional"] })).toBe(false);
+    expect(matchesTrade(swing, { horizons: ["swing"] })).toBe(true);
+    expect(matchesTrade(positional, { horizons: ["positional"] })).toBe(true);
+    expect(matchesTrade(open, { horizons: ["intraday", "swing", "positional"] })).toBe(false);
+  });
+
   it("direction", () => {
     expect(matchesTrade(mk({ direction: "short" }), { direction: "short" })).toBe(true);
     expect(matchesTrade(mk({ direction: "long" }), { direction: "short" })).toBe(false);
@@ -333,5 +379,48 @@ describe("URL codec", () => {
   it("negative and decimal range bounds survive the roundtrip", () => {
     const f: AdvancedTradeFilters = { rMin: -2.5, pnlMax: -0.01 };
     expect(decodeFiltersFromSearch(encodeFiltersToSearch(f))).toEqual(f);
+  });
+});
+
+describe("SEG-09 — product / exchange / holding-period filters", () => {
+  it("countActiveFilters counts the new criteria once each", () => {
+    expect(countActiveFilters({ products: ["MIS"], exchanges: ["NSE"], horizons: ["swing"] })).toBe(
+      3
+    );
+  });
+
+  it("sanitizeFilters keeps only valid products/exchanges/horizons", () => {
+    expect(
+      sanitizeFilters({
+        products: ["MIS", "BAD", 5, "CNC"],
+        exchanges: ["NSE", "FOO", "NCDEX"],
+        horizons: ["intraday", "scalp", "positional"],
+      })
+    ).toEqual({
+      products: ["MIS", "CNC"],
+      exchanges: ["NSE", "NCDEX"],
+      horizons: ["intraday", "positional"],
+    });
+  });
+
+  it("drops the keys entirely when every value is invalid", () => {
+    expect(sanitizeFilters({ products: ["x"], exchanges: [1], horizons: ["nope"] })).toEqual({});
+  });
+
+  it("roundtrips the SEG-09 list filters through the URL codec", () => {
+    const f: AdvancedTradeFilters = {
+      products: ["MIS", "CNC"],
+      exchanges: ["NSE", "MCX"],
+      horizons: ["intraday", "swing"],
+    };
+    expect(decodeFiltersFromSearch(encodeFiltersToSearch(f))).toEqual(f);
+  });
+
+  it("decodes the compact keys (prod/exch/hold)", () => {
+    expect(decodeFiltersFromSearch("?prod=CNC&exch=BSE&hold=positional")).toEqual({
+      products: ["CNC"],
+      exchanges: ["BSE"],
+      horizons: ["positional"],
+    });
   });
 });

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { HeartPulse, Lightbulb } from "lucide-react";
 import { useFilterStore, periodToRange, PERIOD_LABELS } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
+import { horizonMix, shouldGateIntradayPanels } from "@/lib/stats/horizon";
 import { useAdherence, useRuleBreaksByDay } from "@/features/rules";
 import {
   computeInsights,
@@ -56,6 +57,14 @@ export default function InsightsPage() {
     [allTrades, from, to]
   );
 
+  // When the book is predominantly multi-day, the intraday-only signals
+  // (entry-hour insight + minutes-between-trades tilt checks) carry little
+  // signal — gate them and explain why instead of misleading the trader.
+  const gateIntraday = React.useMemo(
+    () => shouldGateIntradayPanels(horizonMix(trades.filter((t) => t.status === "closed"))),
+    [trades]
+  );
+
   const insights = React.useMemo(() => {
     const computed = computeInsights(trades);
     const rule = ruleBreakInsight(
@@ -65,10 +74,16 @@ export default function InsightsPage() {
         brokenDayCost: r.brokenDayCost,
       }))
     );
-    return rule ? [rule, ...computed] : computed;
-  }, [trades, adherence]);
+    const list = rule ? [rule, ...computed] : computed;
+    return gateIntraday ? list.filter((i) => i.id !== "hour-of-day") : list;
+  }, [trades, adherence, gateIntraday]);
 
-  const tilt = React.useMemo(() => computeTiltInsights(trades), [trades]);
+  const tilt = React.useMemo(() => {
+    const all = computeTiltInsights(trades);
+    // tilt-pace (re-entry speed) and tilt-fade (late-session edge) are derived
+    // from minutes between same-day trades — irrelevant for a multi-day book.
+    return gateIntraday ? all.filter((i) => i.id !== "tilt-pace" && i.id !== "tilt-fade") : all;
+  }, [trades, gateIntraday]);
 
   // Discipline & psychology v2 — per-day score trend, plan adherence, calibration.
   const discipline = React.useMemo(() => {
@@ -119,6 +134,13 @@ export default function InsightsPage() {
         description="Patterns found in your own trades — computed on your device, no AI involved."
       />
 
+      {gateIntraday && allTrades.length > 0 && (
+        <p className="rounded-lg border bg-surface px-3 py-2 text-xs text-muted" role="note">
+          Most of your trades are held overnight, so intraday-only reads (entry hour, re-entry
+          speed, late-session edge) are hidden — they would only mislead a multi-day book.
+        </p>
+      )}
+
       {allTrades.length === 0 ? (
         <EmptyState
           icon={Lightbulb}
@@ -159,6 +181,12 @@ export default function InsightsPage() {
               Signs of trading on tilt — sizing up after losses, rushing re-entries, an edge that
               fades through the session, overtrading bursts vs your own baseline.
             </p>
+            {gateIntraday && (
+              <p className="text-xs text-muted" role="note">
+                Re-entry-speed and late-session checks are intraday only — hidden because most of
+                your trades are held overnight.
+              </p>
+            )}
             {tilt.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {tilt.map((i) => (

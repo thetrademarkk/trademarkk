@@ -6,6 +6,7 @@ import { ArrowLeft, Flame, Heart, MessageCircle, PenSquare, Trophy } from "lucid
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommunityAvatar } from "@/features/community";
+import { ReputationChip } from "@/features/community/components/reputation-chip";
 import { useLeaderboard } from "@/features/community/api";
 import { topBadge } from "@/lib/streak-badges";
 import type { LeaderboardRow } from "@/features/community/types";
@@ -158,9 +159,10 @@ export default function LeaderboardPage() {
                   displayName={r.displayName}
                   avatar={r.avatar}
                 />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {r.displayName}
-                  {r.me && <span className="ml-1.5 text-xs text-accent">(you)</span>}
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium">
+                  <span className="truncate">{r.displayName}</span>
+                  {board === "contrib" && <ReputationChip tier={r.reputationTier} />}
+                  {r.me && <span className="text-xs text-accent">(you)</span>}
                 </span>
                 {board === "contrib" ? (
                   <span className="hidden items-center gap-3 text-xs text-muted sm:flex">

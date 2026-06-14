@@ -97,6 +97,8 @@ export async function purgeUserContent(userId: string) {
   await platformDb.run(
     sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`
   );
+  await platformDb.run(sql`DELETE FROM followed_tags WHERE user_id = ${userId}`);
+  await platformDb.run(sql`DELETE FROM watched_symbols WHERE user_id = ${userId}`);
   await platformDb.run(
     sql`DELETE FROM blocks WHERE blocker_id = ${userId} OR blocked_id = ${userId}`
   );
@@ -114,4 +116,14 @@ export async function purgeUserContent(userId: string) {
   await platformDb.run(sql`UPDATE page_events SET user_id = NULL WHERE user_id = ${userId}`);
 
   await platformDb.run(sql`DELETE FROM profiles WHERE user_id = ${userId}`);
+
+  // Backtesting (BT-09): the user's saved strategies + run snapshots (incl. any
+  // public share links they minted). Best-effort guarded so a deploy where the
+  // tables predate the migration can't break account deletion.
+  try {
+    await platformDb.run(sql`DELETE FROM backtest_runs WHERE user_id = ${userId}`);
+    await platformDb.run(sql`DELETE FROM backtest_strategies WHERE user_id = ${userId}`);
+  } catch {
+    /* tables may not exist yet on an un-migrated deploy — ignore */
+  }
 }

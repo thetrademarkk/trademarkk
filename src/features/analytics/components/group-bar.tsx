@@ -1,21 +1,35 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatINR, formatPct } from "@/lib/utils";
 import type { GroupStat } from "@/lib/stats/stats";
+import { useReducedMotion } from "@/hooks/use-media-query";
+import { groupBarAriaSummary } from "../chart-aria";
 
 /** Net P&L bar chart per group (hour, weekday, setup, instrument…) + stat list. */
 export function GroupBar({ title, stats }: { title: string; stats: GroupStat[] }) {
+  const reduced = useReducedMotion();
   return (
     <Card>
-      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
       <CardContent className="space-y-3">
         {stats.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">Not enough data yet.</p>
         ) : (
           <>
-            <div className="h-44">
+            <div className="h-44" role="img" aria-label={groupBarAriaSummary(title, stats)}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -44,11 +58,18 @@ export function GroupBar({ title, stats }: { title: string; stats: GroupStat[] }
                       borderRadius: 8,
                       fontSize: 12,
                     }}
-                    formatter={(value: number | string) => [formatINR(Number(value), { signed: true }), "Net P&L"]}
+                    formatter={(value: number | string) => [
+                      formatINR(Number(value), { signed: true }),
+                      "Net P&L",
+                    ]}
                   />
-                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
                     {stats.map((s) => (
-                      <Cell key={s.key} fill={s.netPnl >= 0 ? "var(--profit)" : "var(--loss)"} fillOpacity={0.85} />
+                      <Cell
+                        key={s.key}
+                        fill={s.netPnl >= 0 ? "var(--profit)" : "var(--loss)"}
+                        fillOpacity={0.85}
+                      />
                     ))}
                   </Bar>
                 </BarChart>

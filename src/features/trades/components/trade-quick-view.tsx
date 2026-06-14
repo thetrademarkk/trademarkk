@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PnlText } from "@/components/shared/pnl-text";
 import { TagChip } from "@/components/shared/tag-chip";
 import { formatHoldTime, formatINR } from "@/lib/utils";
+import { defaultLotSize, exactLotCount, segmentUsesLots } from "@/lib/instruments/lot-sizes";
 import { describeInstrument, type TradeWithMeta } from "../types";
 
 /**
@@ -63,7 +64,22 @@ export function TradeQuickView({
             <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
               <div>
                 <dt className="micro-label">Qty</dt>
-                <dd className="font-money">{trade.qty}</dd>
+                <dd className="font-money">
+                  {trade.qty}
+                  {(() => {
+                    // SEG-10 — append "(N lots)" for a derivative whose qty is an
+                    // exact multiple of the reference lot size. Informational only.
+                    const lotSize = segmentUsesLots(trade.segment)
+                      ? defaultLotSize(trade.symbol, trade.segment)
+                      : null;
+                    const lots = lotSize != null ? exactLotCount(trade.qty, lotSize) : null;
+                    return lots != null ? (
+                      <span className="ml-1 text-xs font-normal text-muted">
+                        ({lots} {lots === 1 ? "lot" : "lots"})
+                      </span>
+                    ) : null;
+                  })()}
+                </dd>
               </div>
               <div>
                 <dt className="micro-label">Entry</dt>

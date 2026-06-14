@@ -7,7 +7,7 @@ export const siteConfig = {
   name: "TradeMarkk",
   tagline: "Mark your trade, every day.",
   description:
-    "Free, open-source trading journal for Indian intraday & FnO traders. Track trades, mistakes and rules — your data stays in your own database.",
+    "Free, open-source trading journal for Indian traders — intraday, swing, positional, F&O, commodity (MCX) and currency. Paise-accurate Indian charges & tax pack, analytics, community, a multi-broker Chrome extension, and your data in your own database.",
   url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   github: "https://github.com/thetrademarkk/trademarkk",
   keywords: [
@@ -17,6 +17,41 @@ export const siteConfig = {
     "FnO trading journal India",
     "intraday trading journal",
     "NIFTY options journal",
+    "MCX commodity trading journal",
+    "Indian trading tax report",
     "tradezella alternative free",
   ],
 };
+
+/**
+ * Sitewide structured data shared across public routes. Returns an array of
+ * JSON-LD nodes (Organization + WebSite) so search engines can surface the
+ * brand, search action and social links. Pure — fully unit-testable.
+ */
+export function organizationJsonLd() {
+  const url = siteConfig.url;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${url}/#organization`,
+    name: siteConfig.name,
+    url,
+    description: siteConfig.description,
+    logo: `${url}/icon.svg`,
+    sameAs: [siteConfig.github],
+  } as const;
+}
+
+export function webSiteJsonLd() {
+  const url = siteConfig.url;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${url}/#website`,
+    name: siteConfig.name,
+    url,
+    description: siteConfig.description,
+    publisher: { "@id": `${url}/#organization` },
+    inLanguage: "en-IN",
+  } as const;
+}

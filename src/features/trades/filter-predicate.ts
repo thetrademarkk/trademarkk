@@ -4,7 +4,14 @@
 // filter state shareable; the saved-views store persists named filter sets.
 
 import { toDateKey } from "@/lib/utils";
-import type { Segment, TradeWithMeta } from "./types";
+import { classifyHorizon, type Horizon } from "@/lib/stats/horizon";
+import {
+  effectiveProduct,
+  EXCHANGE_FILTERS,
+  normalizeExchange,
+  type ExchangeFilter,
+} from "./grouping";
+import type { Product, Segment, TradeWithMeta } from "./types";
 
 export type { Segment };
 
@@ -12,6 +19,12 @@ export interface AdvancedTradeFilters {
   /** Case-insensitive substring match on the base symbol. */
   symbol?: string;
   segments?: Segment[];
+  /** Position products (SEG-09). Legacy null-product trades match MIS. */
+  products?: Product[];
+  /** Normalised exchanges (SEG-09): NSE / BSE / MCX / NCDEX. */
+  exchanges?: ExchangeFilter[];
+  /** Holding-period buckets (SEG-09): intraday / swing / positional. Open trades never match. */
+  horizons?: Horizon[];
   direction?: "long" | "short";
   /** Closed trades only — open trades never match a result filter. */
   result?: "win" | "loss";
@@ -49,9 +62,25 @@ export const SEGMENT_LABELS: Record<Segment, string> = {
   CDS: "Currency",
 };
 
+export const PRODUCT_FILTER_LABELS: Record<Product, string> = {
+  MIS: "Intraday (MIS)",
+  CNC: "Delivery (CNC)",
+  NRML: "Carry-forward (NRML)",
+  BTST: "BTST",
+  STBT: "STBT",
+};
+
+export const HORIZON_FILTER_LABELS: Record<Horizon, string> = {
+  intraday: "Intraday",
+  swing: "Swing (1–7 days)",
+  positional: "Positional (>7 days)",
+};
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const SEGMENTS: Segment[] = ["EQ", "FUT", "OPT", "COMM", "CDS"];
+const PRODUCTS: Product[] = ["MIS", "CNC", "NRML", "BTST", "STBT"];
+const HORIZONS: Horizon[] = ["intraday", "swing", "positional"];
 const MAX_IDS = 50;
 const MAX_TEXT = 64;
 
@@ -65,6 +94,17 @@ export function matchesTrade(
   if (symbol && !t.symbol.toUpperCase().includes(symbol)) return false;
 
   if (f.segments?.length && !f.segments.includes(t.segment)) return false;
+  // Product: a legacy null-product trade is treated as MIS (charge parity), so
+  // it matches a MIS filter and never an explicit CNC/NRML/BTST/STBT one.
+  if (f.products?.length && !f.products.includes(effectiveProduct(t))) return false;
+  if (f.exchanges?.length && !f.exchanges.includes(normalizeExchange(t.segment, t.exchange)))
+    return false;
+  // Holding period: only realised (closed) trades have a horizon — an open
+  // trade never matches a horizon filter.
+  if (f.horizons?.length) {
+    const h = classifyHorizon(t);
+    if (!h || !f.horizons.includes(h)) return false;
+  }
   if (f.direction && t.direction !== f.direction) return false;
 
   if (f.result) {
@@ -124,6 +164,9 @@ export function countActiveFilters(f: AdvancedTradeFilters): number {
   let n = 0;
   if (f.symbol?.trim()) n++;
   if (f.segments?.length) n++;
+  if (f.products?.length) n++;
+  if (f.exchanges?.length) n++;
+  if (f.horizons?.length) n++;
   if (f.direction) n++;
   if (f.result) n++;
   if (f.playbookIds?.length) n++;
@@ -187,6 +230,18 @@ export function sanitizeFilters(input: unknown): AdvancedTradeFilters {
   if (Array.isArray(raw.segments)) {
     const segs = SEGMENTS.filter((s) => (raw.segments as unknown[]).includes(s));
     if (segs.length) f.segments = segs;
+  }
+  if (Array.isArray(raw.products)) {
+    const prods = PRODUCTS.filter((p) => (raw.products as unknown[]).includes(p));
+    if (prods.length) f.products = prods;
+  }
+  if (Array.isArray(raw.exchanges)) {
+    const exs = EXCHANGE_FILTERS.filter((e) => (raw.exchanges as unknown[]).includes(e));
+    if (exs.length) f.exchanges = exs;
+  }
+  if (Array.isArray(raw.horizons)) {
+    const hs = HORIZONS.filter((h) => (raw.horizons as unknown[]).includes(h));
+    if (hs.length) f.horizons = hs;
   }
 
   const direction = oneOf(raw.direction, ["long", "short"] as const);
@@ -254,6 +309,9 @@ export function encodeFiltersToSearch(f: AdvancedTradeFilters): string {
     if (v != null) p.set(key, String(v));
   }
   if (clean.segments) p.set("seg", clean.segments.join(","));
+  if (clean.products) p.set("prod", clean.products.join(","));
+  if (clean.exchanges) p.set("exch", clean.exchanges.join(","));
+  if (clean.horizons) p.set("hold", clean.horizons.join(","));
   if (clean.playbookIds) p.set("pb", clean.playbookIds.join(","));
   if (clean.tagIds) p.set("tag", clean.tagIds.join(","));
   if (clean.weekdays) p.set("wd", clean.weekdays.join(","));
@@ -267,6 +325,9 @@ export function decodeFiltersFromSearch(search: string): AdvancedTradeFilters {
   return sanitizeFilters({
     symbol: p.get(URL_KEYS.symbol) ?? undefined,
     segments: csv("seg"),
+    products: csv("prod"),
+    exchanges: csv("exch"),
+    horizons: csv("hold"),
     direction: p.get(URL_KEYS.direction) ?? undefined,
     result: p.get(URL_KEYS.result) ?? undefined,
     playbookIds: csv("pb"),

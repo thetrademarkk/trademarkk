@@ -5,31 +5,34 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Features",
   description:
-    "Trade logging with Indian charges, rules & mistakes engine, daily journal, P&L calendar, analytics, broker CSV imports, and your-own-database privacy.",
+    "Trade logging for every Indian trader type with paise-accurate charges, an FY tax pack, a rules & mistakes engine, insights/tilt/Monte-Carlo analytics, broker CSV imports, a multi-broker Chrome extension, and your-own-database privacy.",
   alternates: { canonical: "/features" },
-  openGraph: { url: "/features" },
 };
 
 const SECTIONS = [
   {
-    title: "Log trades in 15 seconds",
-    text: "Quick-add knows Indian FnO: symbol, strike, CE/PE, expiry, lots. Gross P&L, all statutory charges (STT, exchange, GST, SEBI, stamp duty) and net P&L are computed instantly from your broker's charge profile. Planned entry/SL/target give you R-multiples automatically.",
+    title: "Log any trade in 15 seconds",
+    text: "Built for every Indian trader: intraday, swing, positional, F&O, commodity (MCX) and currency (CDS). Quick-add knows symbol, strike, CE/PE, expiry and lots — and multi-leg strategies (straddles, spreads, iron condors) carry per-leg entries and exits. Planned entry/SL/target give you R-multiples automatically.",
+  },
+  {
+    title: "Paise-accurate charges & an Indian tax pack",
+    text: "Gross P&L, every statutory charge (STT/CTT, exchange, GST, SEBI, stamp duty) and net P&L are computed per leg to the paisa from your broker's charge profile. At year-end, the tax pack groups by financial year with F&O turnover (ICAI), the speculative/non-speculative split and realised P&L per instrument — exportable as CSV, Excel or print-to-PDF.",
   },
   {
     title: "The rules & mistakes engine",
     text: "Write your rules once — 'risk max 1%', 'no trades in the first 15 minutes', 'stop after 2 losses'. Tick them off daily. TradeMarkk tracks adherence over time and prices every broken rule in rupees, so you can see your most expensive habit, not just feel it.",
   },
   {
-    title: "A journal you'll actually keep",
-    text: "Three boxes a day: pre-market plan, live notes, post-market review. Mood tracking, 'followed my plan' flag, journaling streaks, and your day's trades attached automatically.",
+    title: "Insights, tilt & Monte-Carlo",
+    text: "Equity curve with drawdown, P&L calendar heatmap, win rate, profit factor, expectancy, R-distribution, and performance by hour, weekday, setup, symbol and direction. Plus tilt detection (revenge sizing, rushed re-entries, overtrading) and a Monte-Carlo equity cone — all computed in your browser, on your own data.",
   },
   {
-    title: "Analytics that tell the truth",
-    text: "Equity curve with drawdown, P&L calendar heatmap, win rate, profit factor, expectancy, R-distribution, performance by hour of day, weekday, setup, symbol and direction. All filterable by period.",
+    title: "Broker imports & a multi-broker extension",
+    text: "Upload tradebook CSVs from Zerodha Console, Upstox, Angel One, Dhan, Fyers or Groww — fills FIFO-pair into round trips with charges applied and re-imports never duplicate. The companion Chrome extension captures trades and runs a pre-trade rules checklist straight from your Kite, Upstox, Groww, Dhan or Fyers tab.",
   },
   {
-    title: "Broker imports",
-    text: "Upload tradebook CSVs from Zerodha Console, Upstox, Angel One, Dhan, Fyers or Groww. Fills are FIFO-paired into round-trip trades with charges applied; re-importing the same file never duplicates.",
+    title: "Backtesting — coming as the dataset goes live",
+    text: "Replay your saved playbooks against historical NIFTY & BANKNIFTY data with per-strategy equity curves, expectancy and walk-forward validation. We're building this on 5 years of 1-minute data; it ships as the dataset goes live.",
   },
   {
     title: "Your data, three ways",
@@ -40,7 +43,7 @@ const SECTIONS = [
 export default function FeaturesPage() {
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 md:py-14 [&_section]:max-w-3xl">
-      <h1 className="text-3xl font-bold">Everything a serious intraday trader needs</h1>
+      <h1 className="text-3xl font-bold">Everything a serious Indian trader needs</h1>
       <div className="mt-8 space-y-8">
         {SECTIONS.map((s) => (
           <section key={s.title}>

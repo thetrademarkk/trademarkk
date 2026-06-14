@@ -170,4 +170,95 @@ describe("assembleCapture", () => {
       optionType: "CE",
     });
   });
+
+  it("MCX commodity future → COMM segment with the MCX exchange", () => {
+    const c = assembleCapture({
+      ...baseFields,
+      symbolText: "CRUDEOIL24JUNFUT",
+      exchangeText: "MCX",
+      panelClasses: ["order-window", "buy"],
+      submitText: "Buy",
+      qtyText: "100",
+      priceText: "6540",
+    });
+    expect(c).toMatchObject({ side: "buy", qty: 100, price: 6540, exchange: "MCX" });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "CRUDEOIL",
+      segment: "COMM",
+      agri: false,
+    });
+  });
+
+  it("MCX commodity OPTION → COMM keeping strike + CE/PE", () => {
+    const c = assembleCapture({
+      ...baseFields,
+      symbolText: "GOLD24JUN72000CE",
+      exchangeText: "MCX",
+      panelClasses: ["order-window", "sell"],
+      submitText: "Sell",
+      qtyText: "1",
+      priceText: "350",
+    });
+    expect(c).toMatchObject({ side: "sell", exchange: "MCX" });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "GOLD",
+      segment: "COMM",
+      strike: 72000,
+      optionType: "CE",
+    });
+  });
+
+  it("NCDEX agri commodity → COMM flagged agri (CTT-exempt)", () => {
+    const c = assembleCapture({
+      ...baseFields,
+      symbolText: "DHANIYA",
+      exchangeText: "NCD",
+      panelClasses: ["order-window", "buy"],
+      submitText: "Buy",
+      qtyText: "1",
+      priceText: "7100",
+    });
+    expect(c).toMatchObject({ exchange: "NCD" });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "DHANIYA",
+      segment: "COMM",
+      agri: true,
+    });
+  });
+
+  it("CDS currency future → CDS segment with the CDS exchange", () => {
+    const c = assembleCapture({
+      ...baseFields,
+      symbolText: "USDINR24JUNFUT",
+      exchangeText: "CDS",
+      panelClasses: ["order-window", "buy"],
+      submitText: "Buy",
+      qtyText: "1",
+      priceText: "83.4525",
+    });
+    expect(c).toMatchObject({ side: "buy", price: 83.4525, exchange: "CDS" });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      agri: false,
+    });
+  });
+
+  it("CDS currency OPTION → CDS keeping the decimal strike + CE/PE", () => {
+    const c = assembleCapture({
+      ...baseFields,
+      symbolText: "USDINR24JUN83.5CE",
+      exchangeText: "CDS",
+      panelClasses: ["order-window", "buy"],
+      submitText: "Buy",
+      qtyText: "1",
+      priceText: "0.45",
+    });
+    expect(parseContractName(c!.symbol)).toMatchObject({
+      symbol: "USDINR",
+      segment: "CDS",
+      strike: 83.5,
+      optionType: "CE",
+    });
+  });
 });

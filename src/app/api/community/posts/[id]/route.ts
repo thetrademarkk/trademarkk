@@ -13,9 +13,17 @@ import {
   deletePostCascade,
   getSession,
   hydratePosts,
+  loadViewerMutes,
   notifyNewMentions,
+  recentPostBodiesByUser,
   syncPostSymbols,
 } from "@/server/community";
+import { describeMuteEntry, matchesMuted } from "@/features/community/muted-words";
+import { extractCashtags } from "@/features/community/cashtags";
+import { normalizeSentiment } from "@/features/community/sentiment";
+import { evaluatePostQuality, NEAR_DUP_WINDOW_MS } from "@/features/community/quality";
+import { isUserBanned } from "@/server/moderation";
+import { getEventThreadForPost } from "@/server/events";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { invalidateCached } from "@/server/cache";
@@ -106,7 +114,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const [post] = await hydratePosts([row], session?.user.id ?? null);
-  const [{ related, relatedByTag }, followRow] = await Promise.all([
+  const [{ related, relatedByTag }, followRow, eventThread] = await Promise.all([
     queryRelated(id, post?.tags ?? [], session?.user.id ?? null),
     session && session.user.id !== row.userId
       ? platformDb
@@ -115,6 +123,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           .where(and(eq(follows.followerId, session.user.id), eq(follows.followingId, row.userId)))
           .get()
       : Promise.resolve(undefined),
+    // Is this an auto-created event/market-session thread? (drives the header)
+    getEventThreadForPost(id),
   ]);
   let commentRows = await platformDb
     .select()
@@ -135,7 +145,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const authorIds = [...new Set(commentRows.map((c) => c.userId))];
   const commentIds = commentRows.map((c) => c.id);
-  const [authors, myCommentLikes] = await Promise.all([
+  const [authors, myCommentLikes, mutes] = await Promise.all([
     authorIds.length
       ? platformDb.select().from(profiles).where(inArray(profiles.userId, authorIds))
       : Promise.resolve([]),
@@ -150,12 +160,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
             )
           )
       : Promise.resolve([] as { commentId: string }[]),
+    // The viewer's personal muted words — drives the per-comment collapse-with-
+    // reveal in the thread (never hard-hide; that would break reply chains).
+    loadViewerMutes(session?.user.id ?? null),
   ]);
   const authorMap = new Map(authors.map((a) => [a.userId, a]));
   const likedSet = new Set(myCommentLikes.map((l) => l.commentId));
+  const muteNow = Date.now();
 
   const commentViews: CommentView[] = commentRows.map((c) => {
     const a = authorMap.get(c.userId);
+    const mine = session?.user.id === c.userId;
+    // Personal mute: flag (don't drop) a matching comment so the client collapses
+    // it with a reveal. The viewer's own comments are never muted.
+    const muteHit = mine ? null : matchesMuted({ body: c.body }, mutes, muteNow);
     return {
       id: c.id,
       body: c.body,
@@ -165,10 +183,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       createdAt: c.createdAt,
       editedAt: c.editedAt,
       editHistory: parseEditHistory<CommentEditSnapshot>(c.editHistory),
-      mine: session?.user.id === c.userId,
+      mine,
       author: a
         ? { username: a.username, displayName: a.displayName, avatar: a.avatar }
         : { username: "deleted", displayName: "Deleted user" },
+      mutedReason: muteHit ? describeMuteEntry(muteHit) : null,
     };
   });
 
@@ -178,6 +197,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     related,
     relatedByTag,
     authorFollowedByMe: Boolean(followRow),
+    eventThread: eventThread ?? null,
   });
 }
 
@@ -194,6 +214,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Suspended accounts cannot edit content either (mirrors the create gate).
+  if (await isUserBanned(session.user.id))
+    return NextResponse.json(
+      { error: "Your account is suspended and cannot post or comment." },
+      { status: 403 }
+    );
 
   const row = await platformDb.select().from(posts).where(eq(posts.id, id)).get();
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });
@@ -223,6 +249,28 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const nextBody = input.body.trim();
   const nextTags = input.tags;
 
+  // Re-run the content-quality gate on the edited body — an edit can never bypass
+  // the rules a fresh post must pass (mirrors the schema re-validation). The
+  // near-dup corpus excludes THIS post so an edit isn't a duplicate of itself.
+  const recentBodies = await recentPostBodiesByUser(session.user.id, NEAR_DUP_WINDOW_MS, id);
+  const verdict = evaluatePostQuality({ body: nextBody, recentBodies });
+  if (verdict.decision === "block") {
+    return NextResponse.json({ error: verdict.message }, { status: 400 });
+  }
+  // Sentiment edit: when the field is sent, set it (gated on the NEW body still
+  // mentioning >= 1 $cashtag — removing every ticker also clears the lean);
+  // when omitted, leave the stored value untouched. Re-gate against the new body
+  // either way so an edit that drops all tickers never keeps a stale lean.
+  const bodyHasCashtag = extractCashtags(nextBody).length > 0;
+  const nextSentiment =
+    input.sentiment === undefined
+      ? bodyHasCashtag
+        ? row.sentiment
+        : null
+      : bodyHasCashtag
+        ? normalizeSentiment(input.sentiment)
+        : null;
+
   // Snapshot the PRE-edit content into the append-only history before writing.
   const snapshot: PostEditSnapshot = {
     editedAt: new Date().toISOString(),
@@ -239,6 +287,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       title: nextTitle,
       body: nextBody,
       tags: nextTags.length ? JSON.stringify(nextTags) : null,
+      sentiment: nextSentiment,
+      // Re-evaluate the flag: an edit that fixes tip language clears a stale flag;
+      // one that introduces it sets a fresh flag.
+      qualityFlag: verdict.flag,
       editedAt,
       editHistory: history,
     })

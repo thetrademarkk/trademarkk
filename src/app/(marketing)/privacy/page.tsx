@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   description:
     "How TradeMarkk handles your data: your trading data is yours, we never sell it, and we show no ads.",
   alternates: { canonical: "/privacy" },
-  openGraph: { url: "/privacy" },
 };
 
 const SECTIONS = [

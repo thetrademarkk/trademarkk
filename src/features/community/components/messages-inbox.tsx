@@ -63,7 +63,9 @@ export function MessagesInbox({ selectedId }: { selectedId: string | null }) {
               )}
             >
               {c.lastMessage
-                ? `${c.lastMessage.mine ? "You: " : ""}${c.lastMessage.body}`
+                ? c.lastMessage.deleted
+                  ? `${c.lastMessage.mine ? "You: " : ""}Message deleted`
+                  : `${c.lastMessage.mine ? "You: " : ""}${c.lastMessage.body}`
                 : "New conversation"}
             </span>
           </span>

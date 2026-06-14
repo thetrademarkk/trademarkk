@@ -40,3 +40,15 @@ export {
   sanitizeFilters,
 } from "./filter-predicate";
 export type { AdvancedTradeFilters, RuleDayContext } from "./filter-predicate";
+export {
+  groupTrades,
+  subtotalFor,
+  effectiveProduct,
+  normalizeExchange,
+  GROUP_BY_LABELS,
+  PRODUCT_LABELS,
+  PRODUCT_SHORT,
+  SEGMENT_SHORT,
+  EXCHANGE_LABELS,
+} from "./grouping";
+export type { GroupBy, TradeGroup, GroupSubtotal, ExchangeFilter } from "./grouping";

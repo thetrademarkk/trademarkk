@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { AlertTriangle, ImagePlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,10 @@ import { ComposerTextarea } from "./composer-textarea";
 import { ApiError, useCreatePost } from "../api";
 import { clearDraft, readDraft, writeDraft } from "../draft";
 import { SUGGESTED_TAGS, type TradeCard } from "../types";
+import { extractCashtags } from "../cashtags";
+import { previewPostQuality } from "../quality";
+import type { Sentiment } from "../sentiment";
+import { SentimentToggle } from "./sentiment-toggle";
 import { TradeCardView } from "./trade-card-view";
 import { SignInGate } from "./sign-in-gate";
 
@@ -38,6 +42,7 @@ export function Composer({
   const [tags, setTags] = React.useState<string[]>([]);
   const [images, setImages] = React.useState<string[]>([]);
   const [includePnl, setIncludePnl] = React.useState(false);
+  const [sentiment, setSentiment] = React.useState<Sentiment | null>(null);
   const [gateOpen, setGateOpen] = React.useState(false);
   const bodyRef = React.useRef<HTMLTextAreaElement>(null);
   // Drafts restore after hydration (localStorage doesn't exist server-side, and
@@ -74,6 +79,17 @@ export function Composer({
     ? { ...initialCard, netPnl: includePnl ? initialCard.netPnl : null }
     : null;
 
+  // Sentiment is only meaningful with a $cashtag in the body (it's a lean on
+  // those tickers). The toggle disables itself otherwise, mirroring the server.
+  const hasCashtag = React.useMemo(() => extractCashtags(body).length > 0, [body]);
+
+  // Non-blocking content-quality nudge — mirrors the server's soft heuristics so
+  // the author can self-correct tip/call/solicitation/all-caps language before
+  // posting. NEVER disables Post (the gate is conservative; genuine analysis is
+  // never flagged) — it only advises. The hard blocks (low-effort/near-dup/spam)
+  // surface as a server toast.
+  const qualityWarning = React.useMemo(() => previewPostQuality(body.trim()), [body]);
+
   const toggleTag = (t: string) =>
     setTags((prev) =>
       prev.includes(t) ? prev.filter((x) => x !== t) : prev.length < 4 ? [...prev, t] : prev
@@ -102,12 +118,15 @@ export function Composer({
         tags,
         tradeCard: card,
         images: images.filter(Boolean),
+        // Only send a lean when the body actually tags a ticker (server re-gates).
+        sentiment: hasCashtag ? sentiment : null,
       });
       toast.success("Posted to the community");
       setTitle("");
       setBody("");
       setTags([]);
       setImages([]);
+      setSentiment(null);
       if (draftKey) clearDraft(draftKey);
       onPosted?.(id);
     } catch (e) {
@@ -186,6 +205,13 @@ export function Composer({
         </div>
       </fieldset>
 
+      <SentimentToggle
+        value={sentiment}
+        onChange={setSentiment}
+        disabled={!hasCashtag}
+        idPrefix="composer-sentiment"
+      />
+
       {images.filter(Boolean).length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {images.filter(Boolean).map((src, i) => (
@@ -227,6 +253,18 @@ export function Composer({
           Post
         </Button>
       </div>
+
+      {qualityWarning && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="quality-warning"
+          className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-4 text-foreground"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
+          <span>{qualityWarning}</span>
+        </div>
+      )}
 
       <p className="text-[11px] leading-4 text-muted">
         Educational discussion only — nothing on TradeMarkk is investment advice. Be kind; no tips,

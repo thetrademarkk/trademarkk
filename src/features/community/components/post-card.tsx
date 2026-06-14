@@ -54,6 +54,9 @@ import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
+import { ReputationChip } from "./reputation-chip";
+import { FeaturedAwardChip } from "./award-badges";
+import { SentimentChip } from "./sentiment-toggle";
 import { EditPostForm } from "./edit-post-form";
 import { EditedMarker } from "./edit-history-dialog";
 import { useEditWindow } from "../use-edit-window";
@@ -215,12 +218,17 @@ export function PostCard({
           />
         </Link>
         <div className="min-w-0 leading-tight">
-          <Link
-            href={`/community/u/${post.author.username}`}
-            className="text-sm font-semibold hover:underline"
-          >
-            {post.author.displayName}
-          </Link>
+          <span className="flex items-center gap-1.5">
+            <Link
+              href={`/community/u/${post.author.username}`}
+              className="truncate text-sm font-semibold hover:underline"
+            >
+              {post.author.displayName}
+            </Link>
+            <ReputationChip tier={post.author.reputationTier} />
+            {/* One tiny featured achievement badge (rank-20) — subtle, max one. */}
+            <FeaturedAwardChip awards={post.author.awards} />
+          </span>
           <p className="text-xs text-muted">
             <Link href={`/community/u/${post.author.username}`} className="hover:text-accent">
               @{post.author.username}
@@ -405,6 +413,8 @@ export function PostCard({
               ${s}
             </Link>
           ))}
+          {/* The author's optional lean on those tickers — never advice. */}
+          <SentimentChip sentiment={post.sentiment} />
         </div>
       )}
 
@@ -413,7 +423,7 @@ export function PostCard({
           {post.tags.map((t) => (
             <Link
               key={t}
-              href={`/community?tag=${encodeURIComponent(t)}`}
+              href={`/community/t/${encodeURIComponent(t)}`}
               className="rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/20"
             >
               #{t}

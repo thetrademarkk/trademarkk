@@ -5,6 +5,15 @@
 export type Segment = "EQ" | "FUT" | "OPT" | "COMM" | "CDS";
 
 /**
+ * Exchange a trade was executed on (SEG-CHG). Re-exported from the broker
+ * config so the charge engine and the trade model share one union. Only the
+ * exchange transaction charge (and the agri SEBI slab) vary by exchange.
+ * `TradeRow.exchange` stays a free-text string (the DB stores the broker
+ * value verbatim); the engine normalises it via `resolveExchange`.
+ */
+export type { Exchange } from "@/config/brokers";
+
+/**
  * Position product / holding intent, mirroring the broker's product column:
  *  - MIS  intraday (square-off same session)
  *  - CNC  delivery (equity, held overnight → delivery STT both sides + DP charge)

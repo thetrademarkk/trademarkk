@@ -15,6 +15,7 @@ import {
   Search,
   ShieldCheck,
   Target,
+  UserCog,
 } from "lucide-react";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { StreakIndicator } from "@/features/streak";
@@ -165,6 +166,14 @@ export function Topbar() {
               <MessageSquareText />
               Send feedback
             </DropdownMenuItem>
+            {mode === "hosted" && (
+              <DropdownMenuItem asChild>
+                <Link href="/app/settings/account">
+                  <UserCog />
+                  Account &amp; security
+                </Link>
+              </DropdownMenuItem>
+            )}
             {status?.isAdmin && (
               <DropdownMenuItem asChild>
                 <Link href="/admin">

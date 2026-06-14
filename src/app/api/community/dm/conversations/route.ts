@@ -38,8 +38,9 @@ export async function GET() {
       body: string;
       sender_id: string;
       created_at: string;
+      deleted_at: string | null;
     }>(sql`
-      SELECT m.conversation_id, m.body, m.sender_id, m.created_at
+      SELECT m.conversation_id, m.body, m.sender_id, m.created_at, m.deleted_at
       FROM dm_messages m
       JOIN (
         SELECT conversation_id, MAX(created_at) AS mx
@@ -67,7 +68,12 @@ export async function GET() {
         ? { username: peer.username, displayName: peer.displayName, avatar: peer.avatar }
         : { username: "deleted", displayName: "Deleted user" },
       lastMessage: last
-        ? { body: last.body, mine: last.sender_id === me, createdAt: last.created_at }
+        ? {
+            body: last.deleted_at ? "" : last.body,
+            mine: last.sender_id === me,
+            createdAt: last.created_at,
+            deleted: Boolean(last.deleted_at),
+          }
         : null,
       unread: unreadMap.get(r.id) ?? 0,
       lastMessageAt: r.lastMessageAt,

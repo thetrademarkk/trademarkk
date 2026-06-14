@@ -28,6 +28,8 @@ import {
 import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
 import { deriveTradeNumbers, localInputToIso, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
+import { LotQtyHelper } from "./lot-qty-helper";
+import { segmentUsesLots } from "@/lib/instruments/lot-sizes";
 import { TemplateMenu } from "@/features/workflow";
 import type { TemplatePatch } from "@/features/workflow";
 
@@ -82,9 +84,11 @@ export function TradeForm({
     defaultValues: {
       accountId: accounts[0]?.id ?? "",
       symbol: "",
-      // Default EQ + MIS (intraday) — onboarding will set per-user defaults in
-      // SEG-08. OPT stays the default only when editing an existing OPT trade
-      // (its product/segment come through `defaults`).
+      // App-wide neutral default EQ + MIS. The host (QuickAdd) passes a SEG-08
+      // trader-type default segment/product via `defaults` for a blank new-trade
+      // form, so it's part of the initial render — the controlled segment select
+      // reflects it without any post-mount mutation. Editing / restored drafts
+      // pin their own segment through `defaults` too.
       segment: "EQ",
       product: "MIS",
       direction: "long",
@@ -472,6 +476,27 @@ export function TradeForm({
             )}
           </div>
         </div>
+
+        {/* SEG-10 — lots↔units helper. Derivatives only (EQ is plain units). It
+            writes units (lots × lot size) into the active leg's Qty, which stays
+            the single source of truth, so charges/P&L are byte-identical to
+            typing the unit qty directly. Lot size auto-fills from the reference
+            and is fully overridable; an unknown symbol never blocks entry. */}
+        {segmentUsesLots(segment) && (
+          <LotQtyHelper
+            symbol={values.symbol}
+            segment={segment}
+            units={activeLeg === 0 ? values.qty : values.extraLegs?.[activeLeg - 1]?.qty}
+            onUnits={(u) =>
+              activeLeg === 0
+                ? setValue("qty", u, { shouldDirty: true, shouldValidate: true })
+                : setValue(`extraLegs.${activeLeg - 1}.qty`, u, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+            }
+          />
+        )}
       </div>
 
       <div className="space-y-4">

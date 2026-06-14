@@ -19,9 +19,12 @@ export function NotificationGroupRow({
   onOpen?: (group: NotificationGroup) => void;
   className?: string;
 }) {
-  const href = group.postId
-    ? `/community/post/${group.postId}`
-    : `/community/u/${group.actors[0]?.username ?? ""}`;
+  const href =
+    group.type === "message"
+      ? "/community/messages"
+      : group.postId
+        ? `/community/post/${group.postId}`
+        : `/community/u/${group.actors[0]?.username ?? ""}`;
   const stack = group.actors.slice(0, 3);
 
   return (

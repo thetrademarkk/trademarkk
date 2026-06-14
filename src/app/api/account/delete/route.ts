@@ -3,12 +3,19 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { platformDb } from "@/server/db/platform";
-import { user, session as sessionTable, account, userDatabases } from "@/server/db/platform-schema";
+import {
+  user,
+  session as sessionTable,
+  account,
+  userDatabases,
+  twoFactor,
+} from "@/server/db/platform-schema";
 import { deleteDatabase } from "@/server/turso-platform";
 import { hasTursoApi } from "@/server/env";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { purgeUserContent } from "@/server/account";
+import { isProtectedAccount } from "@/features/account/account";
 
 /** Deletes the account immediately; the hosted journal DB is deleted with it. */
 export async function POST(req: Request) {
@@ -16,6 +23,18 @@ export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = session.user.id;
+
+  // Owner / demo accounts can never be self-deleted (defense in depth: the same
+  // guard is unit-tested in features/account). Generic message — no enumeration
+  // about which accounts are special.
+  if (isProtectedAccount(session.user.email)) {
+    return NextResponse.json(
+      { error: "This account is protected and can't be deleted." },
+      {
+        status: 403,
+      }
+    );
+  }
 
   // Account deletion is terminal — at most once/day is plenty (the second call
   // would 401 anyway once the session is gone). A tight cap blunts any abuse.
@@ -43,6 +62,9 @@ export async function POST(req: Request) {
   await platformDb.delete(userDatabases).where(eq(userDatabases.userId, userId));
   await platformDb.delete(sessionTable).where(eq(sessionTable.userId, userId));
   await platformDb.delete(account).where(eq(account.userId, userId));
+  // Two-factor secret + backup codes (FK cascades aren't enforced over libsql
+  // HTTP — purge explicitly so a deleted user's 2FA secret never lingers).
+  await platformDb.delete(twoFactor).where(eq(twoFactor.userId, userId));
   await platformDb.delete(user).where(eq(user.id, userId));
 
   return NextResponse.json({ deleted: true });

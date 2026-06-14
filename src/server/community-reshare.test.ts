@@ -40,18 +40,22 @@ const DDL = [
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT, body TEXT NOT NULL,
     trade_card TEXT, tags TEXT, like_count INTEGER NOT NULL DEFAULT 0, reactions TEXT,
     comment_count INTEGER NOT NULL DEFAULT 0, share_count INTEGER NOT NULL DEFAULT 0,
-    reshare_count INTEGER NOT NULL DEFAULT 0, quote_post_id TEXT,
+    reshare_count INTEGER NOT NULL DEFAULT 0, quote_post_id TEXT, sentiment TEXT,
+    quality_flag TEXT,
     created_at TEXT NOT NULL, edited_at TEXT, edit_history TEXT
   )`,
   `CREATE TABLE profiles (
     user_id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL,
     bio TEXT, website TEXT, avatar TEXT, share_streak INTEGER NOT NULL DEFAULT 0,
     streak_current INTEGER NOT NULL DEFAULT 0, streak_best INTEGER NOT NULL DEFAULT 0,
-    streak_updated_at TEXT, pinned_post_id TEXT, accent_color TEXT, created_at TEXT NOT NULL
+    streak_updated_at TEXT, pinned_post_id TEXT, accent_color TEXT,
+    reputation_score INTEGER, reputation_tier TEXT, reputation_computed_at TEXT,
+    notification_prefs TEXT, awards TEXT, muted_words TEXT, created_at TEXT NOT NULL
   )`,
   `CREATE TABLE notifications (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, actor_id TEXT NOT NULL, type TEXT NOT NULL,
-    post_id TEXT, comment_id TEXT, read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    post_id TEXT, comment_id TEXT, backtest_id TEXT, read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
   )`,
   `CREATE TABLE blocks (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (blocker_id, blocked_id))`,
   `CREATE TABLE post_symbols (post_id TEXT NOT NULL, symbol TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (post_id, symbol))`,
@@ -243,6 +247,7 @@ describe("hydratePosts embeds the quoted original", () => {
       shareCount: r!.share_count as number,
       reshareCount: r!.reshare_count as number,
       quotePostId: (r!.quote_post_id as string) ?? null,
+      sentiment: (r!.sentiment as string) ?? null,
       createdAt: r!.created_at as string,
       editedAt: (r!.edited_at as string) ?? null,
       editHistory: (r!.edit_history as string) ?? null,

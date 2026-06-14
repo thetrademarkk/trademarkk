@@ -21,6 +21,37 @@ export const user = sqliteTable("user", {
   verificationEmailCountToday: integer("verification_email_count_today").notNull().default(0),
   lastOtpEmailAt: integer("last_otp_email_at"),
   otpEmailCountToday: integer("otp_email_count_today").notNull().default(0),
+  /**
+   * Account moderation status: 'banned' = suspended (blocked from posting/
+   * commenting at the create endpoints with a 403), NULL = active. Additive,
+   * idempotent — set/cleared only by an admin via the moderation queue.
+   */
+  status: text("status"),
+  /**
+   * Whether the user has enabled TOTP two-factor auth (Better Auth `twoFactor`
+   * plugin). Additive + idempotent; defaults to false so existing accounts are
+   * unaffected. 2FA is strictly OPT-IN. The plugin owns this column's lifecycle
+   * (set on enable/verify, cleared on disable).
+   */
+  twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" }).notNull().default(false),
+});
+
+/**
+ * Better Auth `twoFactor` plugin store — one row per user with 2FA enabled.
+ * Holds the TOTP shared secret + the (hashed/encoded) backup codes. Never
+ * returned to the client (the plugin marks these `returned:false`). Additive +
+ * idempotent: the table simply doesn't exist for deployments that never enable
+ * the plugin, and is created by the platform migration (idempotent CREATE).
+ */
+export const twoFactor = sqliteTable("two_factor", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  /** Whether this TOTP secret has been verified (activated). Defaults true. */
+  verified: integer("verified", { mode: "boolean" }).notNull().default(true),
 });
 
 export const session = sqliteTable("session", {
@@ -83,6 +114,42 @@ export const profiles = sqliteTable("profiles", {
   pinnedPostId: text("pinned_post_id"),
   /** Preset cover-accent id (see features/community/accents.ts) — never free hex. */
   accentColor: text("accent_color"),
+  /**
+   * Denormalized community-reputation cache (see features/community/reputation.ts).
+   * NOT trading skill / P&L — a participation/credibility standing computed from
+   * earned, anti-gaming signals (tenure, posts, reactions from OTHERS, followers
+   * with diminishing returns, MINUS moderation penalties). Refreshed LAZILY on a
+   * stale read (no cron); recomputable from scratch any time, so these are pure
+   * caches. NULL = never computed yet (the reader computes on first access).
+   */
+  reputationScore: integer("reputation_score"),
+  reputationTier: text("reputation_tier"),
+  reputationComputedAt: text("reputation_computed_at"),
+  /**
+   * Denormalized achievement-AWARDS cache (see features/community/awards.ts) — a
+   * compact JSON array of the EARNED badge-ids (e.g. `["one-year","well-received"]`).
+   * Computed in the SAME pass as the reputation cache from the SAME earned signal
+   * bundle, refreshed LAZILY on the same 6h stale read (no extra cron). Like the
+   * reputation columns these are pure caches — recomputable from scratch any time.
+   * NULL = never computed yet. Badges reflect community participation only, NEVER
+   * trading skill / P&L; a banned or quality-flagged member's set is empty.
+   */
+  awards: text("awards"),
+  /**
+   * Per-type in-app notification preferences (see
+   * features/community/notification-prefs.ts). A compact JSON map of ONLY the
+   * types the user has switched OFF (e.g. `{"follow":false}`); NULL/absent means
+   * every type is enabled (the default — no behaviour change for existing users).
+   */
+  notificationPrefs: text("notification_prefs"),
+  /**
+   * Personal "muted words" content filter (see features/community/muted-words.ts).
+   * A compact JSON array of the user's mute entries (term + match mode + optional
+   * case-sensitivity / scope / expiry); NULL/absent means no mutes (the default —
+   * no behaviour change for existing users). Strictly PERSONAL: hides matching
+   * posts/comments from THIS user's own feeds/threads only — never moderation.
+   */
+  mutedWords: text("muted_words"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -121,6 +188,22 @@ export const posts = sqliteTable("posts", {
    * reshare collapses to the root). NULL = an ordinary post.
    */
   quotePostId: text("quote_post_id"),
+  /**
+   * Optional, honest community sentiment on the tickers this post mentions:
+   * 'bull' | 'bear' | NULL (no lean). NEVER a buy/sell recommendation — it
+   * feeds an aggregate per-symbol gauge with a not-advice disclaimer. Only
+   * meaningful when the post carries >= 1 $cashtag. NULL = the default (none).
+   */
+  sentiment: text("sentiment"),
+  /**
+   * Content-quality moderation flag, set by the create/edit quality gate when a
+   * post matches a soft tip/all-caps heuristic (see features/community/quality.ts):
+   * 'tip' | 'all-caps' | NULL (clean). NEVER hard-rejects genuine analysis — it
+   * tags borderline posts for later moderation review (the admin report queue
+   * surfaces flagged posts). Egregious solicitation / low-effort / near-duplicate
+   * posts are blocked outright and never reach this column. NULL = the default.
+   */
+  qualityFlag: text("quality_flag"),
   createdAt: text("created_at").notNull(),
   /** Set the first time the post is edited; null = never edited. */
   editedAt: text("edited_at"),
@@ -197,7 +280,44 @@ export const follows = sqliteTable(
   (t) => [primaryKey({ columns: [t.followerId, t.followingId] })]
 );
 
-/** In-app notifications: like | comment | reply | follow | mention. */
+/**
+ * Tags a user has chosen to follow. Posts carrying a followed tag surface in the
+ * viewer's Following feed (alongside posts by followed users). PK (user_id, tag)
+ * makes follow idempotent; one row per (user, tag).
+ */
+export const followedTags = sqliteTable(
+  "followed_tags",
+  {
+    userId: text("user_id").notNull(),
+    tag: text("tag").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.tag] })]
+);
+
+/**
+ * Symbols ($cashtags) a user is watching. Posts tagging a watched symbol surface
+ * in the viewer's Watchlist feed (alongside posts by followed users). PK
+ * (user_id, symbol) makes watch idempotent; one row per (user, symbol). Symbols
+ * are stored UPPERCASE (same form as `post_symbols`). Indexed by symbol so the
+ * "who watches this ticker" direction stays cheap.
+ */
+export const watchedSymbols = sqliteTable(
+  "watched_symbols",
+  {
+    userId: text("user_id").notNull(),
+    symbol: text("symbol").notNull(), // uppercase NSE/BSE ticker token
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.symbol] })]
+);
+
+/**
+ * In-app notifications: like | comment | reply | follow | mention | reshare
+ * | backtest_done | backtest_failed. The `backtestId` column (D6) links a
+ * backtest notification to the run that produced it; NULL for every existing
+ * community notification (additive — no existing notify caller breaks).
+ */
 export const notifications = sqliteTable("notifications", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(), // recipient
@@ -205,6 +325,8 @@ export const notifications = sqliteTable("notifications", {
   type: text("type").notNull(),
   postId: text("post_id"),
   commentId: text("comment_id"),
+  /** Set only for backtest_done / backtest_failed → the backtest_runs.id. */
+  backtestId: text("backtest_id"),
   read: integer("read").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
@@ -227,6 +349,27 @@ export const reports = sqliteTable("reports", {
   targetType: text("target_type").notNull(), // 'post' | 'comment'
   targetId: text("target_id").notNull(),
   reason: text("reason"),
+  /**
+   * Lifecycle: 'open' (awaiting review) | 'actioned' (dismissed/resolved by a
+   * moderator). Dismissing marks the report actioned rather than deleting it so
+   * the moderation queue keeps an open-vs-actioned history. Defaults to 'open'.
+   */
+  status: text("status").notNull().default("open"),
+  createdAt: text("created_at").notNull(),
+});
+
+/**
+ * Append-only moderation audit log: one row per moderator action (dismiss /
+ * delete-content / clear-flag / ban-user / unban-user) so every action is
+ * traceable. Kept deliberately simple — no soft-delete, no edits. Admin-only.
+ */
+export const modActions = sqliteTable("mod_actions", {
+  id: text("id").primaryKey(),
+  actorId: text("actor_id").notNull(), // the admin who acted
+  action: text("action").notNull(), // see features/community/moderation.ts MOD_ACTIONS
+  targetType: text("target_type").notNull(), // 'post' | 'comment' | 'user' | 'report'
+  targetId: text("target_id").notNull(),
+  detail: text("detail"), // optional context (e.g. the report id, or a short note)
   createdAt: text("created_at").notNull(),
 });
 
@@ -246,7 +389,21 @@ export const blogSubmissions = sqliteTable("blog_submissions", {
   reviewedAt: text("reviewed_at"),
 });
 
-/** 1:1 direct-message threads. Participants stored in canonical order (userA < userB). */
+/**
+ * 1:1 direct-message threads. Participants stored in canonical order (userA < userB).
+ *
+ * DM v2 adds per-participant ephemeral/derived state, all additive + idempotent:
+ *  - `lastReadA/B`   — each participant's last-read message ISO timestamp; drives
+ *    unread badges and the sender's sent→delivered→seen ticks (one indexed read
+ *    on the existing thread poll, no extra table).
+ *  - `lastSeenA/B`   — each participant's last thread-activity ISO timestamp
+ *    (set on thread poll/open); drives the "delivered" state (the peer's client
+ *    has the message) distinct from "seen" (they actually read up to it).
+ *  - `typingA/B`     — a short-TTL typing heartbeat ISO timestamp per participant
+ *    (see features/community/dm-v2.ts TYPING_TTL_MS); the thread poll surfaces it
+ *    and it expires a few seconds after the last keystroke. Ephemeral, no infra.
+ * Suffix A/B maps to userA/userB (canonical order) so there's exactly one row.
+ */
 export const conversations = sqliteTable(
   "conversations",
   {
@@ -255,6 +412,12 @@ export const conversations = sqliteTable(
     userB: text("user_b").notNull(),
     createdAt: text("created_at").notNull(),
     lastMessageAt: text("last_message_at").notNull(),
+    lastReadA: text("last_read_a"),
+    lastReadB: text("last_read_b"),
+    lastSeenA: text("last_seen_a"),
+    lastSeenB: text("last_seen_b"),
+    typingA: text("typing_a"),
+    typingB: text("typing_b"),
   },
   (t) => [unique().on(t.userA, t.userB)]
 );
@@ -265,7 +428,16 @@ export const dmMessages = sqliteTable("dm_messages", {
   senderId: text("sender_id").notNull(),
   body: text("body").notNull(), // plain text, ≤ 2000 chars
   createdAt: text("created_at").notNull(),
-  read: integer("read").notNull().default(0), // recipient has seen it
+  read: integer("read").notNull().default(0), // recipient has seen it (v1; superseded by last_read_*)
+  // ── DM v2: per-message reactions + edit window + soft-delete tombstone ──
+  /** Per-message reactions: compact JSON map of userId -> kind (see dm-v2.ts). NULL = none. */
+  reactions: text("reactions"),
+  /** Set the first time the sender edits the message; null = never edited. */
+  editedAt: text("edited_at"),
+  /** Append-only JSON array of pre-edit body snapshots (reuses edit-window.ts). */
+  editHistory: text("edit_history"),
+  /** Set when the sender soft-deletes the message; the row stays as a tombstone. */
+  deletedAt: text("deleted_at"),
 });
 
 /**
@@ -285,6 +457,27 @@ export const linkUnfurls = sqliteTable("link_unfurls", {
   siteName: text("site_name"),
   fetchedAt: text("fetched_at").notNull(),
 });
+
+/**
+ * Recurring market-session / event threads (rank-18). One row per
+ * (event_type, event_date) — a UNIQUE natural key that makes lazy, visit-
+ * triggered materialization race-safe (INSERT OR IGNORE): two concurrent first
+ * visits on a day produce exactly ONE thread. `post_id` references the
+ * auto-created post (authored by the house/system account, pinned + tagged).
+ * No cron — threads are materialized on first visit of an active day. Additive,
+ * idempotent.
+ */
+export const eventThreads = sqliteTable(
+  "event_threads",
+  {
+    id: text("id").primaryKey(),
+    eventType: text("event_type").notNull(), // see features/community/events.ts EventType
+    eventDate: text("event_date").notNull(), // IST YYYY-MM-DD
+    postId: text("post_id").notNull(), // the auto-created thread post
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [unique().on(t.eventType, t.eventDate)]
+);
 
 /** User-submitted product feedback (bug reports, ideas). */
 export const feedback = sqliteTable("feedback", {
@@ -341,4 +534,45 @@ export const userDatabases = sqliteTable("user_databases", {
   status: text("status").notNull().default("active"), // 'active' | 'grace'
   createdAt: text("created_at").notNull(),
   deleteAfter: text("delete_after"),
+});
+
+/* ── Backtesting (BT-09) — public-universe data, lives centrally by design ── */
+
+/**
+ * Saved no-code strategy definitions. `strategyDef` is the StrategyDef JSON
+ * (the exact builder inputs); `engineVersion` stamps the engine that the
+ * strategy was authored against so a stored definition is always reproducible.
+ * Lives in the platform DB (NOT the per-user journal DB) because backtests are
+ * a public universe like community — see docs/backtesting/08-architecture §4.
+ */
+export const backtestStrategies = sqliteTable("backtest_strategies", {
+  id: text("id").primaryKey(), // newId() ULID
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  strategyDef: text("strategy_def").notNull(), // StrategyDef JSON
+  engineVersion: text("engine_version").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * Computed backtest run snapshots. The `runResult` blob is an IMMUTABLE
+ * point-in-time artifact (serialized RunResult) — it is never re-derived, so a
+ * shared link renders byte-identically forever. `userId` is nullable so a row
+ * can briefly exist unclaimed, but in practice anonymous runs live in the
+ * browser (IndexedDB) and are POSTed once on sign-in to claim ownership. A
+ * `shareId` (unguessable nanoid) is minted ON DEMAND when the owner opts into
+ * sharing; re-sharing the same run returns the SAME id (idempotent).
+ */
+export const backtestRuns = sqliteTable("backtest_runs", {
+  id: text("id").primaryKey(), // newId() ULID
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }), // nullable
+  strategyId: text("strategy_id"), // optional link to a saved strategy
+  runResult: text("run_result").notNull(), // serialized RunResult JSON (immutable)
+  dataSnapshotId: text("data_snapshot_id").notNull(),
+  engineVersion: text("engine_version").notNull(),
+  shareId: text("share_id").unique(), // set → publicly viewable; NULL → owner-only
+  createdAt: text("created_at").notNull(),
 });

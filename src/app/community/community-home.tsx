@@ -4,13 +4,29 @@ import * as React from "react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, X } from "lucide-react";
+import { Hash, PenSquare, X } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
-import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
+import {
+  Composer,
+  EventsCard,
+  Feed,
+  ForYouFeed,
+  InlineComposer,
+  SUGGESTED_TAGS,
+  TrendingBoard,
+  useMyProfile,
+  WhoToFollow,
+} from "@/features/community";
+import { WatchlistRail } from "@/features/community/components/watchlist-rail";
+import {
+  useFollowedTags,
+  useTrendingTags,
+  type FeedScope,
+  type FeedSort,
+} from "@/features/community/api";
 import type { FeedResponse } from "@/features/community/types";
 import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
 import { COMMUNITY_DRAFT_KEY, readDraft } from "@/features/community/draft";
@@ -47,27 +63,46 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       /* storage blocked — back link falls back to the plain feed */
     }
   }, [tag, search]);
-  const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
+  // `foryou` is a distinct mode (it doesn't map to a sort/scope); the rest of
+  // the tabs select a (sort, scope) pair on the standard feed.
+  const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope; foryou: boolean }>({
     sort: "latest",
     scope: "all",
+    foryou: false,
   });
   const [composeOpen, setComposeOpen] = React.useState(false);
   const { data: session } = useSession();
-  const { data: me } = useMyProfile(Boolean(session));
+  const signedIn = Boolean(session);
+  const { data: me } = useMyProfile(signedIn);
   const { data: trending } = useTrendingTags();
+  const { data: followedTags } = useFollowedTags(signedIn);
   const topics =
     trending?.tags && trending.tags.length > 0
       ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
       : SUGGESTED_TAGS.map((t) => ({ tag: t, count: 0 }));
 
-  const tabs: { id: string; label: string; sort: FeedSort; scope: FeedScope }[] = [
-    { id: "latest", label: "Latest", sort: "latest", scope: "all" },
-    { id: "top", label: "Top this week", sort: "top", scope: "all" },
-    { id: "following", label: "Following", sort: "latest", scope: "following" },
-    { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
-  ];
-  const activeTab =
-    tabs.find((t) => t.sort === view.sort && t.scope === view.scope)?.id ?? "latest";
+  const tabs: { id: string; label: string; sort: FeedSort; scope: FeedScope; foryou?: boolean }[] =
+    [
+      // "For You" is the OPTIONAL first tab (signed-in only). Latest stays the
+      // DEFAULT active tab so the feed never silently becomes a filter bubble.
+      ...(signedIn
+        ? [{ id: "foryou", label: "For You", sort: "latest", scope: "all", foryou: true } as const]
+        : []),
+      { id: "latest", label: "Latest", sort: "latest", scope: "all" },
+      { id: "top", label: "Top this week", sort: "top", scope: "all" },
+      { id: "following", label: "Following", sort: "latest", scope: "following" },
+      // Watchlist (watched symbols OR followed authors) — only meaningful signed in.
+      ...(signedIn
+        ? [{ id: "watchlist", label: "Watchlist", sort: "latest", scope: "watchlist" } as const]
+        : []),
+      { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
+    ];
+  const activeTab = view.foryou
+    ? "foryou"
+    : (tabs.find((t) => !t.foryou && t.sort === view.sort && t.scope === view.scope)?.id ??
+      "latest");
+  const selectTab = (t: { sort: FeedSort; scope: FeedScope; foryou?: boolean }) =>
+    setView({ sort: t.sort, scope: t.scope, foryou: Boolean(t.foryou) });
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[190px_minmax(0,1fr)_250px]">
@@ -81,7 +116,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             {tabs.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setView({ sort: t.sort, scope: t.scope })}
+                onClick={() => selectTab(t)}
                 aria-pressed={activeTab === t.id}
                 className={cn(
                   "block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
@@ -98,6 +133,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               className="block w-full rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
             >
               Leaderboard
+            </Link>
+            <Link
+              href="/community/trending"
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              Trending
             </Link>
             {me && (
               <Link
@@ -116,7 +157,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               {topics.map((t) => (
                 <Link
                   key={t.tag}
-                  href={tag === t.tag ? "/community" : `/community?tag=${t.tag}`}
+                  href={`/community/t/${t.tag}`}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-xs transition-colors",
                     tag === t.tag
@@ -130,12 +171,39 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
               ))}
             </div>
           </div>
+          {followedTags?.tags && followedTags.tags.length > 0 && (
+            <div>
+              <p className="micro-label mb-2 flex items-center gap-1 px-3">
+                <Hash className="h-3 w-3" aria-hidden /> Followed tags
+              </p>
+              <div className="flex flex-wrap gap-1.5 px-3">
+                {followedTags.tags.map((t) => (
+                  <Link
+                    key={t}
+                    href={`/community/t/${t}`}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
+                      tag === t
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "text-muted hover:text-foreground"
+                    )}
+                  >
+                    #{t}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          <WatchlistRail enabled={signedIn} />
         </div>
       </aside>
 
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
         <InlineComposer />
+        {/* Today's session threads — surfaced inline on mobile (the right rail
+            that hosts it on desktop is hidden below lg). */}
+        <EventsCard className="mb-4 lg:hidden" />
         <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
           <Link
             href="/community/leaderboard"
@@ -143,10 +211,16 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
           >
             Leaderboard
           </Link>
+          <Link
+            href="/community/trending"
+            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted"
+          >
+            Trending
+          </Link>
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setView({ sort: t.sort, scope: t.scope })}
+              onClick={() => selectTab(t)}
               aria-pressed={activeTab === t.id}
               className={cn(
                 "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
@@ -157,7 +231,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             </button>
           ))}
         </div>
-        {(tag || search) && (
+        {!view.foryou && (tag || search) && (
           <div className="mb-3 flex items-center gap-2 text-sm">
             {tag && (
               <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
@@ -177,22 +251,29 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             </button>
           </div>
         )}
-        <Feed
-          sort={view.sort}
-          tag={tag}
-          search={search}
-          scope={view.scope}
-          // Server-rendered first page only fits the default view; every other
-          // combination fetches as before.
-          initialFeed={
-            view.sort === "latest" && view.scope === "all" && !tag && !search ? initialFeed : null
-          }
-        />
+        {view.foryou ? (
+          <ForYouFeed enabled={signedIn} />
+        ) : (
+          <Feed
+            sort={view.sort}
+            tag={tag}
+            search={search}
+            scope={view.scope}
+            // Server-rendered first page only fits the default view; every other
+            // combination fetches as before.
+            initialFeed={
+              view.sort === "latest" && view.scope === "all" && !tag && !search ? initialFeed : null
+            }
+          />
+        )}
       </section>
 
       {/* ── Right rail ── */}
       <aside className="hidden lg:block">
         <div className="sticky top-20 space-y-4">
+          <EventsCard />
+          <WhoToFollow enabled={signedIn} />
+          <TrendingBoard variant="compact" />
           <div className="rounded-xl border bg-surface p-4">
             <h2 className="text-sm font-semibold">Share with the community</h2>
             <p className="mt-1 text-xs leading-5 text-muted">

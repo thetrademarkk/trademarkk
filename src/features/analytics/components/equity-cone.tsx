@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { formatNumber } from "@/lib/utils";
 import type { ConeBand } from "@/lib/montecarlo/simulate";
+import { equityConeAriaSummary } from "../chart-aria";
 
 /**
  * Plain-SVG equity cone (no recharts). Draws three nested bands —
@@ -84,7 +85,7 @@ export function EquityCone({ cone, startEquity }: { cone: ConeBand[]; startEquit
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
         role="img"
-        aria-label="Monte Carlo equity cone — projected equity percentile bands over the trade horizon"
+        aria-label={equityConeAriaSummary(cone, startEquity)}
         data-testid="equity-cone"
         className="min-w-[320px]"
       >

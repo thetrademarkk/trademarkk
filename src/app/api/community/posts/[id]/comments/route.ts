@@ -7,12 +7,19 @@ import { ensureProfile, getSession, notify, notifyMentions } from "@/server/comm
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { createCommentSchema } from "@/features/community/schemas";
+import { isUserBanned } from "@/server/moderation";
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await ctx.params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to comment" }, { status: 401 });
+  // Suspended accounts cannot create content (clear 403; existing content stays).
+  if (await isUserBanned(session.user.id))
+    return NextResponse.json(
+      { error: "Your account is suspended and cannot post or comment." },
+      { status: 403 }
+    );
 
   const { allowed } = await rateLimit(`comment:${session.user.id}`, 20, 3600);
   if (!allowed) return NextResponse.json({ error: "Commenting too fast" }, { status: 429 });

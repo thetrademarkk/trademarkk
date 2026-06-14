@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildQuickTradeValues, describeParsed } from "./quick-trade";
+import {
+  applyCapturedExchange,
+  buildQuickTradeValues,
+  defaultProductForSegment,
+  describeParsed,
+} from "./quick-trade";
 
 const baseInput = {
   accountId: "acc1",
@@ -72,6 +77,91 @@ describe("buildQuickTradeValues", () => {
   });
 });
 
+describe("buildQuickTradeValues — product + segment from capture", () => {
+  it("derivatives default to NRML (carry-forward)", () => {
+    const opt = buildQuickTradeValues(baseInput);
+    if (!opt.ok) throw new Error(opt.error);
+    expect(opt.values.segment).toBe("OPT");
+    expect(opt.values.product).toBe("NRML");
+
+    const fut = buildQuickTradeValues({ ...baseInput, instrument: "NIFTY24JUNFUT" });
+    if (!fut.ok) throw new Error(fut.error);
+    expect(fut.values.product).toBe("NRML");
+  });
+
+  it("cash equity defaults to MIS (intraday)", () => {
+    const eq = buildQuickTradeValues({ ...baseInput, instrument: "RELIANCE" });
+    if (!eq.ok) throw new Error(eq.error);
+    expect(eq.values.segment).toBe("EQ");
+    expect(eq.values.product).toBe("MIS");
+  });
+
+  it("MCX commodity by name → COMM segment + NRML product", () => {
+    const r = buildQuickTradeValues({ ...baseInput, instrument: "CRUDEOIL24JUN6500CE" });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.values.segment).toBe("COMM");
+    expect(r.values.product).toBe("NRML");
+    expect(r.values.strike).toBe(6500);
+    expect(r.values.optionType).toBe("CE");
+  });
+
+  it("a bare NCDEX commodity gets COMM via the captured MCX/NCDEX exchange", () => {
+    // "GUARSEED10" alone is a recognised agri base, but a thin name unknown to the
+    // base list still classifies once the captured exchange is supplied.
+    const r = buildQuickTradeValues({
+      ...baseInput,
+      instrument: "SOMEAGRI",
+      exchange: "NCDEX",
+    });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.values.segment).toBe("COMM");
+    expect(r.values.product).toBe("NRML");
+  });
+
+  it("a bare currency name gets CDS via the captured CDS exchange", () => {
+    const r = buildQuickTradeValues({ ...baseInput, instrument: "USDINR", exchange: "CDS" });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.values.segment).toBe("CDS");
+    expect(r.values.product).toBe("NRML");
+  });
+
+  it("an NSE equity captured with its exchange stays EQ/MIS (no spurious segment)", () => {
+    const r = buildQuickTradeValues({ ...baseInput, instrument: "SBIN", exchange: "NSE" });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.values.segment).toBe("EQ");
+    expect(r.values.product).toBe("MIS");
+    expect(r.values.symbol).toBe("SBIN");
+  });
+});
+
+describe("applyCapturedExchange", () => {
+  it("prefixes a bare symbol with a parseable exchange", () => {
+    expect(applyCapturedExchange("CRUDEOIL", "MCX")).toBe("MCX:CRUDEOIL");
+    expect(applyCapturedExchange("USDINR", "CDS")).toBe("CDS:USDINR");
+    expect(applyCapturedExchange("JEERA", "NCDEX")).toBe("NCDEX:JEERA");
+  });
+
+  it("never double-prefixes an already-prefixed symbol", () => {
+    expect(applyCapturedExchange("NSE:SBIN-EQ", "MCX")).toBe("NSE:SBIN-EQ");
+  });
+
+  it("ignores an unknown or empty exchange", () => {
+    expect(applyCapturedExchange("RELIANCE", null)).toBe("RELIANCE");
+    expect(applyCapturedExchange("RELIANCE", "")).toBe("RELIANCE");
+    expect(applyCapturedExchange("RELIANCE", "WEIRD")).toBe("RELIANCE");
+  });
+});
+
+describe("defaultProductForSegment", () => {
+  it("derivatives → NRML, equity → MIS", () => {
+    expect(defaultProductForSegment("EQ")).toBe("MIS");
+    expect(defaultProductForSegment("FUT")).toBe("NRML");
+    expect(defaultProductForSegment("OPT")).toBe("NRML");
+    expect(defaultProductForSegment("COMM")).toBe("NRML");
+    expect(defaultProductForSegment("CDS")).toBe("NRML");
+  });
+});
+
 describe("describeParsed", () => {
   it("describes options, futures and equity", () => {
     const opt = buildQuickTradeValues(baseInput);
@@ -83,5 +173,23 @@ describe("describeParsed", () => {
     const eq = buildQuickTradeValues({ ...baseInput, instrument: "SBIN" });
     if (!eq.ok) throw new Error(eq.error);
     expect(describeParsed(eq.parsed)).toBe("SBIN · Equity");
+  });
+
+  it("describes commodity (agri-flagged) and currency", () => {
+    const comm = buildQuickTradeValues({
+      ...baseInput,
+      instrument: "GOLD24JUN72000CE",
+      exit: "",
+    });
+    if (!comm.ok) throw new Error(comm.error);
+    expect(describeParsed(comm.parsed)).toBe("GOLD · Commodity 72000 CE");
+
+    const agri = buildQuickTradeValues({ ...baseInput, instrument: "DHANIYA", exit: "" });
+    if (!agri.ok) throw new Error(agri.error);
+    expect(describeParsed(agri.parsed)).toBe("DHANIYA · Commodity agri");
+
+    const cds = buildQuickTradeValues({ ...baseInput, instrument: "USDINR24JUNFUT", exit: "" });
+    if (!cds.ok) throw new Error(cds.error);
+    expect(describeParsed(cds.parsed)).toBe("USDINR · Currency");
   });
 });

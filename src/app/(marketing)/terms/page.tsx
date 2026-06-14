@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   description:
     "The terms governing your use of TradeMarkk — a journaling and education tool provided as is, not investment advice.",
   alternates: { canonical: "/terms" },
-  openGraph: { url: "/terms" },
 };
 
 const SECTIONS = [
