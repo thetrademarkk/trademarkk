@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description:
     "Trade logging for every Indian trader type with paise-accurate charges, an FY tax pack, a rules & mistakes engine, insights/tilt/Monte-Carlo analytics, broker CSV imports, a multi-broker Chrome extension, and your-own-database privacy.",
   alternates: { canonical: "/features" },
+  // Match og:url to the route's canonical (relative — metadataBase resolves it)
+  // so it doesn't inherit the homepage url; the branded card image still comes
+  // from the root layout's explicit openGraph.images.
+  openGraph: { url: "/features" },
 };
 
 const SECTIONS = [

@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useTags } from "../queries";
 import { cn } from "@/lib/utils";
 
@@ -36,13 +37,17 @@ export function TagPicker({
                   <button
                     key={t.id}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => toggle(t.id)}
                     className={cn(
-                      "rounded-md border px-2 py-0.5 text-xs transition-colors",
-                      active ? "border-transparent" : "border-border text-muted hover:text-foreground"
+                      "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs transition-colors",
+                      active
+                        ? "border-current ring-1 ring-current/40"
+                        : "border-border text-muted hover:text-foreground"
                     )}
                     style={active ? { backgroundColor: `${t.color}26`, color: t.color } : undefined}
                   >
+                    {active && <Check className="h-3 w-3" aria-hidden />}
                     {t.name}
                   </button>
                 );

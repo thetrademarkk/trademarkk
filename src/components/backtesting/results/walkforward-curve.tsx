@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { formatINR } from "@/lib/utils";
 import type { WalkForwardCurvePoint } from "@/lib/backtest/walkforward";
+import { walkForwardAriaSummary } from "@/features/analytics/chart-aria";
 
 /**
  * The two-color IN-SAMPLE / OUT-OF-SAMPLE equity curve. Reuses the SAME Recharts
@@ -25,7 +26,12 @@ export function WalkForwardCurve({ curve }: { curve: WalkForwardCurvePoint[] }) 
   const boundaryDay = React.useMemo(() => curve.find((p) => p.boundary)?.day, [curve]);
 
   return (
-    <div className="h-56 w-full" data-testid="bt-wf-curve">
+    <div
+      className="h-56 w-full"
+      data-testid="bt-wf-curve"
+      role="img"
+      aria-label={walkForwardAriaSummary(curve)}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={curve} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
           <defs>

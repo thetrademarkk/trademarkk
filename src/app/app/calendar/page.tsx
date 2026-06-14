@@ -97,13 +97,13 @@ export default function CalendarPage() {
         description="Your P&L, day by day. Dots mark journaled days; the bar under a day shows a position was held across it."
       />
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" onClick={() => shift(-1)}>
+        <Button variant="outline" size="icon" aria-label="Previous month" onClick={() => shift(-1)}>
           <ChevronLeft />
         </Button>
         <div className="min-w-[160px] text-center text-sm font-semibold">
           {new Date(year, month).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
         </div>
-        <Button variant="outline" size="icon" onClick={() => shift(1)}>
+        <Button variant="outline" size="icon" aria-label="Next month" onClick={() => shift(1)}>
           <ChevronRight />
         </Button>
         <div className="ml-auto text-sm">

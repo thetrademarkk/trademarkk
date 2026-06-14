@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   description:
     "The terms governing your use of TradeMarkk — a journaling and education tool provided as is, not investment advice.",
   alternates: { canonical: "/terms" },
+  // Match og:url to the route's canonical (relative — metadataBase resolves it)
+  // so it doesn't inherit the homepage url; the branded card image still comes
+  // from the root layout's explicit openGraph.images.
+  openGraph: { url: "/terms" },
 };
 
 const SECTIONS = [

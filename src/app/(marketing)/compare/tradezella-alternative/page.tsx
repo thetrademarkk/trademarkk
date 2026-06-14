@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description:
     "TradeMarkk is a free, open-source TradeZella alternative built for Indian FnO & intraday traders — with Indian charges, broker imports, and your-own-database privacy.",
   alternates: { canonical: "/compare/tradezella-alternative" },
+  // Match og:url to the route's canonical (relative — metadataBase resolves it)
+  // so it doesn't inherit the homepage url; the branded card image still comes
+  // from the root layout's explicit openGraph.images.
+  openGraph: { url: "/compare/tradezella-alternative" },
 };
 
 const ROWS: [string, string, string][] = [

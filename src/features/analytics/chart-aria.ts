@@ -39,7 +39,7 @@ export function rHistogramAriaSummary(buckets: { bucket: string; count: number }
   if (buckets.length === 0) return "R-multiple distribution: not enough data yet.";
   const total = buckets.reduce((s, b) => s + b.count, 0);
   const peak = buckets.reduce((a, b) => (b.count > a.count ? b : a), buckets[0]!);
-  return `R-multiple distribution histogram of ${countLabel(total, "trade")}. Most common outcome: ${peak.bucket}R with ${countLabel(peak.count, "trade")}.`;
+  return `R-multiple distribution histogram of ${countLabel(total, "trade")}. Most common outcome: ${peak.bucket} with ${countLabel(peak.count, "trade")}.`;
 }
 
 /** Summary for the cumulative equity (net-P&L) curve. */
@@ -49,6 +49,77 @@ export function equityCurveAriaSummary(points: { date: string; equity: number }[
   const peak = points.reduce((m, p) => Math.max(m, p.equity), -Infinity);
   const trough = points.reduce((m, p) => Math.min(m, p.equity), Infinity);
   return `Equity curve, cumulative net profit and loss over ${countLabel(points.length - 1, "step")}. Ends at ${formatINR(last, { signed: true })}. Peak ${formatINR(peak, { signed: true })}, low ${formatINR(trough, { signed: true })}.`;
+}
+
+/**
+ * Summary for the backtest HERO equity curve: cumulative net P&L by trade-day
+ * with the underwater drawdown band beneath. States the ending equity, the peak,
+ * and the deepest drawdown — the headline numbers a sighted user reads off the
+ * two areas.
+ */
+export function backtestEquityAriaSummary(curve: { ts: number; equity: number }[]): string {
+  if (curve.length < 2) return "Backtest equity curve: not enough data yet.";
+  const last = curve[curve.length - 1]!.equity;
+  let peak = curve[0]!.equity;
+  let maxDrawdown = 0;
+  for (const p of curve) {
+    if (p.equity > peak) peak = p.equity;
+    const dd = p.equity - peak;
+    if (dd < maxDrawdown) maxDrawdown = dd;
+  }
+  return `Backtest equity curve, cumulative net profit and loss over ${countLabel(curve.length - 1, "trade-day")} with the drawdown band beneath. Ends at ${formatINR(last, { signed: true })}, peak ${formatINR(peak, { signed: true })}, deepest drawdown ${formatINR(maxDrawdown, { signed: true })}.`;
+}
+
+/**
+ * Summary for the walk-forward IS/OOS equity curve: cumulative equity split at
+ * the train→test boundary. States the in-sample versus out-of-sample ending
+ * equity so a screen-reader user gets the same hold/degrade signal the two
+ * shaded areas convey.
+ */
+export function walkForwardAriaSummary(
+  curve: { isEquity: number | null; oosEquity: number | null }[]
+): string {
+  if (curve.length === 0) return "Walk-forward equity curve: not enough data yet.";
+  let isEnd: number | null = null;
+  let oosEnd: number | null = null;
+  for (const p of curve) {
+    if (p.isEquity != null) isEnd = p.isEquity;
+    if (p.oosEquity != null) oosEnd = p.oosEquity;
+  }
+  const isPart = isEnd != null ? `In-sample ends at ${formatINR(isEnd, { signed: true })}.` : "";
+  const oosPart =
+    oosEnd != null
+      ? ` Out-of-sample ends at ${formatINR(oosEnd, { signed: true })}.`
+      : " No out-of-sample segment yet.";
+  return `Walk-forward equity curve, cumulative net profit and loss split at the train to test boundary. ${isPart}${oosPart}`;
+}
+
+/**
+ * Summary for the journal-compare overlay: your real journaled equity versus the
+ * mechanical-baseline equity over the union of trading days. States both ending
+ * equities and the gap — descriptive only, never which one is "right".
+ */
+export function compareOverlayAriaSummary(
+  overlay: { real: number | null; baseline: number | null }[]
+): string {
+  if (overlay.length === 0) return "Journal versus baseline overlay: not enough data yet.";
+  let realEnd: number | null = null;
+  let baselineEnd: number | null = null;
+  for (const p of overlay) {
+    if (p.real != null) realEnd = p.real;
+    if (p.baseline != null) baselineEnd = p.baseline;
+  }
+  const realPart =
+    realEnd != null ? `Your trading ends at ${formatINR(realEnd, { signed: true })}.` : "";
+  const basePart =
+    baselineEnd != null
+      ? ` Mechanical baseline ends at ${formatINR(baselineEnd, { signed: true })}.`
+      : " No baseline segment yet.";
+  const gapPart =
+    realEnd != null && baselineEnd != null
+      ? ` Gap ${formatINR(realEnd - baselineEnd, { signed: true })}.`
+      : "";
+  return `Your trading versus mechanical baseline, cumulative net profit and loss over ${countLabel(overlay.length, "trading day")}. ${realPart}${basePart}${gapPart}`;
 }
 
 /** Summary for the per-day discipline-score trend line (0–100). */

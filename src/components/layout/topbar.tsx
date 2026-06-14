@@ -132,7 +132,7 @@ export function Topbar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="Storage and theme settings">
               <ModeIcon className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

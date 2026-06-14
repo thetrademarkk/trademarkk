@@ -107,7 +107,7 @@ export function JournalEditor({ date }: { date: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="icon" asChild>
-          <Link href={`/app/journal?date=${shift(-1)}`}>
+          <Link href={`/app/journal?date=${shift(-1)}`} aria-label="Previous day">
             <ChevronLeft />
           </Link>
         </Button>
@@ -123,9 +123,10 @@ export function JournalEditor({ date }: { date: string }) {
           size="icon"
           disabled={date >= todayKey()}
           asChild={date < todayKey()}
+          aria-label="Next day"
         >
           {date < todayKey() ? (
-            <Link href={`/app/journal?date=${shift(1)}`}>
+            <Link href={`/app/journal?date=${shift(1)}`} aria-label="Next day">
               <ChevronRight />
             </Link>
           ) : (
