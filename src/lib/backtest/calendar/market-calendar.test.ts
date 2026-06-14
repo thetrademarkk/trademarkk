@@ -185,6 +185,19 @@ describe("holiday roll-back of expiries (the silent-corruption guard)", () => {
     // 2024-03-30 (Sat) → 03-29 Good Friday → 03-28 Thursday (open).
     expect(rollBackToTradingDay("2024-03-30", "NIFTY")).toBe("2024-03-28");
   });
+
+  it("NEXT_WEEKLY clears the current week when the rule weekday is a holiday (CORR-05)", () => {
+    // 2022-04-14 (Thu) is a holiday → NIFTY WEEKLY rolls back to Wed 2022-04-13.
+    // NEXT_WEEKLY must advance a FULL week from the UNROLLED Thursday (04-14), to
+    // the next week's Thursday 2022-04-21 — NOT collapse back onto 04-13.
+    expect(isHoliday("2022-04-14")).toBe(true);
+    expect(isTradingDay("2022-04-21", "NIFTY")).toBe(true);
+    const weekly = expiryFor("NIFTY", "2022-04-11", "WEEKLY");
+    const nextWeekly = expiryFor("NIFTY", "2022-04-11", "NEXT_WEEKLY");
+    expect(weekly).toBe("2022-04-13"); // rolled back over the Thursday holiday
+    expect(nextWeekly).toBe("2022-04-21");
+    expect(nextWeekly > weekly).toBe(true); // the silent-collapse guard
+  });
 });
 
 describe("NEXT_WEEKLY + weekly/monthly building blocks", () => {

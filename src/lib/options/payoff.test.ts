@@ -11,7 +11,9 @@ import {
   type LegShape,
 } from "./payoff";
 
-const leg = (p: Partial<PayoffLeg> & Pick<PayoffLeg, "strike" | "optionType" | "direction">): PayoffLeg => ({
+const leg = (
+  p: Partial<PayoffLeg> & Pick<PayoffLeg, "strike" | "optionType" | "direction">
+): PayoffLeg => ({
   qty: 1,
   premium: 0,
   ...p,
@@ -129,8 +131,75 @@ describe("buildPayoffCurve — bull call spread (bounded both sides)", () => {
   });
 });
 
+describe("buildPayoffCurve — single long put (CORR-01: bounded upside)", () => {
+  // Long 100 PE @5, qty 1. A long put's profit is bounded at (K − premium)·qty
+  // (the underlying can only fall to 0), so max profit is 95 — NOT Infinity.
+  const legs: PayoffLeg[] = [
+    leg({ strike: 100, optionType: "PE", direction: "long", premium: 5, qty: 1 }),
+  ];
+  const curve = buildPayoffCurve(legs);
+
+  it("profit is NOT unbounded (only long calls are)", () => {
+    expect(curve.profitUnbounded).toBe(false);
+  });
+  it("max profit = (strike − premium)·qty at S=0", () => {
+    expect(curve.maxProfit).toBe(95); // (100 − 5) · 1
+  });
+  it("max loss = premium paid (at/above the strike)", () => {
+    expect(curve.maxLoss).toBe(-5);
+    expect(curve.lossUnbounded).toBe(false);
+  });
+  it("breakeven at strike − premium = 95", () => {
+    expect(curve.breakevens).toEqual([95]);
+  });
+  it("scales the bounded max profit by qty (CORR-01 golden)", () => {
+    const scaled = buildPayoffCurve([
+      leg({ strike: 100, optionType: "PE", direction: "long", premium: 5, qty: 50 }),
+    ]);
+    expect(scaled.profitUnbounded).toBe(false);
+    expect(scaled.maxProfit).toBe(95 * 50); // (strike − premium)·qty
+  });
+});
+
+describe("buildPayoffCurve — single short put (CORR-06: max loss sampled to S=0)", () => {
+  // Short 100 PE @5, qty 1. Max loss occurs at S=0: −(strike − premium)·qty
+  // = −95. The old sampler floored `lo` ~20% above centre and never reached
+  // S=0, understating the loss; the range now extends to 0 for put-bearing books.
+  const legs: PayoffLeg[] = [
+    leg({ strike: 100, optionType: "PE", direction: "short", premium: 5, qty: 1 }),
+  ];
+  const curve = buildPayoffCurve(legs);
+
+  it("samples down to S=0", () => {
+    expect(curve.minUnderlying).toBe(0);
+  });
+  it("max loss ≈ −(strike − premium)·qty at S=0", () => {
+    expect(curve.maxLoss).toBe(-95); // −(100 − 5) · 1
+    expect(curve.lossUnbounded).toBe(false);
+  });
+  it("max profit = premium collected (at/above the strike)", () => {
+    expect(curve.maxProfit).toBe(5);
+    expect(curve.profitUnbounded).toBe(false);
+  });
+  it("breakeven at strike − premium = 95", () => {
+    expect(curve.breakevens).toEqual([95]);
+  });
+  it("scales the bounded max loss by qty (CORR-06 golden)", () => {
+    const scaled = buildPayoffCurve([
+      leg({ strike: 100, optionType: "PE", direction: "short", premium: 5, qty: 25 }),
+    ]);
+    expect(scaled.maxLoss).toBe(-95 * 25); // −(strike − premium)·qty
+    expect(scaled.lossUnbounded).toBe(false);
+  });
+});
+
 describe("classifyStrategy", () => {
-  const L = (strike: number, optionType: "CE" | "PE", direction: "long" | "short", qty = 1): LegShape => ({
+  const L = (
+    strike: number,
+    optionType: "CE" | "PE",
+    direction: "long" | "short",
+    qty = 1
+  ): LegShape => ({
     strike,
     optionType,
     direction,
@@ -155,8 +224,12 @@ describe("classifyStrategy", () => {
   });
 
   it("vertical call spreads (bull = long lower strike)", () => {
-    expect(classifyStrategy([L(100, "CE", "long"), L(110, "CE", "short")])).toBe("Bull Call Spread");
-    expect(classifyStrategy([L(110, "CE", "long"), L(100, "CE", "short")])).toBe("Bear Call Spread");
+    expect(classifyStrategy([L(100, "CE", "long"), L(110, "CE", "short")])).toBe(
+      "Bull Call Spread"
+    );
+    expect(classifyStrategy([L(110, "CE", "long"), L(100, "CE", "short")])).toBe(
+      "Bear Call Spread"
+    );
   });
 
   it("vertical put spreads (bull = long lower strike)", () => {

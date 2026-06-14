@@ -261,13 +261,23 @@ describe("parseContractName — NCDEX agri (→ COMM, agri-flagged)", () => {
     expect(parseContractName("JEERAUNJHA")).toMatchObject({ segment: "COMM", agri: true });
   });
 
-  it("lot-size-suffixed agri variant still classifies (GUARSEED10, GUARGUM5)", () => {
+  it("lot-size-suffixed agri SEED variant still classifies as agri (GUARSEED10)", () => {
     expect(parseContractName("GUARSEED10")).toMatchObject({
       symbol: "GUARSEED10",
       segment: "COMM",
       agri: true,
     });
-    expect(parseContractName("GUARGUM5")).toMatchObject({ segment: "COMM", agri: true });
+  });
+
+  it("processed GUARGUM is COMM but NON-agri — CTT applies (CORR-02)", () => {
+    // Guar Gum is the processed derivative of Guar Seed: still a commodity, but
+    // it pays CTT, so agri MUST be false to match classifyAgriCommodity / the tax
+    // page (turnover.ts). Lot-suffixed (GUARGUM5) and NCDEX-prefixed both apply.
+    expect(parseContractName("GUARGUM5")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("GUARGUM")).toMatchObject({ segment: "COMM", agri: false });
+    expect(parseContractName("NCDEX:GUARGUM")).toMatchObject({ segment: "COMM", agri: false });
+    // Parity with the authoritative classifier the tax-turnover path uses.
+    expect(parseContractName("GUARGUM5").agri).toBe(classifyAgriCommodity("GUARGUM5"));
   });
 
   it("a generic equity is never swept into agri COMM", () => {

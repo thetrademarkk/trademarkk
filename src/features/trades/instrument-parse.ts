@@ -145,8 +145,19 @@ const isMcxCommodityBase = (sym: string) => startsWithAny(sym, COMMODITY_BASES);
 const isNcdexAgriBase = (sym: string) => startsWithAny(sym, NCDEX_AGRI_BASES);
 /** Any recognised commodity base (MCX commodity or NCDEX agri). */
 const isCommodityBase = (sym: string) => isMcxCommodityBase(sym) || isNcdexAgriBase(sym);
-/** Agri (CTT-exempt) commodity: every NCDEX commodity + the agri MCX contracts. */
-const isAgriBase = (sym: string) => isNcdexAgriBase(sym) || startsWithAny(sym, MCX_AGRI_BASES);
+/**
+ * Agri (CTT-exempt) commodity: every NCDEX commodity + the agri MCX contracts,
+ * MINUS the processed-derivative exceptions (Guar Gum, oilcakes, refined oils,
+ * AGRIDEX) which look agri but DO pay CTT. The exception check uses the same
+ * whole-base set + base-normaliser as `classifyAgriCommodity` so the per-trade
+ * charge path agrees with the tax-turnover path (CORR-02). Checked even when the
+ * symbol carries an NCDEX prefix — a processed product on NCDEX is still non-agri.
+ */
+const isAgriBase = (sym: string) =>
+  !isProcessedAgriException(sym) && (isNcdexAgriBase(sym) || startsWithAny(sym, MCX_AGRI_BASES));
+
+/** True when a symbol's base is a processed agri product / index that pays CTT. */
+const isProcessedAgriException = (sym: string) => AGRI_PROCESSED_EXCEPTIONS.has(commodityBase(sym));
 
 /**
  * Internal pre-classification parse: every shape EXCEPT the agri flag, which
@@ -169,8 +180,12 @@ function reclassifySegment(p: RawParse, exchange: string): ParsedInstrument {
   // it isn't a known commodity (avoids an MCX symbol that merely contains "INR").
   const segment: ParsedInstrument["segment"] = isCurrency && !isCommodity ? "CDS" : "COMM";
   // Agri (CTT-exempt) only applies to commodities: an NCDEX prefix, an NCDEX
-  // agri base, or an agri MCX contract (KAPAS/COTTON/CARDAMOM/MENTHAOIL).
-  const agri = segment === "COMM" && (isNcdex || isAgriBase(p.symbol));
+  // agri base, or an agri MCX contract (KAPAS/COTTON/CARDAMOM/MENTHAOIL) — but
+  // NEVER a processed derivative (Guar Gum, oilcakes, refined oils, AGRIDEX),
+  // which pays CTT even on NCDEX. This keeps parseContractName(sym).agri in lock
+  // step with classifyAgriCommodity(sym) used by the tax page (CORR-02).
+  const agri =
+    segment === "COMM" && !isProcessedAgriException(p.symbol) && (isNcdex || isAgriBase(p.symbol));
   return { ...p, segment, agri };
 }
 
