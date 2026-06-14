@@ -16,10 +16,13 @@ export function SheetContent({
   className,
   children,
   title,
+  hideTitle = false,
 }: {
   className?: string;
   children: React.ReactNode;
   title: string;
+  /** Keep the title for a11y but hide it visually (the body renders its own). */
+  hideTitle?: boolean;
 }) {
   return (
     <VaulDrawer.Portal>
@@ -31,8 +34,12 @@ export function SheetContent({
         )}
       >
         <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-surface-2" />
-        <VaulDrawer.Title className="px-5 pt-3 text-base font-semibold">{title}</VaulDrawer.Title>
-        <div className="overflow-y-auto p-5 pt-3">{children}</div>
+        <VaulDrawer.Title
+          className={cn("px-5 pt-3 text-base font-semibold", hideTitle && "sr-only")}
+        >
+          {title}
+        </VaulDrawer.Title>
+        <div className="overflow-y-auto p-5 pt-3 no-scrollbar">{children}</div>
       </VaulDrawer.Content>
     </VaulDrawer.Portal>
   );

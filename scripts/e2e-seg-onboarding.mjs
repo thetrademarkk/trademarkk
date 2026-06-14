@@ -75,7 +75,10 @@ const pickType = async (page, label) => {
 /** Open the Add-trade form and wait until the trader-profile default applied. */
 const openTradeForm = async (page, expectedProduct) => {
   await page.getByRole("button", { name: "Add trade" }).first().click();
-  await page.getByRole("heading", { name: "Add trade" }).waitFor({ timeout: 15000 });
+  // The dialog title is sr-only (the visible "Add trade" heading + Templates now
+  // share the form's header row) — wait for the symbol field, the stable signal
+  // that the form is mounted.
+  await page.getByPlaceholder("NIFTY / RELIANCE").waitFor({ timeout: 15000 });
   // The SEG-08 default is applied in an effect once the trader_profile query
   // resolves — wait for the expected product button to become pressed before
   // reading the segment, so we never race the async default.

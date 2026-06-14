@@ -113,10 +113,12 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <Greeting />
+      <div className="flex items-start justify-between gap-3">
+        <Greeting />
+        {allClosed.length > 0 && <TradingStyleSummary trades={allClosed} inline />}
+      </div>
       <RiskGuardrailBanner />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} emphasis={emphasis} />
-      <TradingStyleSummary trades={allClosed} compact />
 
       {positional ? (
         // Positional/swing lean: live carry + holding period come first; the

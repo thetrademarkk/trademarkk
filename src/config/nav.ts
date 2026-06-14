@@ -32,7 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/app/rules", label: "Rules & Mistakes", icon: ShieldCheck },
   { href: "/app/playbooks", label: "Playbooks", icon: Layers },
   { href: "/app/reports", label: "Reports", icon: FileText },
-  { href: "/app/backtesting", label: "Backtesting", icon: FlaskConical },
+  { href: "/backtesting", label: "Backtesting", icon: FlaskConical, newTab: true },
   { href: "/community", label: "Community", icon: Users, newTab: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];

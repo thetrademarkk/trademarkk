@@ -14,7 +14,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <NextThemesProvider
       attribute="class"
       themes={THEMES.map((t) => t.id)}
-      defaultTheme="oled"
+      defaultTheme="carbon"
       disableTransitionOnChange
     >
       {children}
