@@ -2,10 +2,38 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarClock, Pin } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommentSection, PostCard, RelatedPosts, usePost } from "@/features/community";
 import { communityBackHref, FEED_CONTEXT_KEY } from "@/features/community/back-nav";
+import { shortDate } from "@/features/community/events";
+
+/**
+ * Pinned header shown on an auto-created event/market-session thread (rank-18):
+ * a clear time-box + an explicit "opened automatically by TradeMarkk" label so
+ * a reader always knows the thread isn't a person's post. No fake activity.
+ */
+function EventThreadHeader({ type, date }: { type: "market-open" | "expiry-day"; date: string }) {
+  const isExpiry = type === "expiry-day";
+  const label = isExpiry ? `Expiry Day · ${shortDate(date)}` : `Market Open · ${shortDate(date)}`;
+  return (
+    <div
+      data-testid="event-thread-header"
+      className="flex items-start gap-2.5 rounded-xl border border-accent/30 bg-accent/8 px-4 py-3"
+    >
+      <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden />
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-accent">
+          <Pin className="h-3.5 w-3.5" aria-hidden /> {label}
+        </p>
+        <p className="mt-0.5 text-xs leading-5 text-muted" data-event-automated>
+          Pinned session thread, opened automatically by TradeMarkk — not a person&apos;s post.
+          Share your take below; educational discussion only, no tips or calls.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /** Mirrors the post layout so loading doesn't flash a shapeless gray block. */
 function DetailSkeleton() {
@@ -72,6 +100,9 @@ export function PostDetail({ id }: { id: string }) {
         </p>
       ) : (
         <div className="space-y-6">
+          {data.eventThread && (
+            <EventThreadHeader type={data.eventThread.type} date={data.eventThread.date} />
+          )}
           <PostCard post={data.post} detail authorFollowedByMe={data.authorFollowedByMe} />
           <CommentSection postId={id} comments={data.comments} />
           <RelatedPosts posts={data.related} byTag={data.relatedByTag} />

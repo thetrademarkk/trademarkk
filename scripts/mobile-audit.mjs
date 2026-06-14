@@ -17,11 +17,13 @@ const PUBLIC = [
   "/community/leaderboard",
   "/community/messages",
   "/community/notifications",
+  "/community/trending",
   "/community/s/NIFTY",
   "/backtesting",
   "/backtesting/build",
   "/backtesting/explore",
   "/backtesting/compare",
+  "/community/t/options",
 ];
 const APP = [
   "/app/dashboard",

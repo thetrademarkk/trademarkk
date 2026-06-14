@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { checkPassword, passwordsMatch } from "@/features/auth";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,7 +23,12 @@ function ResetForm() {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const password = String(form.get("password") ?? "");
-    if (password !== String(form.get("confirm") ?? "")) {
+    const pw = checkPassword(password);
+    if (!pw.valid) {
+      setError(pw.reason);
+      return;
+    }
+    if (!passwordsMatch(password, String(form.get("confirm") ?? ""))) {
       setError("Passwords don't match.");
       return;
     }

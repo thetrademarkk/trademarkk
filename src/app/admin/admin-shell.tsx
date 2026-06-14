@@ -4,7 +4,7 @@ import * as React from "react";
 import { Flag, LayoutDashboard, MessageSquareWarning, Newspaper } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAdminOverview, useAdminReports } from "./use-admin-overview";
+import { useAdminOverview, useModQueue } from "./use-admin-overview";
 import { OverviewSection } from "./overview-section";
 import { SubmissionsSection } from "./submissions-section";
 import { FeedbackSection } from "./feedback-section";
@@ -31,10 +31,11 @@ const SECTIONS: { id: SectionId; label: string; icon: LucideIcon; description: s
 export function AdminShell() {
   const [section, setSection] = React.useState<SectionId>("overview");
   const { data: overview } = useAdminOverview();
-  const { data: reportData } = useAdminReports();
+  // The nav badge shows the count of OPEN moderation items (reports + flags).
+  const { data: modData } = useModQueue({ source: "all", status: "open", sort: "newest", page: 1 });
 
   const counts: Partial<Record<SectionId, number>> = {
-    moderation: reportData?.reports.length,
+    moderation: modData ? modData.openCounts.reports + modData.openCounts.flags : undefined,
     blog: overview?.stats.blogPending,
   };
   const active = SECTIONS.find((s) => s.id === section)!;

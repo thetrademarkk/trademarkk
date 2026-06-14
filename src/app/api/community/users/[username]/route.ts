@@ -10,7 +10,7 @@ import {
   profiles,
   user,
 } from "@/server/db/platform-schema";
-import { getSession, hydratePosts, queryFeed } from "@/server/community";
+import { getReputation, getSession, hydratePosts, queryFeed } from "@/server/community";
 
 /** Public profile + their posts. */
 export async function GET(req: Request, ctx: { params: Promise<{ username: string }> }) {
@@ -96,6 +96,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
     .get();
   const joinedAt = account ? account.createdAt.toISOString() : profile.createdAt;
 
+  // Community reputation STANDING (participation/credibility — NOT trading skill
+  // or P&L). Computed from earned, anti-gaming signals + a transparent breakdown.
+  // Degrades to a "New" stub if the standing can't be computed (never fails the
+  // profile). Skips banned authors' positive framing — the score floors anyway.
+  const reputation = await getReputation(profile.userId).catch(() => null);
+
   // Pinned post rides separately so the client can hoist it above the list
   // (with a "Pinned" marker) regardless of pagination. Hidden when the viewer
   // blocked this user — same rule queryFeed applies to the list itself.
@@ -131,6 +137,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
       followedByMe: Boolean(myFollow),
       blockedByMe: Boolean(myBlock),
       mine: session?.user.id === profile.userId,
+      reputation: reputation
+        ? {
+            score: reputation.score,
+            tier: reputation.tier,
+            tierLabel: reputation.tierLabel,
+            tierBlurb: reputation.tierBlurb,
+            components: reputation.components,
+          }
+        : null,
+      // Earned achievement-AWARD ids (rank-20) — same pass as reputation. Empty
+      // for a member whose standing couldn't be computed or who earned none.
+      awards: reputation?.awards ?? [],
     },
     pinnedPost,
     posts: pinnedId ? userPosts.filter((p) => p.id !== pinnedId) : userPosts,

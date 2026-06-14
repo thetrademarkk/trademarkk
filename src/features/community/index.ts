@@ -1,4 +1,7 @@
 export { Feed } from "./components/feed";
+export { ForYouFeed } from "./components/for-you-feed";
+export { StarterSuggestions } from "./components/starter-suggestions";
+export { WhoToFollow } from "./components/who-to-follow";
 export { PostCard } from "./components/post-card";
 export { Composer } from "./components/composer";
 export { InlineComposer } from "./components/inline-composer";
@@ -25,3 +28,6 @@ export type {
   RelatedPostView,
 } from "./types";
 export { CommunitySearch } from "./components/community-search";
+export { TrendingBoard } from "./components/trending-board";
+export { EventsCard } from "./components/events-card";
+export { AwardBadgesRow, AchievementsSection, FeaturedAwardChip } from "./components/award-badges";

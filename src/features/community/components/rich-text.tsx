@@ -3,7 +3,7 @@ import React from "react";
 
 /**
  * Plain-text-safe rich rendering: linkifies @handles (→ profiles), #hashtags
- * (→ tag feed), $cashtags (→ the per-symbol stream page) and URLs. No HTML is
+ * (→ tag page), $cashtags (→ the per-symbol stream page) and URLs. No HTML is
  * ever parsed — XSS-free by construction.
  */
 const TOKEN = /(@[a-z0-9_]{3,20}|#[a-z0-9-]{2,20}|\$[A-Za-z0-9&-]{1,20}|https?:\/\/[^\s<>"')\]]+)/g;
@@ -28,7 +28,7 @@ export function RichText({ text }: { text: string }) {
           return (
             <Link
               key={i}
-              href={`/community?tag=${encodeURIComponent(part.slice(1))}`}
+              href={`/community/t/${encodeURIComponent(part.slice(1))}`}
               className="text-accent hover:underline"
             >
               {part}

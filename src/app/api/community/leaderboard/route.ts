@@ -5,6 +5,7 @@ import { getSession } from "@/server/community";
 import { cached } from "@/server/cache";
 import { rateLimit } from "@/server/rate-limit";
 import { clientIp } from "@/server/client-ip";
+import { normalizeTier } from "@/features/community/reputation";
 import type { LeaderboardRow } from "@/features/community/types";
 
 /**
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
   const rows = await cached(`lb:contrib:${period}`, 120_000, () =>
     platformDb.all(
       sql`SELECT p.user_id AS userId, p.username, p.display_name AS displayName, p.avatar,
+               p.reputation_tier AS reputationTier,
                COALESCE(po.cnt, 0) AS posts,
                COALESCE(co.cnt, 0) AS comments,
                COALESCE(lr.cnt, 0) AS likesReceived,
@@ -73,6 +75,7 @@ export async function GET(req: Request) {
     username: String(r.username),
     displayName: String(r.displayName),
     avatar: (r.avatar as string) ?? null,
+    reputationTier: normalizeTier(r.reputationTier as string | null),
     posts: Number(r.posts),
     comments: Number(r.comments),
     likesReceived: Number(r.likesReceived),

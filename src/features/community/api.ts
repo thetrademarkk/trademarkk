@@ -21,9 +21,16 @@ import type {
   ProfileCommentView,
   ProfileView,
   SearchResponse,
+  ThreadState,
 } from "./types";
+import { classifyAttachment, toggleMessageReaction, type MessageReactionKind } from "./dm-v2";
+import { backgroundAwarePoll } from "./poll";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
+import { toggleFollowedTag } from "./followed-tags";
+import { toggleWatchedSymbol } from "./watchlist";
+import type { ReputationTier } from "./reputation";
+import { extractCashtags } from "./cashtags";
 import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
 import type { PostEditSnapshot } from "./edit-window";
@@ -48,7 +55,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export type FeedSort = "latest" | "top";
-export type FeedScope = "all" | "following" | "saved";
+export type FeedScope = "all" | "following" | "saved" | "watchlist";
 
 export function useFeed(
   sort: FeedSort,
@@ -80,6 +87,114 @@ export function useFeed(
           initialDataUpdatedAt: 0,
         }
       : {}),
+  });
+}
+
+/* ── "N new posts" live pill (rank-15) ──────────────────────── */
+
+/**
+ * Polls the cheap, count-only `new-count` endpoint for how many posts are newer
+ * than `since` (the createdAt of the post currently at the top of the feed).
+ * TRANSPORT: a poll, not SSE — see `features/community/new-posts.ts` for why
+ * (Vercel serverless + the codebase already polls for notifications/DMs).
+ *
+ * Cheap: only an integer is fetched; no post bodies cross the wire until the
+ * user clicks the pill. Gentle 25s interval. `refetchIntervalInBackground:
+ * false` makes TanStack Query PAUSE the interval whenever the tab is hidden
+ * (it listens to visibilitychange internally) and `refetchOnWindowFocus` fires
+ * one immediate fetch when the trader returns — no hammering, no thundering
+ * herd. Disabled (and the count forced to 0) unless `enabled` and a `since`
+ * exists; the caller only enables it on the live Latest scope.
+ */
+export function useNewPostsCount(since: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-new-count", since],
+    queryFn: () =>
+      request<{ count: number }>(
+        `/api/community/posts/new-count?since=${encodeURIComponent(since ?? "")}`
+      ),
+    enabled: enabled && Boolean(since),
+    // Background-aware: pauses on a hidden tab, one fresh check on focus return.
+    ...backgroundAwarePoll(25_000),
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/* ── For You (interest feed + cold-start starter follows) ──────────────────── */
+
+/**
+ * The signed-in viewer's "For You" interest feed — a single page of recent posts
+ * re-ranked by a transparent interest score (engaged tags/symbols + followed &
+ * 2nd-degree authors + a global hot-score prior). Cold-start viewers fall back to
+ * the global Top feed server-side so the tab is never empty. Not infinite —
+ * deeper browsing belongs in Latest/Top. Enabled only when signed in.
+ */
+export function useForYou(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-foryou"],
+    queryFn: () => request<FeedResponse>("/api/community/foryou"),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export interface StarterAuthor {
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  reason: string;
+}
+export interface StarterSuggestionsResponse {
+  show: boolean;
+  tags: { tag: string; count: number }[];
+  authors: StarterAuthor[];
+}
+
+/**
+ * Cold-start "starter follows" — seed tags + popular authors a low-signal viewer
+ * can follow so their personalized feeds aren't empty. `show` is false for a
+ * well-connected viewer (the UI then renders nothing). Enabled only when signed
+ * in; cached a few minutes since it's a slowly-changing discovery surface.
+ */
+export function useStarterSuggestions(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-starter-suggestions"],
+    queryFn: () => request<StarterSuggestionsResponse>("/api/community/suggestions"),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export interface WhoToFollowSuggestion {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  reputationTier: ReputationTier | null;
+  reason: string;
+}
+export interface WhoToFollowResponse {
+  show: boolean;
+  suggestions: WhoToFollowSuggestion[];
+}
+
+/**
+ * "Who to follow" — relevant, non-spammy follow recommendations for the signed-in
+ * viewer (2nd-degree mutuals, shared followed-tags / watched-symbols, recent
+ * activity; standing only as a bounded tie-break). Cold-start viewers get popular
+ * recent contributors. Enabled only when signed in; viewer-personalized so never
+ * cached on the server. A slowly-changing discovery surface → cached client-side.
+ */
+export function useWhoToFollow(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-who-to-follow"],
+    queryFn: () => request<WhoToFollowResponse>("/api/community/who-to-follow"),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
   });
 }
 
@@ -169,6 +284,189 @@ export function useTrendingTags() {
     queryKey: ["community-trending-tags"],
     queryFn: () => request<{ tags: { tag: string; count: number }[] }>("/api/community/tags"),
     staleTime: 5 * 60_000,
+  });
+}
+
+/* ── Trending board (tickers & topics) ───────────────────────── */
+
+export interface TrendingBoardItem {
+  key: string;
+  authors: number;
+  posts: number;
+  score: number;
+}
+export interface TrendingBoardResponse {
+  window: "24h" | "7d";
+  tickers: TrendingBoardItem[];
+  topics: TrendingBoardItem[];
+}
+
+/**
+ * Trending tickers & topics for a window. Block-aware on the server for
+ * signed-in viewers; the anonymous board is CDN-cached. Drives the
+ * /community/trending page and the right-rail Trending widget.
+ */
+export function useTrending(window: "24h" | "7d") {
+  return useQuery({
+    queryKey: ["community-trending", window],
+    queryFn: () => request<TrendingBoardResponse>(`/api/community/trending?window=${window}`),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/* ── Event / market-session threads (rank-18) ─────────────────── */
+
+export interface EventThreadView {
+  type: "market-open" | "expiry-day";
+  date: string;
+  title: string;
+  badge: string;
+  postId: string;
+  commentCount: number;
+}
+export interface ActiveEventsResponse {
+  date: string;
+  marketClosed: boolean;
+  threads: EventThreadView[];
+}
+
+/**
+ * Today's active event / market-session threads (auto-materialized server-side
+ * on first visit of a trading/expiry day). Viewer-independent + CDN-cached;
+ * drives the right-rail "Today" card and its graceful "Markets closed" state.
+ */
+export function useActiveEvents() {
+  return useQuery({
+    queryKey: ["community-events"],
+    queryFn: () => request<ActiveEventsResponse>("/api/community/events"),
+    // Day-level focal point — refresh occasionally so the comment counts and a
+    // day rollover (or a freshly-materialized thread) surface without a reload.
+    staleTime: 5 * 60_000,
+  });
+}
+
+/* ── Per-symbol community sentiment gauge ─────────────────────── */
+
+export interface SentimentGaugeView {
+  bull: number;
+  bear: number;
+  total: number;
+  bullPct: number;
+  bearPct: number;
+  hasSignal: boolean;
+}
+export interface SentimentResponse {
+  symbol: string;
+  window: "24h" | "7d";
+  gauge: SentimentGaugeView;
+}
+
+/**
+ * Community sentiment gauge for a symbol over a window. Block-aware on the
+ * server for signed-in viewers; the anonymous gauge is CDN-cached. Drives the
+ * per-symbol stream page's bull/bear gauge — NOT a recommendation.
+ */
+export function useSymbolSentiment(symbol: string, window: "24h" | "7d") {
+  return useQuery({
+    queryKey: ["community-sentiment", symbol, window],
+    queryFn: () =>
+      request<SentimentResponse>(
+        `/api/community/sentiment?symbol=${encodeURIComponent(symbol)}&window=${window}`
+      ),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+/** The signed-in viewer's followed tags. Drives the tag page's Follow state + the left-rail list. */
+export function useFollowedTags(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-followed-tags"],
+    queryFn: () => request<{ tags: string[] }>("/api/community/followed-tags"),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Optimistic follow/unfollow of a tag. Patches the cached followed-tags list
+ * instantly (so the tag page button and the left-rail list flip together) and
+ * rolls back on error. Refreshes the Following feed on success so newly-followed
+ * tags' posts appear without a manual reload.
+ */
+export function useToggleFollowTag() {
+  const qc = useQueryClient();
+  const key = ["community-followed-tags"];
+  return useMutation({
+    mutationFn: (tag: string) =>
+      request<{ following: boolean }>(`/api/community/tags/${encodeURIComponent(tag)}/follow`, {
+        method: "POST",
+      }),
+    onMutate: (tag) => {
+      const prev = qc.getQueryData<{ tags: string[] }>(key);
+      qc.setQueryData<{ tags: string[] }>(key, (data) => ({
+        tags: toggleFollowedTag(data?.tags ?? [], tag),
+      }));
+      return { prev };
+    },
+    onError: (_e, _tag, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      // A followed tag's posts flow into the Following feed.
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
+  });
+}
+
+/* ── Watchlist (watched symbols) ─────────────────────────────── */
+
+/**
+ * The signed-in viewer's watched symbols. Drives the per-symbol stream's Watch
+ * button state, the left-rail "Your watchlist" list, and the Watchlist feed
+ * availability. Empty (and skipped) for signed-out viewers.
+ */
+export function useWatchedSymbols(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-watched-symbols"],
+    queryFn: () => request<{ symbols: string[] }>("/api/community/watchlist"),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Optimistic watch/unwatch of a symbol. Patches the cached watched-symbols list
+ * instantly (so the stream-page Watch button and the left-rail list flip
+ * together) and rolls back on error. Refreshes the Watchlist feed on success so
+ * a newly-watched symbol's posts appear without a manual reload.
+ */
+export function useToggleWatch() {
+  const qc = useQueryClient();
+  const key = ["community-watched-symbols"];
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      request<{ watching: boolean }>(`/api/community/watchlist/${encodeURIComponent(symbol)}`, {
+        method: "POST",
+      }),
+    onMutate: (symbol) => {
+      const prev = qc.getQueryData<{ symbols: string[] }>(key);
+      qc.setQueryData<{ symbols: string[] }>(key, (data) => ({
+        symbols: toggleWatchedSymbol(data?.symbols ?? [], symbol),
+      }));
+      return { prev };
+    },
+    onError: (_e, _symbol, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      // A watched symbol's posts flow into the Watchlist feed.
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
   });
 }
 
@@ -263,6 +561,16 @@ export function useEditPost(id: string) {
       title: input.title?.trim() || null,
       body: input.body.trim(),
       tags: input.tags,
+      // Sentiment is only kept when the new body still tags a ticker (mirrors the
+      // server re-gate); `undefined` leaves the existing lean untouched.
+      sentiment:
+        input.sentiment === undefined
+          ? input.body.trim().length && extractCashtags(input.body).length > 0
+            ? post.sentiment
+            : null
+          : extractCashtags(input.body).length > 0
+            ? (input.sentiment ?? null)
+            : null,
       editedAt,
       editHistory: [...post.editHistory, snapshot],
     };
@@ -628,13 +936,15 @@ interface NotificationsResponse {
   unread: number;
 }
 
-/** Bell polls the default 30; the full page asks for more via `limit`. */
+/** Bell polls every 60s; the full page asks for more via `limit`. */
 export function useNotifications(enabled: boolean, limit = 30) {
   return useQuery({
     queryKey: ["community-notifications", limit],
     queryFn: () => request<NotificationsResponse>(`/api/community/notifications?limit=${limit}`),
     enabled,
-    refetchInterval: 60_000,
+    // Background-aware: matches the new-posts pill so a hidden tab goes quiet
+    // instead of every community poll hammering on in the background.
+    ...backgroundAwarePoll(60_000),
     retry: false,
   });
 }
@@ -666,6 +976,146 @@ export function useMarkNotificationsRead() {
   });
 }
 
+/* ── Notification preferences ────────────────────────────────────────────── */
+
+export interface NotificationPrefToggle {
+  type: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+interface NotificationPrefsResponse {
+  toggles: NotificationPrefToggle[];
+}
+
+/** The signed-in user's per-type notification toggles. */
+export function useNotificationPrefs(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-notification-prefs"],
+    queryFn: () => request<NotificationPrefsResponse>("/api/community/notification-prefs"),
+    enabled,
+    retry: false,
+  });
+}
+
+/**
+ * Toggles one notification type. Optimistic: the switch flips instantly and
+ * rolls back on error; the server response (authoritative full list) replaces
+ * the cache on success.
+ */
+export function useUpdateNotificationPref() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { type: string; enabled: boolean }) =>
+      request<NotificationPrefsResponse>("/api/community/notification-prefs", {
+        method: "PUT",
+        body: JSON.stringify(vars),
+      }),
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ["community-notification-prefs"] });
+      const prev = qc.getQueryData<NotificationPrefsResponse>(["community-notification-prefs"]);
+      qc.setQueryData<NotificationPrefsResponse>(["community-notification-prefs"], (data) =>
+        data
+          ? {
+              toggles: data.toggles.map((t) =>
+                t.type === vars.type ? { ...t, enabled: vars.enabled } : t
+              ),
+            }
+          : data
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-notification-prefs"], ctx.prev);
+    },
+    onSuccess: (data) => qc.setQueryData(["community-notification-prefs"], data),
+  });
+}
+
+/* ── Muted words (personal content filter) ───────────────────────────────── */
+
+import type { MuteEntry, MuteMatchMode } from "./muted-words";
+
+interface MutedWordsResponse {
+  entries: MuteEntry[];
+}
+
+/** The signed-in user's personal muted-word entries. Empty for signed-out. */
+export function useMutedWords(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-muted-words"],
+    queryFn: () => request<MutedWordsResponse>("/api/community/muted-words"),
+    enabled,
+    retry: false,
+  });
+}
+
+/** Invalidate every cached feed/post so the muting post-filter re-applies. */
+function invalidateMuteAffected(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: ["community-feed"] });
+  void qc.invalidateQueries({ queryKey: ["community-foryou"] });
+  void qc.invalidateQueries({ queryKey: ["community-post"] }); // thread collapse markers
+}
+
+export interface AddMuteVars {
+  term: string;
+  mode: MuteMatchMode;
+  caseSensitive?: boolean;
+  durationMs?: number;
+}
+
+/** Adds a muted word. The server returns the authoritative new list. */
+export function useAddMutedWord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: AddMuteVars) =>
+      request<MutedWordsResponse>("/api/community/muted-words", {
+        method: "POST",
+        body: JSON.stringify(vars),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(["community-muted-words"], data);
+      invalidateMuteAffected(qc);
+    },
+  });
+}
+
+/** Removes a muted word (by mode + term). Optimistic with server reconcile. */
+export function useRemoveMutedWord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { term: string; mode: MuteMatchMode }) =>
+      request<MutedWordsResponse>("/api/community/muted-words", {
+        method: "DELETE",
+        body: JSON.stringify(vars),
+      }),
+    onMutate: (vars) => {
+      const prev = qc.getQueryData<MutedWordsResponse>(["community-muted-words"]);
+      qc.setQueryData<MutedWordsResponse>(["community-muted-words"], (data) =>
+        data
+          ? { entries: data.entries.filter((e) => !(e.mode === vars.mode && sameTerm(e, vars))) }
+          : data
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-muted-words"], ctx.prev);
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["community-muted-words"], data);
+      invalidateMuteAffected(qc);
+    },
+  });
+}
+
+/** Loose term comparison for optimistic removal (server normalizes definitively). */
+function sameTerm(e: MuteEntry, vars: { term: string; mode: MuteMatchMode }): boolean {
+  const strip = (s: string) => s.trim().replace(/^[$#]+/, "");
+  if (e.mode === "cashtag") return e.term.toUpperCase() === strip(vars.term).toUpperCase();
+  if (e.mode === "hashtag") return e.term.toLowerCase() === strip(vars.term).toLowerCase();
+  return e.term.toLowerCase() === vars.term.trim().toLowerCase();
+}
+
 /* ── Direct messages ─────────────────────────────────────────────────────── */
 
 export interface ConversationsResponse {
@@ -673,10 +1123,12 @@ export interface ConversationsResponse {
   unread: number;
 }
 
-interface ThreadResponse {
+export interface ThreadResponse {
   messages: DmMessageView[];
   nextCursor: string | null;
   peer: AuthorView;
+  /** DM v2: peer seen/typing state for delivery ticks + the typing bubble. */
+  state: ThreadState;
 }
 
 /** Inbox list + total unread. Pollers pick their own cadence (header 30s, inbox 5s). */
@@ -685,7 +1137,8 @@ export function useConversations(enabled: boolean, refetchInterval = 30_000) {
     queryKey: ["community-dms"],
     queryFn: () => request<ConversationsResponse>("/api/community/dm/conversations"),
     enabled,
-    refetchInterval,
+    // Quiesce on a hidden tab; one fresh check when the trader returns.
+    ...backgroundAwarePoll(refetchInterval),
     retry: false,
   });
 }
@@ -717,7 +1170,9 @@ export function useThread(conversationId: string | null) {
       return data;
     },
     enabled: Boolean(conversationId),
-    refetchInterval: 5_000,
+    // A 5s poll is heavy to leave running on a hidden tab; pause it and resync
+    // on focus return (the focus handler in MessageThread also re-marks read).
+    ...backgroundAwarePoll(5_000),
     retry: false,
   });
 }
@@ -740,6 +1195,12 @@ export function useSendMessage(conversationId: string) {
         body,
         mine: true,
         createdAt: new Date().toISOString(),
+        reactions: {},
+        editedAt: null,
+        editHistory: [],
+        deletedAt: null,
+        // Classify the attachment locally so an image preview shows instantly.
+        attachment: classifyAttachment(body),
       };
       qc.setQueryData<ThreadResponse>(key, (data) =>
         data ? { ...data, messages: [...data.messages, optimistic] } : data
@@ -760,6 +1221,140 @@ export function useSendMessage(conversationId: string) {
     onError: (_e, _body, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev);
     },
+  });
+}
+
+/** Patches one message in the cached thread (optimistic helper shared by v2 mutations). */
+function patchThreadMessage(
+  qc: ReturnType<typeof useQueryClient>,
+  conversationId: string,
+  messageId: string,
+  patch: (m: DmMessageView) => DmMessageView
+) {
+  qc.setQueryData<ThreadResponse>(["community-dm", conversationId], (data) =>
+    data
+      ? { ...data, messages: data.messages.map((m) => (m.id === messageId ? patch(m) : m)) }
+      : data
+  );
+}
+
+/**
+ * Toggles the viewer's reaction on a message. Optimistic: the chip updates
+ * instantly via the same pure toggle the server uses, then reconciles with the
+ * server's authoritative message on success (or rolls back on error).
+ */
+export function useReactToMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, reaction }: { messageId: string; reaction: MessageReactionKind }) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}/react`,
+        { method: "POST", body: JSON.stringify({ reaction }) }
+      ),
+    onMutate: ({ messageId, reaction }) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        reactions: toggleMessageReaction(m.reactions, "me", reaction),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, { messageId }) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+  });
+}
+
+/** Edits a message within its window — optimistic patch with rollback. */
+export function useEditMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, body }: { messageId: string; body: string }) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}`,
+        { method: "PATCH", body: JSON.stringify({ body }) }
+      ),
+    onMutate: ({ messageId, body }) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      const editedAt = new Date().toISOString();
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        editHistory: [...m.editHistory, { editedAt, body: m.body }],
+        body: body.trim(),
+        editedAt,
+        attachment: classifyAttachment(body.trim()),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, { messageId }) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Soft-deletes a message — optimistic tombstone with rollback. */
+export function useDeleteMessage(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      request<{ message: DmMessageView }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}`,
+        { method: "DELETE" }
+      ),
+    onMutate: (messageId) => {
+      const prev = qc.getQueryData<ThreadResponse>(["community-dm", conversationId]);
+      patchThreadMessage(qc, conversationId, messageId, (m) => ({
+        ...m,
+        body: "",
+        reactions: {},
+        attachment: null,
+        deletedAt: new Date().toISOString(),
+      }));
+      return { prev };
+    },
+    onSuccess: (res, messageId) =>
+      patchThreadMessage(qc, conversationId, messageId, () => res.message),
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-dm", conversationId], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Fires a (throttled by the caller) typing heartbeat — fire-and-forget. */
+export function useTypingPing(conversationId: string) {
+  return useMutation({
+    mutationFn: () =>
+      request(`/api/community/dm/conversations/${conversationId}/typing`, { method: "POST" }),
+  });
+}
+
+/** Re-confirms a thread read on window focus (the GET already marks on load). */
+export function useMarkThreadRead(conversationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      request(`/api/community/dm/conversations/${conversationId}/read`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-dms"] }),
+  });
+}
+
+/** Lazy link-card unfurl for a DM message (images render directly, no fetch). */
+export function useMessageUnfurl(conversationId: string, messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-dm-unfurl", conversationId, messageId],
+    queryFn: () =>
+      request<{ unfurl: LinkUnfurl | null }>(
+        `/api/community/dm/conversations/${conversationId}/messages/${messageId}/unfurl`
+      ),
+    enabled,
+    staleTime: 60 * 60_000,
+    retry: false,
   });
 }
 

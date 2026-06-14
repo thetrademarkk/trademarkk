@@ -1,74 +1,185 @@
-# Authentication setup
+# Auth setup — Google sign-in, password reset, email OTP
 
-TradeMarkk uses [Better Auth](https://better-auth.com) on the platform database for
-sign-up, sign-in, sessions, email verification and password reset. Email/password works
-out of the box; Google sign-in and transactional email are optional add-ons.
+> **Status:** built + fully verified locally; accumulated, pending batch deploy
+> and the owner's Google OAuth credentials. The reset + OTP flows are live the
+> moment `RESEND_API_KEY` + `EMAIL_FROM` are set (already in `.env.local`);
+> "Continue with Google" switches on the instant `GOOGLE_CLIENT_ID` +
+> `GOOGLE_CLIENT_SECRET` are added (see §1). Nothing breaks while Google is absent.
 
-See also: [SELF_HOSTING.md](SELF_HOSTING.md) (full deploy) ·
-[ARCHITECTURE.md](ARCHITECTURE.md#security-model) (security model).
+TradeMarkk's hosted platform auth (Better Auth on the central platform DB) now
+supports three self-serve flows. **Email/password works out of the box.** The
+extras switch on the moment you add the relevant env vars — nothing breaks while
+they're absent.
 
-## Required for any auth
+| Flow                        | Works today? | Needs                                           |
+| --------------------------- | ------------ | ----------------------------------------------- |
+| Email + password sign-up/in | Yes          | —                                               |
+| Forgot password / reset     | Yes (\*)     | `RESEND_API_KEY` + `EMAIL_FROM` for real emails |
+| Email OTP (verify by code)  | Yes (\*)     | `RESEND_API_KEY` + `EMAIL_FROM`                 |
+| Continue with Google        | **Gated**    | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`     |
 
-| Variable | Purpose |
-| --- | --- |
-| `BETTER_AUTH_SECRET` | Signing secret for sessions/cookies. Generate a long random string (e.g. `openssl rand -base64 32`). |
-| `BETTER_AUTH_URL` | The deployment's own origin, e.g. `https://your-app.example.com` (locally `http://localhost:3000`). State-changing auth requests from other origins are rejected. |
-| `NEXT_PUBLIC_APP_URL` | Public origin used by the browser auth client. Keep it equal to `BETTER_AUTH_URL`. |
-| `TURSO_PLATFORM_DB_URL` / `TURSO_PLATFORM_DB_TOKEN` | The platform DB that stores the Better Auth tables (`user`, `session`, `account`, `verification`). Run `npm run migrate:platform` to create them. |
+(\*) The flows are wired and tested. With email creds **absent**, the app still
+builds and runs — the send callback no-ops (logs in dev), email verification is
+skipped, and sign-up yields a session immediately. With email creds **present**
+(as in `.env.local` now), real emails are sent.
 
-> When running locally, `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must match the port
-> you actually serve on, or the browser session never resolves.
+---
 
-## Email/password
+## 1. Enable "Continue with Google" (all account types)
 
-Enabled by default (minimum 8-character passwords).
+Until you add both Google credentials the button is **hidden** and the provider
+is **not registered** — the page works with email/password as normal. Add the
+two vars and the button appears and works for every account type. No code change.
 
-- If `RESEND_API_KEY` is **unset**, email verification is **off** — sign-up returns a
-  session immediately. This is the convenient default for local development and CI.
-- If `RESEND_API_KEY` is **set** (with `EMAIL_FROM`), email verification is **required**:
-  sign-up sends a verification link, and DB provisioning is gated on a verified email
-  (abuse control). Password-reset emails are also sent via Resend.
+### Google Cloud Console steps (one time)
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `RESEND_API_KEY` | optional | [Resend](https://resend.com) API key for transactional email |
-| `EMAIL_FROM` | optional | From address, e.g. `TradeMarkk <noreply@your-domain.com>` (must be a Resend-verified sender) |
+1. Go to <https://console.cloud.google.com/> → create or pick a project.
+2. **APIs & Services → OAuth consent screen**
+   - User type: **External**, then **Publish** (so any Google user can sign in).
+   - App name: `TradeMarkk`; support email: yours; add your domain under
+     _Authorized domains_ (e.g. `thetrademarkk.com`).
+   - Scopes: the defaults (`email`, `profile`, `openid`) are enough.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**
+   - Application type: **Web application**.
+   - **Authorized JavaScript origins:**
+     ```
+     https://thetrademarkk.com
+     http://localhost:3000
+     ```
+   - **Authorized redirect URIs** (Better Auth's callback path is
+     `/api/auth/callback/google`):
+     ```
+     https://thetrademarkk.com/api/auth/callback/google
+     http://localhost:3000/api/auth/callback/google
+     ```
+     Use your actual production domain in place of `thetrademarkk.com`. If you
+     also test on another port (e.g. `:3100`), add that origin + redirect too.
+4. Click **Create** and copy the **Client ID** and **Client secret**.
 
-## Google sign-in (optional)
+### Paste the credentials
 
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create an
-   **OAuth 2.0 Client ID** (type: Web application).
-2. Add your origin to **Authorized JavaScript origins**
-   (e.g. `https://your-app.example.com`).
-3. Add the **Authorized redirect URI**:
-   `https://your-app.example.com/api/auth/callback/google`
-   (locally: `http://localhost:3000/api/auth/callback/google`).
-4. Set the env vars:
+**Local** (`.env.local`):
 
-   | Variable | Purpose |
-   | --- | --- |
-   | `GOOGLE_CLIENT_ID` | OAuth client ID |
-   | `GOOGLE_CLIENT_SECRET` | OAuth client secret |
-   | `NEXT_PUBLIC_GOOGLE_AUTH` | Set to `1` so the "Continue with Google" button is shown |
-
-The Google provider is only registered server-side when **both** `GOOGLE_CLIENT_ID` and
-`GOOGLE_CLIENT_SECRET` are present. Account linking is enabled: signing in with Google
-for an email that already has a password account resolves to the same user.
-
-## Admin / owner allowlist (optional)
-
-`ADMIN_EMAILS` is a comma-separated allowlist of accounts that may access the admin panel
-(`/admin`) and the moderation queues. Leave it empty on a fork until you want an admin.
-
-```env
-ADMIN_EMAILS=you@example.com
+```bash
+GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=<your-client-secret>
 ```
 
-## Rate limiting (optional)
+**Vercel** (Project → Settings → Environment Variables, Production + Preview):
+add the same two keys, then redeploy.
 
-Auth and provisioning routes are rate-limited. Set Upstash Redis credentials for durable,
-distributed limits in production; without them, an in-memory per-instance fallback is used.
+That's it. On next start the server registers Google, `/api/auth/config` reports
+`{"google":true}`, and the button renders on both the sign-up and sign-in
+screens. A Google sign-in for an email that already has a password account links
+to the **same** user (account linking is on, and Google verifies email
+ownership), so there's no duplicate-account dead end.
 
-| Variable | Purpose |
-| --- | --- |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Distributed rate-limit store |
+> Note: the old `NEXT_PUBLIC_GOOGLE_AUTH` flag is no longer the source of truth —
+> the button now derives from whether the server actually has the credentials
+> (via `/api/auth/config`), so it can never show without a working provider
+> behind it. You can leave `NEXT_PUBLIC_GOOGLE_AUTH` unset.
+
+---
+
+## 2. Forgot password / reset
+
+- On the sign-in screen, **Forgot password?** → enter email → the app always
+  shows a neutral _"If an account exists for that email, a reset link is on its
+  way."_ (no account enumeration).
+- The email links to `/reset-password?token=…`; the reset page enforces the same
+  password rules as sign-up (8+ chars) and the token is one-time-use with an
+  expiry (Better Auth's `emailAndPassword.sendResetPassword`).
+- **Env:** `RESEND_API_KEY` + a verified `EMAIL_FROM` (e.g.
+  `TradeMarkk <noreply@thetrademarkk.com>`). With these blank, the reset still
+  works mechanically but no email leaves the box (dev/e2e only).
+
+## 3. Email OTP (verify by 6-digit code)
+
+- After sign-up, when email verification is on, the user gets a **6-digit code**
+  and enters it inline (mobile-friendly OTP boxes, paste-supported). On success
+  they're signed in and provisioned.
+- Code is 6 digits, expires in 10 minutes, allows 5 attempts, with a resend
+  cooldown. Backed by Better Auth's `emailOTP` plugin (codes live in the
+  existing `verification` table — no schema change).
+- **Env:** same `RESEND_API_KEY` + `EMAIL_FROM` as reset.
+
+### Abuse protection (already on, no setup)
+
+Three independent layers guard the email flows: a durable **per-account**
+cooldown + daily cap (stored on the user row), a durable **per-IP** limit in the
+auth route wrapper, and Better Auth's own per-instance limiter. Blocked
+password-reset / OTP-issue requests return a look-normal success (anti-enumeration).
+
+---
+
+## Environment variable summary
+
+```bash
+# Email (reset + OTP). Present now in .env.local.
+RESEND_API_KEY=...
+EMAIL_FROM="TradeMarkk <noreply@yourdomain.com>"   # sender must be a Resend-verified domain
+
+# Google sign-in (ADD THESE to switch the button on — all account types).
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...
+
+# Auth core (already set).
+BETTER_AUTH_SECRET=...
+BETTER_AUTH_URL=https://thetrademarkk.com         # your deployment origin
+NEXT_PUBLIC_APP_URL=https://thetrademarkk.com     # must match BETTER_AUTH_URL
+```
+
+## Content-Security-Policy
+
+No CSP change is needed for Google. The "Continue with Google" flow is a
+server-side **redirect** to `accounts.google.com` (a top-level navigation, not an
+embedded script or form post), and `connect-src` already allows `https:`. The
+button's logo is an inline SVG. If a future change embeds Google's GSI script or
+One Tap iframe, that _would_ require widening `script-src`/`frame-src` — treat
+any such loosening as an explicit owner-review decision, don't add it silently.
+
+## 4. Account & security (logged-in self-service)
+
+Hosted accounts get an **Account & security** page at `/app/settings/account`
+(linked from `/app/settings` and the top-bar menu; hosted mode only — BYOD/local
+journals have no central account, so the page shows a clear explanation there).
+Everything is built on Better Auth's own endpoints — no hand-rolled auth.
+
+| Flow                  | How it works                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Change password**   | Current + new password (shared 8+ strength rules), via `changePassword`. "Sign out of all other devices" toggles `revokeOtherSessions`. The server re-verifies the current password.                                                                                                                                                                                       |
+| **Change email**      | New email → Better Auth's `changeEmail`. When the account email is verified, a confirmation goes to the **current** inbox first (anti-hijack); following it verifies the new address. The address only flips once a link is followed — the **old email stays active until then** (pending state in the UI). A collision returns the same neutral success (no enumeration). |
+| **Active sessions**   | `listSessions` (device via UA summary, last-seen, current marked) + `revokeSession` (one) / `revokeOtherSessions` ("sign out everywhere else"). Revoking the current session signs you out here, with a confirm.                                                                                                                                                           |
+| **Two-factor (TOTP)** | OPT-IN, via the `twoFactor` plugin. Enroll = confirm password → scan QR (or copy the key) + save one-time backup codes → enter a 6-digit code to activate. Sign-in then shows a 2FA challenge (TOTP or a backup code). Disable / regenerate backup codes need the password.                                                                                                |
+| **Delete account**    | Type-to-confirm (`DELETE`). Removes the account, profile, community content, 2FA secret and the hosted journal DB; revokes sessions. **Protected owner/demo accounts are refused (403).** BYOD/local data lives in the user's own DB/browser and is untouched.                                                                                                             |
+
+### Two-factor specifics
+
+- Authenticator-app **TOTP only** (no SMS/email second factor). The QR is rendered
+  by a tiny built-in encoder (no QR dependency); the base32 secret is also shown
+  for manual entry.
+- Backup codes are shown **once** at enrollment (and on regenerate) — copyable and
+  downloadable. Each is one-time-use; regenerating invalidates the old set.
+- 2FA is **opt-in** and changes nothing for accounts that don't enable it.
+- The plugin's tables (`two_factor`) + the `user.two_factor_enabled` flag are
+  created idempotently by `npm run migrate:platform` — additive, safe to re-run.
+
+### Database migration
+
+Run `npm run migrate:platform` once after deploying this change. It idempotently
+adds the `two_factor` table (+ indexes) and the `user.two_factor_enabled` column;
+existing rows default to "no 2FA", so accounts are unaffected.
+
+## Notes for testing (not for production)
+
+`AUTH_TEST_HOOK=1` exposes a `/api/auth/test-token` endpoint so the e2e suite can
+read the latest reset token / OTP / **change-email verification token** from the
+DB without a real inbox. (The change-email token is a signed JWT that Better Auth
+does NOT store, so the change-email send callback mirrors it into the
+`verification` table **only** when this flag is set.) The route returns 404
+unless `AUTH_TEST_HOOK=1` — **never set it in a real deployment.**
+
+The account-settings e2e (`scripts/e2e-account-settings.mjs`) computes TOTP codes
+in-test by **base32-decoding** the otpauth URI's `secret` (Better Auth HMACs the
+raw key, while the URI carries it base32-encoded) — the same thing an
+authenticator app does.

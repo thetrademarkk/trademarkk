@@ -35,7 +35,7 @@ export function flattenSearchItems(res: SearchResponse, q: string): SearchItem[]
     items.push({
       key: `tag:${t.tag}`,
       group: "tag",
-      href: `/community?tag=${encodeURIComponent(t.tag)}`,
+      href: `/community/t/${encodeURIComponent(t.tag)}`,
     });
   }
   for (const p of res.posts) {

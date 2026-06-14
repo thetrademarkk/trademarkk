@@ -40,7 +40,7 @@ describe("flattenSearchItems", () => {
     );
     expect(items.map((i) => i.group)).toEqual(["user", "tag", "post", "query"]);
     expect(items[0]!.href).toBe("/community/u/nifty_trader");
-    expect(items[1]!.href).toBe("/community?tag=nifty");
+    expect(items[1]!.href).toBe("/community/t/nifty");
     expect(items[2]!.href).toBe("/community/post/p1");
     expect(items[3]!.href).toBe("/community?q=nifty");
     expect(items[3]!.term).toBe("nifty");
