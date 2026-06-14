@@ -10,7 +10,7 @@ import { OtpInput } from "./otp-input";
 import { useGoogleEnabled } from "../hooks/use-google-enabled";
 import { checkPassword, NEUTRAL_RESET_NOTICE } from "../password";
 
-type Mode = "signup" | "signin" | "forgot" | "otp";
+type Mode = "signup" | "signin" | "forgot" | "otp" | "twofactor";
 
 /** Email/password + email-OTP verify + optional Google sign-in. On success, the caller connects hosted storage. */
 export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
@@ -23,6 +23,9 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
   // Carried into the OTP step so verify + resend know which account they're for.
   const [pending, setPending] = React.useState<{ email: string } | null>(null);
   const [otp, setOtp] = React.useState("");
+  // 2FA challenge state (sign-in returned twoFactorRedirect because 2FA is on).
+  const [twoFactorCode, setTwoFactorCode] = React.useState("");
+  const [useBackupCode, setUseBackupCode] = React.useState(false);
   const googleEnabled = useGoogleEnabled();
 
   const switchMode = (m: Mode) => {
@@ -65,6 +68,14 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
       } else {
         const res = await signIn.email({ email, password });
         if (res.error) throw new Error(res.error.message);
+        // When 2FA is enabled, Better Auth withholds the session and returns
+        // twoFactorRedirect — collect a TOTP (or backup) code before proceeding.
+        if ((res.data as { twoFactorRedirect?: boolean })?.twoFactorRedirect) {
+          setTwoFactorCode("");
+          setUseBackupCode(false);
+          switchMode("twofactor");
+          return;
+        }
       }
       onAuthed();
     } catch (err) {
@@ -106,6 +117,91 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
       setBusy(false);
     }
   };
+
+  const verifyTwoFactor = async (code: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = useBackupCode
+        ? await authClient.twoFactor.verifyBackupCode({ code: code.trim() })
+        : await authClient.twoFactor.verifyTotp({ code: code.trim() });
+      if (res.error) throw new Error(res.error.message);
+      onAuthed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That code didn't work — try again.");
+      setTwoFactorCode("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Two-factor challenge step (sign-in needs a second factor) ──
+  if (mode === "twofactor") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">Two-factor authentication</h2>
+          <p className="text-sm text-muted">
+            {useBackupCode
+              ? "Enter one of your one-time backup codes."
+              : "Enter the 6-digit code from your authenticator app."}
+          </p>
+        </div>
+        {useBackupCode ? (
+          <Input
+            value={twoFactorCode}
+            onChange={(e) => setTwoFactorCode(e.target.value)}
+            placeholder="Backup code"
+            autoComplete="one-time-code"
+            autoFocus
+            aria-label="Backup code"
+          />
+        ) : (
+          <OtpInput
+            value={twoFactorCode}
+            onChange={setTwoFactorCode}
+            onComplete={verifyTwoFactor}
+            disabled={busy}
+            autoFocus
+          />
+        )}
+        {error && (
+          <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">
+            {error}
+          </p>
+        )}
+        <Button
+          type="button"
+          className="w-full"
+          disabled={busy || twoFactorCode.trim().length < (useBackupCode ? 1 : 6)}
+          onClick={() => verifyTwoFactor(twoFactorCode)}
+        >
+          {busy && <Loader2 className="animate-spin" />}
+          Verify and continue
+        </Button>
+        <div className="flex items-center justify-between text-xs">
+          <button
+            type="button"
+            className="text-muted hover:text-accent"
+            onClick={() => switchMode("signin")}
+          >
+            Back to sign in
+          </button>
+          <button
+            type="button"
+            className="text-accent hover:underline"
+            onClick={() => {
+              setUseBackupCode((b) => !b);
+              setTwoFactorCode("");
+              setError(null);
+            }}
+          >
+            {useBackupCode ? "Use authenticator code" : "Use a backup code"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── OTP entry step (post-signup email verification by code) ──
   if (mode === "otp" && pending) {

@@ -42,7 +42,8 @@ const DDL = [
     last_verification_email_at INTEGER,
     verification_email_count_today INTEGER NOT NULL DEFAULT 0,
     last_otp_email_at INTEGER,
-    otp_email_count_today INTEGER NOT NULL DEFAULT 0
+    otp_email_count_today INTEGER NOT NULL DEFAULT 0,
+    two_factor_enabled INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE profiles (
     user_id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,

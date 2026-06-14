@@ -77,7 +77,8 @@ beforeAll(async () => {
       verification_email_count_today INTEGER NOT NULL DEFAULT 0,
       last_otp_email_at INTEGER,
       otp_email_count_today INTEGER NOT NULL DEFAULT 0,
-      status TEXT
+      status TEXT,
+      two_factor_enabled INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE session (
       id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, token TEXT NOT NULL UNIQUE,

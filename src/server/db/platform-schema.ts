@@ -27,6 +27,31 @@ export const user = sqliteTable("user", {
    * idempotent — set/cleared only by an admin via the moderation queue.
    */
   status: text("status"),
+  /**
+   * Whether the user has enabled TOTP two-factor auth (Better Auth `twoFactor`
+   * plugin). Additive + idempotent; defaults to false so existing accounts are
+   * unaffected. 2FA is strictly OPT-IN. The plugin owns this column's lifecycle
+   * (set on enable/verify, cleared on disable).
+   */
+  twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" }).notNull().default(false),
+});
+
+/**
+ * Better Auth `twoFactor` plugin store — one row per user with 2FA enabled.
+ * Holds the TOTP shared secret + the (hashed/encoded) backup codes. Never
+ * returned to the client (the plugin marks these `returned:false`). Additive +
+ * idempotent: the table simply doesn't exist for deployments that never enable
+ * the plugin, and is created by the platform migration (idempotent CREATE).
+ */
+export const twoFactor = sqliteTable("two_factor", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  /** Whether this TOTP secret has been verified (activated). Defaults true. */
+  verified: integer("verified", { mode: "boolean" }).notNull().default(true),
 });
 
 export const session = sqliteTable("session", {

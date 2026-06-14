@@ -20,15 +20,22 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const email = url.searchParams.get("email");
-  // kind: "reset" → password-reset token, "otp" → email-verification code.
+  // kind: "reset" → password-reset token, "otp" → email-verification code,
+  // "change-email" → the change-email verification JWT (mirrored into the
+  // verification table by the change-email test hook, AUTH_TEST_HOOK-gated).
   const kind = url.searchParams.get("kind") ?? "otp";
   if (!email) return NextResponse.json({ error: "email required" }, { status: 400 });
 
   const { platformDb } = await import("@/server/db/platform");
 
-  // Reset tokens are keyed by an opaque identifier; OTP rows by
-  // `email-verification-otp-<email>` (value is `<otp>` or `<otp>:<attempts>`).
-  const identifier = kind === "otp" ? `email-verification-otp-${email}` : null;
+  // Direct-identifier kinds: OTP rows by `email-verification-otp-<email>` (value
+  // is `<otp>` or `<otp>:<attempts>`); change-email tokens by the test-hook key.
+  const identifier =
+    kind === "otp"
+      ? `email-verification-otp-${email}`
+      : kind === "change-email"
+        ? `change-email-token-${email}`
+        : null;
 
   let value: string | null = null;
   if (identifier) {
@@ -37,8 +44,9 @@ export async function GET(req: Request) {
       ORDER BY created_at DESC LIMIT 1
     `)) as { value?: string }[];
     value = rows[0]?.value ?? null;
-    // Strip the trailing :attempts counter the plugin appends.
-    if (value) value = value.split(":")[0] ?? value;
+    // OTP rows carry a trailing `:attempts` counter — strip it. Change-email
+    // tokens are JWTs (no colons) and pass through unchanged.
+    if (value && kind === "otp") value = value.split(":")[0] ?? value;
   } else {
     // Reset token: the verification row's VALUE is the user id and the
     // IDENTIFIER is the token. Find the most recent reset row for this email by

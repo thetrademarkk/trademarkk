@@ -62,6 +62,18 @@ const STATEMENTS = [
     created_at INTEGER,
     updated_at INTEGER
   )`,
+  // ── Two-factor (TOTP) plugin store: one row per user with 2FA enabled.
+  // Holds the TOTP secret + encoded backup codes (never returned to clients).
+  // Idempotent; only used when a user opts into 2FA. ──
+  `CREATE TABLE IF NOT EXISTS two_factor (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    secret TEXT NOT NULL,
+    backup_codes TEXT NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 1
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_two_factor_user ON two_factor (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_two_factor_secret ON two_factor (secret)`,
   `CREATE TABLE IF NOT EXISTS user_databases (
     user_id TEXT PRIMARY KEY,
     db_name TEXT NOT NULL,
@@ -362,6 +374,10 @@ async function main() {
     // moderation queue can show an open-vs-actioned history. Existing rows backfill
     // to 'open' via the UPDATE below. Additive, idempotent. ──
     `ALTER TABLE reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'`,
+    // ── Two-factor (TOTP) opt-in flag on the user row (set/cleared by the
+    // twoFactor plugin on enable/verify/disable). Additive, idempotent —
+    // existing rows default to 0 (no 2FA), so accounts are unaffected. ──
+    `ALTER TABLE user ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,

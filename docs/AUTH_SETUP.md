@@ -138,8 +138,48 @@ button's logo is an inline SVG. If a future change embeds Google's GSI script or
 One Tap iframe, that _would_ require widening `script-src`/`frame-src` — treat
 any such loosening as an explicit owner-review decision, don't add it silently.
 
+## 4. Account & security (logged-in self-service)
+
+Hosted accounts get an **Account & security** page at `/app/settings/account`
+(linked from `/app/settings` and the top-bar menu; hosted mode only — BYOD/local
+journals have no central account, so the page shows a clear explanation there).
+Everything is built on Better Auth's own endpoints — no hand-rolled auth.
+
+| Flow                  | How it works                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Change password**   | Current + new password (shared 8+ strength rules), via `changePassword`. "Sign out of all other devices" toggles `revokeOtherSessions`. The server re-verifies the current password.                                                                                                                                                                                       |
+| **Change email**      | New email → Better Auth's `changeEmail`. When the account email is verified, a confirmation goes to the **current** inbox first (anti-hijack); following it verifies the new address. The address only flips once a link is followed — the **old email stays active until then** (pending state in the UI). A collision returns the same neutral success (no enumeration). |
+| **Active sessions**   | `listSessions` (device via UA summary, last-seen, current marked) + `revokeSession` (one) / `revokeOtherSessions` ("sign out everywhere else"). Revoking the current session signs you out here, with a confirm.                                                                                                                                                           |
+| **Two-factor (TOTP)** | OPT-IN, via the `twoFactor` plugin. Enroll = confirm password → scan QR (or copy the key) + save one-time backup codes → enter a 6-digit code to activate. Sign-in then shows a 2FA challenge (TOTP or a backup code). Disable / regenerate backup codes need the password.                                                                                                |
+| **Delete account**    | Type-to-confirm (`DELETE`). Removes the account, profile, community content, 2FA secret and the hosted journal DB; revokes sessions. **Protected owner/demo accounts are refused (403).** BYOD/local data lives in the user's own DB/browser and is untouched.                                                                                                             |
+
+### Two-factor specifics
+
+- Authenticator-app **TOTP only** (no SMS/email second factor). The QR is rendered
+  by a tiny built-in encoder (no QR dependency); the base32 secret is also shown
+  for manual entry.
+- Backup codes are shown **once** at enrollment (and on regenerate) — copyable and
+  downloadable. Each is one-time-use; regenerating invalidates the old set.
+- 2FA is **opt-in** and changes nothing for accounts that don't enable it.
+- The plugin's tables (`two_factor`) + the `user.two_factor_enabled` flag are
+  created idempotently by `npm run migrate:platform` — additive, safe to re-run.
+
+### Database migration
+
+Run `npm run migrate:platform` once after deploying this change. It idempotently
+adds the `two_factor` table (+ indexes) and the `user.two_factor_enabled` column;
+existing rows default to "no 2FA", so accounts are unaffected.
+
 ## Notes for testing (not for production)
 
 `AUTH_TEST_HOOK=1` exposes a `/api/auth/test-token` endpoint so the e2e suite can
-read the latest reset token / OTP from the DB without a real inbox. It returns
-404 unless that env var is set — **never set it in a real deployment.**
+read the latest reset token / OTP / **change-email verification token** from the
+DB without a real inbox. (The change-email token is a signed JWT that Better Auth
+does NOT store, so the change-email send callback mirrors it into the
+`verification` table **only** when this flag is set.) The route returns 404
+unless `AUTH_TEST_HOOK=1` — **never set it in a real deployment.**
+
+The account-settings e2e (`scripts/e2e-account-settings.mjs`) computes TOTP codes
+in-test by **base32-decoding** the otpauth URI's `secret` (Better Auth HMACs the
+raw key, while the URI carries it base32-encoded) — the same thing an
+authenticator app does.
