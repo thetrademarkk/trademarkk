@@ -58,6 +58,9 @@ const PRODUCT_LABELS: Record<NonNullable<TradeFormValues["product"]>, string> = 
  */
 interface TradeFormProps {
   tradeId?: string;
+  /** When set, the form shows this heading inline with the Templates menu
+   *  (host dialogs render their own DialogTitle as sr-only for a11y). */
+  title?: string;
   defaults?: Partial<TradeFormValues>;
   onSaved?: () => void;
   /** Reports dirty state so the host dialog can guard accidental dismissal. */
@@ -69,6 +72,7 @@ interface TradeFormProps {
 
 export function TradeForm({
   tradeId,
+  title,
   defaults,
   onSaved,
   onDirtyChange,
@@ -210,7 +214,8 @@ export function TradeForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div className="flex justify-end">
+      <div className={cn("flex items-center gap-2", title ? "justify-between" : "justify-end")}>
+        {title && <span className="text-base font-semibold">{title}</span>}
         <TemplateMenu
           onApply={applyTemplate}
           current={{

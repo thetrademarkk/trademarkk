@@ -345,11 +345,10 @@ export function TradeDetail({ id }: { id: string }) {
             if (editDirtyRef.current) e.preventDefault();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>Edit trade</DialogTitle>
-          </DialogHeader>
+          <DialogTitle className="sr-only">Edit trade</DialogTitle>
           <TradeForm
             tradeId={id}
+            title="Edit trade"
             defaults={formDefaults}
             onSaved={() => setEditOpen(false)}
             onDirtyChange={(d) => (editDirtyRef.current = d)}

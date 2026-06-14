@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useUiStore } from "@/stores/ui-store";
 import { useDraftStore } from "@/stores/draft-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TradeForm } from "./trade-form";
 import { useTraderProfile } from "@/features/onboarding/queries";
@@ -58,6 +58,7 @@ export function QuickAdd() {
       // profile resolves from cache on cold load) — NOT on draft keystrokes, so
       // in-progress input is never lost.
       key={tradeDraft ? "draft" : (traderDefaults?.segment ?? "blank")}
+      title="Add trade"
       defaults={traderDefaults}
       onSaved={close}
       onDirtyChange={(d) => (dirtyRef.current = d)}
@@ -75,9 +76,7 @@ export function QuickAdd() {
             if (dirtyRef.current) e.preventDefault();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>Add trade</DialogTitle>
-          </DialogHeader>
+          <DialogTitle className="sr-only">Add trade</DialogTitle>
           {form}
         </DialogContent>
       </Dialog>
@@ -86,7 +85,9 @@ export function QuickAdd() {
 
   return (
     <Sheet open={quickAddOpen} onOpenChange={handleOpenChange}>
-      <SheetContent title="Add trade">{form}</SheetContent>
+      <SheetContent title="Add trade" hideTitle>
+        {form}
+      </SheetContent>
     </Sheet>
   );
 }
