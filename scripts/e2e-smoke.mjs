@@ -85,6 +85,45 @@ await step("community feed renders; post cards expose the reshare control", asyn
   }
 });
 
+console.log("— Backtesting —");
+await step("backtesting landing renders the pre-baked sample + Build CTA", async () => {
+  await page.goto(`${BASE}/backtesting`, { waitUntil: "domcontentloaded" });
+  await page
+    .getByRole("heading", { name: /Backtest options strategies/ })
+    .first()
+    .waitFor({ timeout: 30000 });
+  // The pre-baked sample card (instant, zero WASM) carries a "Sample" badge.
+  await page.getByText("Sample", { exact: true }).first().waitFor({ timeout: 15000 });
+  await page.getByText("NIFTY 9:20 short straddle").first().waitFor({ timeout: 10000 });
+  // The flagship nav entry is present (peer to Community).
+  await page
+    .getByRole("link", { name: "Backtesting", exact: true })
+    .first()
+    .waitFor({ timeout: 10000 });
+});
+
+await step("backtesting Explore surface renders the preset grid + CoverageBadges", async () => {
+  await page.goto(`${BASE}/backtesting/explore`, { waitUntil: "domcontentloaded" });
+  await page.getByTestId("preset-grid").waitFor({ timeout: 20000 });
+  if ((await page.getByTestId("preset-card").count()) < 10)
+    throw new Error("expected >=10 preset cards on Explore");
+  await page.getByTestId("coverage-badge").first().waitFor({ timeout: 10000 });
+  await page.getByTestId("explore-disclaimer").waitFor({ timeout: 8000 });
+});
+
+await step("/app/backtesting 308-redirects to /backtesting", async () => {
+  const resp = await page.goto(`${BASE}/app/backtesting`, { waitUntil: "domcontentloaded" });
+  if (!page.url().endsWith("/backtesting")) {
+    throw new Error(`expected redirect to /backtesting, got ${page.url()}`);
+  }
+  // The landing must render after the redirect.
+  await page
+    .getByRole("heading", { name: /Backtest options strategies/ })
+    .first()
+    .waitFor({ timeout: 15000 });
+  if (resp && resp.status() >= 400) throw new Error(`redirect ended at ${resp.status()}`);
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });

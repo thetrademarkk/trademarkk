@@ -43,6 +43,13 @@ const nextConfig: NextConfig = {
   // finds another lockfile (e.g. the main checkout above a git worktree) and
   // mixes two React copies — the /_error prerender then dies on useContext.
   outputFileTracingRoot: __dirname,
+  // The dead in-app backtesting placeholder is gone; its promise now resolves to
+  // the real public /backtesting universe. Permanent (308) so search engines and
+  // bookmarks update. Legacy /app/app/backtesting kept for old deep links.
+  redirects: async () => [
+    { source: "/app/backtesting", destination: "/backtesting", permanent: true },
+    { source: "/app/app/backtesting", destination: "/backtesting", permanent: true },
+  ],
   headers: async () => [
     {
       source: "/(.*)",

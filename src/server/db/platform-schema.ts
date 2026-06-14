@@ -197,7 +197,12 @@ export const follows = sqliteTable(
   (t) => [primaryKey({ columns: [t.followerId, t.followingId] })]
 );
 
-/** In-app notifications: like | comment | reply | follow | mention. */
+/**
+ * In-app notifications: like | comment | reply | follow | mention | reshare
+ * | backtest_done | backtest_failed. The `backtestId` column (D6) links a
+ * backtest notification to the run that produced it; NULL for every existing
+ * community notification (additive — no existing notify caller breaks).
+ */
 export const notifications = sqliteTable("notifications", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(), // recipient
@@ -205,6 +210,8 @@ export const notifications = sqliteTable("notifications", {
   type: text("type").notNull(),
   postId: text("post_id"),
   commentId: text("comment_id"),
+  /** Set only for backtest_done / backtest_failed → the backtest_runs.id. */
+  backtestId: text("backtest_id"),
   read: integer("read").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
@@ -341,4 +348,45 @@ export const userDatabases = sqliteTable("user_databases", {
   status: text("status").notNull().default("active"), // 'active' | 'grace'
   createdAt: text("created_at").notNull(),
   deleteAfter: text("delete_after"),
+});
+
+/* ── Backtesting (BT-09) — public-universe data, lives centrally by design ── */
+
+/**
+ * Saved no-code strategy definitions. `strategyDef` is the StrategyDef JSON
+ * (the exact builder inputs); `engineVersion` stamps the engine that the
+ * strategy was authored against so a stored definition is always reproducible.
+ * Lives in the platform DB (NOT the per-user journal DB) because backtests are
+ * a public universe like community — see docs/backtesting/08-architecture §4.
+ */
+export const backtestStrategies = sqliteTable("backtest_strategies", {
+  id: text("id").primaryKey(), // newId() ULID
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  strategyDef: text("strategy_def").notNull(), // StrategyDef JSON
+  engineVersion: text("engine_version").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * Computed backtest run snapshots. The `runResult` blob is an IMMUTABLE
+ * point-in-time artifact (serialized RunResult) — it is never re-derived, so a
+ * shared link renders byte-identically forever. `userId` is nullable so a row
+ * can briefly exist unclaimed, but in practice anonymous runs live in the
+ * browser (IndexedDB) and are POSTed once on sign-in to claim ownership. A
+ * `shareId` (unguessable nanoid) is minted ON DEMAND when the owner opts into
+ * sharing; re-sharing the same run returns the SAME id (idempotent).
+ */
+export const backtestRuns = sqliteTable("backtest_runs", {
+  id: text("id").primaryKey(), // newId() ULID
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }), // nullable
+  strategyId: text("strategy_id"), // optional link to a saved strategy
+  runResult: text("run_result").notNull(), // serialized RunResult JSON (immutable)
+  dataSnapshotId: text("data_snapshot_id").notNull(),
+  engineVersion: text("engine_version").notNull(),
+  shareId: text("share_id").unique(), // set → publicly viewable; NULL → owner-only
+  createdAt: text("created_at").notNull(),
 });
