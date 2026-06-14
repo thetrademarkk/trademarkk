@@ -35,3 +35,14 @@ export const serverEnv = {
 
 export const hasTursoApi = () => Boolean(serverEnv.tursoApiToken && serverEnv.tursoOrg);
 export const hasResend = () => Boolean(serverEnv.resendApiKey);
+
+/**
+ * Whether "Continue with Google" is actually wired up — true ONLY when BOTH
+ * Google OAuth credentials are present. The single source of truth for the gate:
+ * the social provider is registered (server/auth.ts) and the button is shown
+ * (via the /api/auth/config endpoint) exactly when this returns true, so the
+ * button can never appear without a working provider behind it. Until the owner
+ * adds GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET this is false and Google stays
+ * hidden — the page still works with email/password.
+ */
+export const hasGoogle = () => Boolean(serverEnv.googleClientId && serverEnv.googleClientSecret);

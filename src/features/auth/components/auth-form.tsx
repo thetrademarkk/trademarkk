@@ -6,22 +6,30 @@ import { authClient, signIn, signUp } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OtpInput } from "./otp-input";
+import { useGoogleEnabled } from "../hooks/use-google-enabled";
+import { checkPassword, NEUTRAL_RESET_NOTICE } from "../password";
 
-type Mode = "signup" | "signin" | "forgot";
+type Mode = "signup" | "signin" | "forgot" | "otp";
 
-/** Email/password + optional Google sign-in. On success, the caller connects hosted storage. */
+/** Email/password + email-OTP verify + optional Google sign-in. On success, the caller connects hosted storage. */
 export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
   const [mode, setMode] = React.useState<Mode>("signup");
   const [busy, setBusy] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
-  const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1";
+  const [pwError, setPwError] = React.useState<string | null>(null);
+  // Carried into the OTP step so verify + resend know which account they're for.
+  const [pending, setPending] = React.useState<{ email: string } | null>(null);
+  const [otp, setOtp] = React.useState("");
+  const googleEnabled = useGoogleEnabled();
 
   const switchMode = (m: Mode) => {
     setMode(m);
     setError(null);
     setNotice(null);
+    setPwError(null);
   };
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -33,16 +41,25 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
     try {
       if (mode === "forgot") {
         await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
-        setNotice("If an account exists for that email, a reset link is on its way.");
+        // Always neutral — never reveals whether the email is registered.
+        setNotice(NEUTRAL_RESET_NOTICE);
         return;
       }
       const password = String(form.get("password") ?? "");
       if (mode === "signup") {
+        const pw = checkPassword(password);
+        if (!pw.valid) {
+          setPwError(pw.reason);
+          return;
+        }
         const res = await signUp.email({ email, password, name: String(form.get("name") ?? "") });
         if (res.error) throw new Error(res.error.message);
         if (!res.data?.token) {
-          // Email verification is enforced — no session yet.
-          setNotice("Almost there! Check your inbox for a verification link, then sign in.");
+          // Email verification is enforced (Resend configured) — no session yet.
+          // The server has emailed a 6-digit code; collect it inline.
+          setPending({ email });
+          setOtp("");
+          switchMode("otp");
           return;
         }
       } else {
@@ -56,6 +73,86 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
       setBusy(false);
     }
   };
+
+  const verifyOtp = async (code: string) => {
+    if (!pending) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await authClient.emailOtp.verifyEmail({ email: pending.email, otp: code });
+      if (res.error) throw new Error(res.error.message);
+      onAuthed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That code didn't work — try again.");
+      setOtp("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (!pending) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await authClient.emailOtp.sendVerificationOtp({
+        email: pending.email,
+        type: "email-verification",
+      });
+      setNotice("If your code expired, a fresh one is on its way.");
+    } catch {
+      setError("Couldn't resend just yet — wait a moment and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── OTP entry step (post-signup email verification by code) ──
+  if (mode === "otp" && pending) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">Enter your verification code</h2>
+          <p className="text-sm text-muted">
+            We sent a 6-digit code to <span className="font-medium">{pending.email}</span>.
+          </p>
+        </div>
+        <OtpInput value={otp} onChange={setOtp} onComplete={verifyOtp} disabled={busy} autoFocus />
+        {error && (
+          <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">
+            {error}
+          </p>
+        )}
+        {notice && <p className="text-xs text-muted">{notice}</p>}
+        <Button
+          type="button"
+          className="w-full"
+          disabled={busy || otp.length < 6}
+          onClick={() => verifyOtp(otp)}
+        >
+          {busy && <Loader2 className="animate-spin" />}
+          Verify and continue
+        </Button>
+        <div className="flex items-center justify-between text-xs">
+          <button
+            type="button"
+            className="text-muted hover:text-accent"
+            onClick={() => switchMode("signin")}
+          >
+            Back to sign in
+          </button>
+          <button
+            type="button"
+            className="text-accent hover:underline disabled:opacity-50"
+            onClick={resendOtp}
+            disabled={busy}
+          >
+            Resend code
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (notice) {
     return (
@@ -125,6 +222,7 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
                 placeholder="8+ characters"
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 className="pr-10"
+                onChange={() => pwError && setPwError(null)}
               />
               <button
                 type="button"
@@ -136,6 +234,7 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            {pwError && <p className="text-xs text-loss">{pwError}</p>}
           </div>
         )}
 
