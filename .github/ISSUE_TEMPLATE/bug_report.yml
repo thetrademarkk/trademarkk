@@ -1,0 +1,66 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please **do not** report security issues here —
+        see [SECURITY.md](https://github.com/thetrademarkk/trademarkk/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See the error
+    validations:
+      required: true
+  - type: dropdown
+    id: storage-mode
+    attributes:
+      label: Storage mode
+      description: Which mode were you in (if relevant)?
+      options:
+        - "Not sure / not relevant"
+        - "Hosted"
+        - "BYOD (bring your own database)"
+        - "Local / demo"
+    validations:
+      required: false
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - "Web app (journal)"
+        - "Community"
+        - "Marketing site"
+        - "Chrome extension"
+        - "Self-hosted deployment"
+        - "Other"
+    validations:
+      required: false
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser + version, OS, and whether this is thetrademarkk.com or a self-host.
+      placeholder: "Chrome 126 on Windows 11, thetrademarkk.com"
+    validations:
+      required: false
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors / screenshots
+      description: Paste any browser-console errors or attach screenshots. Do not include secrets or tokens.
+    validations:
+      required: false

@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   description:
     "Live, honest numbers from the TradeMarkk platform: traders, activity, community growth and real-visit web vitals. Aggregates only — never personal data.",
   alternates: { canonical: "/pulse" },
-  openGraph: { url: "/pulse" },
 };
 
 /** ISR: re-aggregated at most every 10 minutes; the CDN serves it in between. */

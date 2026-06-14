@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Github, Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { siteConfig, jsonLdScript } from "@/config/site";
+import { siteConfig, jsonLdScript, organizationJsonLd, webSiteJsonLd } from "@/config/site";
 import { HeroShowcase } from "./_components/hero-showcase";
 import { CursorEffects } from "./_components/cursor-effects";
 import { DemoVideo } from "./_components/demo-video";
@@ -13,12 +13,12 @@ import { ReturningUserRedirect } from "./_components/returning-user-redirect";
 import { Reveal } from "./_components/reveal";
 
 export const metadata: Metadata = {
-  title: "Free open-source trading journal for Indian FnO & intraday traders",
+  title: "Free open-source trading journal for Indian traders",
   description: siteConfig.description,
   alternates: { canonical: "/" },
 };
 
-const jsonLd = {
+const appJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: siteConfig.name,
@@ -30,14 +30,33 @@ const jsonLd = {
   license: `${siteConfig.github}/blob/main/LICENSE`,
   screenshot: `${siteConfig.url}/landing/dashboard.webp`,
   featureList: [
-    "Multi-leg FnO trade logging with Indian statutory charges",
+    "Journal for every Indian trader type: intraday, swing, positional, F&O, commodity (MCX), currency (CDS)",
+    "Multi-leg options logging with paise-accurate statutory charges",
+    "Financial-year tax pack: turnover, speculative split, realised P&L (CSV/Excel/PDF)",
+    "Insights, tilt detection and Monte-Carlo equity cone",
     "Broker tradebook CSV import (Zerodha, Upstox, Angel One, Dhan, Fyers, Groww)",
-    "Mistake tagging with rupee cost analytics",
-    "Daily rules checklist and journaling streaks",
-    "Dual-mode storage: hosted or bring-your-own-database",
+    "Multi-broker Chrome extension (Kite, Upstox, Groww, Dhan, Fyers)",
+    "Dual-mode storage: hosted, bring-your-own-database, or fully local",
     "Trader community with structured trade cards",
   ],
   url: siteConfig.url,
+};
+
+// Sitewide brand/site nodes plus the app node, emitted as a single JSON-LD
+// graph. The `@context` lives once at the graph root, so the per-node contexts
+// are dropped here.
+const stripContext = <T extends Record<string, unknown>>({
+  "@context": _ctx,
+  ...node
+}: T & { "@context"?: unknown }) => node;
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    stripContext(organizationJsonLd()),
+    stripContext(webSiteJsonLd()),
+    stripContext(appJsonLd),
+  ],
 };
 
 const BROKERS = ["Zerodha", "Upstox", "Angel One", "Dhan", "Fyers", "Groww"];
@@ -97,8 +116,9 @@ export default function LandingPage() {
             className="animate-rise mx-auto mt-5 max-w-xl text-base text-muted md:text-lg"
             style={{ animationDelay: "0.12s" }}
           >
-            The open-source journal for Indian intraday &amp; FnO traders. Log a trade in 15
-            seconds, tag the mistake, and see what every habit costs — in rupees.
+            The open-source journal for every Indian trader — intraday, swing, F&amp;O, MCX and
+            currency. Log a trade in 15 seconds, tag the mistake, and see what every habit costs —
+            in rupees, to the paisa.
           </p>
           <div className="animate-rise" style={{ animationDelay: "0.18s" }}>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
