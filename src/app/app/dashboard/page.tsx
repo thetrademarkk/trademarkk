@@ -37,7 +37,7 @@ export default function DashboardPage() {
   const { from, to } = periodToRange(period);
   // One table scan instead of two: fetch all trades once, filter the period
   // client-side (the heatmap needs the full set anyway).
-  const { data: allTrades, isLoading } = useTrades({});
+  const { data: allTrades, isLoading } = useTrades({}, { withTags: false });
   const trades = React.useMemo(
     () =>
       (allTrades ?? []).filter((t) => {

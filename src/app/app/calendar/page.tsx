@@ -71,7 +71,7 @@ export default function CalendarPage() {
     setYear(Number(date.slice(0, 4)));
     setMonth(Number(date.slice(5, 7)) - 1);
   }, []);
-  const { data: trades = [] } = useTrades({});
+  const { data: trades = [] } = useTrades({}, { withTags: false });
   const { data: journalDates = [] } = useJournalDates();
 
   // Per-day P&L scans the whole journal; only re-derive when trades change.

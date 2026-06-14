@@ -77,10 +77,15 @@ async function fetchTagsByTrade(db: DbClient): Promise<Map<string, Tag[]>> {
   return map;
 }
 
-export function useTrades(filters: TradeFilters = {}) {
+export function useTrades(filters: TradeFilters = {}, opts: { withTags?: boolean } = {}) {
   const { db } = useDb();
+  // #14: per-trade tags require a full trade_tags JOIN scan. Most views never
+  // read .tags, so tag-free hot pages (dashboard/calendar) pass withTags:false
+  // to skip it. Default stays true so every existing caller is unchanged; a
+  // tagId filter always needs the tags to resolve the filter.
+  const withTags = opts.withTags !== false || filters.tagId != null;
   return useQuery({
-    queryKey: ["trades", filters],
+    queryKey: ["trades", filters, withTags],
     queryFn: async (): Promise<TradeWithMeta[]> => {
       let sql = `SELECT t.*, p.name AS playbook_name FROM trades t
                  LEFT JOIN playbooks p ON p.id = t.playbook_id WHERE 1=1`;
@@ -114,6 +119,7 @@ export function useTrades(filters: TradeFilters = {}) {
       sql += ` ORDER BY t.opened_at DESC`;
       const res = await db.execute(sql, args);
       const trades = cast<TradeWithMeta>(res.rows).map((t) => ({ ...t, tags: [] as Tag[] }));
+      if (!withTags) return trades;
       const tagMap = await fetchTagsByTrade(db);
       if (filters.tagId) {
         return trades
