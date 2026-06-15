@@ -193,9 +193,15 @@ export function OnboardingFlow() {
   // full-screen "setting up" state instead of ever flashing the mode picker.
   // Brand-new signups (e.g. just returned from Google) see a welcome message;
   // returning users see "opening your journal".
+  // Covers both the picker (`choose`) and the hosted step: a just-signed-up user
+  // lands on `hosted` with a session, and the auto-connect effect above is already
+  // provisioning their DB — so show the calm "setting up" state and route them
+  // straight to setup, instead of making them click an extra "Continue". The
+  // manual hosted "Continue" below only renders as a retry after a failed connect
+  // (when autoConnecting has been turned off).
   if (
     autoConnecting &&
-    step === "choose" &&
+    (step === "choose" || step === "hosted") &&
     (session || (sessionLoading && !sessionCheckTimedOut))
   ) {
     // `known` = we've confirmed a signed-in user. While the session cookie is
