@@ -40,10 +40,6 @@ export default function TrendingPage() {
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-tight">Trending</h1>
-          <p className="mt-1 text-sm text-muted">
-            What the community is talking about — tickers and topics ranked by the number of
-            distinct traders discussing each.
-          </p>
         </div>
       </header>
 
