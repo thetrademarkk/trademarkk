@@ -67,6 +67,11 @@ export function useSaveJournal() {
     onSuccess: (_d, vars) => {
       void qc.invalidateQueries({ queryKey: ["journal", vars.date] });
       void qc.invalidateQueries({ queryKey: ["journal-dates"] });
+      // The streak = trades ∪ journal entries ∪ no-trade days. A new journal
+      // entry covers its day, so the streak must re-read — without this the
+      // header streak stays stale after journaling today (trade-save and the
+      // no-trade-day toggle already invalidate it; journaling was the gap).
+      void qc.invalidateQueries({ queryKey: ["streak"] });
     },
   });
 }

@@ -49,7 +49,7 @@ export function KpiRow({ trades }: { trades: TradeLike[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      <KpiLink href="/app/reports" className="col-span-2 md:col-span-1">
+      <KpiLink href="/app/reports">
         <StatCard label="Net P&L" value={netPnl(closed)} format={inrFormat} tone="auto" />
       </KpiLink>
       <KpiLink href="/app/trades">

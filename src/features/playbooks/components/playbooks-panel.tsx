@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Layers, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Layers, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDb } from "@/providers/db-session-provider";
@@ -112,8 +112,14 @@ export function PlaybooksPanel() {
                     {p.description && <p className="mt-1 text-xs text-muted">{p.description}</p>}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>
-                      Edit
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted hover:text-foreground"
+                      aria-label="Edit playbook"
+                      onClick={() => setEditing(p)}
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
