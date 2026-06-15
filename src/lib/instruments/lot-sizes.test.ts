@@ -36,8 +36,8 @@ describe("lot-size reference data", () => {
   });
 
   // The BT-02 / SEG-08 demo-seed lot sizes — must NOT diverge from this table.
-  it("matches the known index lots reused from the seed (NIFTY 75 / BANKNIFTY 35 / SENSEX 20)", () => {
-    expect(defaultLotSize("NIFTY", "OPT")).toBe(75);
+  it("matches the known index lots reused from the seed (NIFTY 65 / BANKNIFTY 35 / SENSEX 20)", () => {
+    expect(defaultLotSize("NIFTY", "OPT")).toBe(65);
     expect(defaultLotSize("BANKNIFTY", "OPT")).toBe(35);
     expect(defaultLotSize("SENSEX", "OPT")).toBe(20);
     expect(defaultLotSize("FINNIFTY", "OPT")).toBe(65);
@@ -101,13 +101,13 @@ describe("lookupLotSize segment behaviour", () => {
 
   it("a FUT lookup answers from the (OPT-keyed) index entry — same underlying, same lot", () => {
     // The reference keys index/stock under OPT; a futures trade shares the lot.
-    expect(defaultLotSize("NIFTY", "FUT")).toBe(75);
+    expect(defaultLotSize("NIFTY", "FUT")).toBe(65);
     expect(defaultLotSize("RELIANCE", "FUT")).toBe(500);
-    expect(lookupLotSize("NIFTY", "FUT")?.lotSize).toBe(75);
+    expect(lookupLotSize("NIFTY", "FUT")?.lotSize).toBe(65);
   });
 
   it("recognises a full contract name, not just the bare base", () => {
-    expect(defaultLotSize("NIFTY24JUN24500CE", "OPT")).toBe(75);
+    expect(defaultLotSize("NIFTY24JUN24500CE", "OPT")).toBe(65);
     expect(defaultLotSize("MCX:CRUDEOIL25JUNFUT", "COMM")).toBe(100);
     expect(defaultLotSize("USDINR25JUNFUT", "CDS")).toBe(1000);
   });
@@ -186,20 +186,20 @@ describe("lots <-> units conversion", () => {
 describe("lot entry preserves charges + P&L (no silent money change)", () => {
   const profile = getChargeProfile("zerodha");
 
-  // Binds the lot reference to the charges.golden fixtures: the golden OPT row is
-  // 75 qty (= 1 NIFTY lot), the COMM row 100 (= 1 CRUDEOIL lot), the CDS row 1000
-  // (= 1 USDINR lot). So "1 lot" in the entry helper lands exactly on a golden qty.
-  it("1 lot of NIFTY-OPT / CRUDEOIL-COMM / USDINR-CDS equals the golden-row quantities", () => {
-    expect(lotsToUnits(1, defaultLotSize("NIFTY", "OPT")!)).toBe(75);
+  // 1 lot lands on a hand-verifiable unit qty per symbol (NIFTY 65, CRUDEOIL 100,
+  // USDINR 1000). The charges.golden NIFTY row uses 75 qty as a charge sample —
+  // a valid input even though it's no longer exactly one lot.
+  it("1 lot of NIFTY-OPT / CRUDEOIL-COMM / USDINR-CDS equals the expected unit quantities", () => {
+    expect(lotsToUnits(1, defaultLotSize("NIFTY", "OPT")!)).toBe(65);
     expect(lotsToUnits(1, defaultLotSize("CRUDEOIL", "COMM")!)).toBe(100);
     expect(lotsToUnits(1, defaultLotSize("USDINR", "CDS")!)).toBe(1000);
   });
 
-  it("2 lots NIFTY OPT (lotSize 75) == 150 units, byte-identical charges", () => {
+  it("2 lots NIFTY OPT (lotSize 65) == 130 units, byte-identical charges", () => {
     const lotSize = defaultLotSize("NIFTY", "OPT")!;
-    expect(lotSize).toBe(75);
+    expect(lotSize).toBe(65);
     const unitsFromLots = lotsToUnits(2, lotSize)!;
-    expect(unitsFromLots).toBe(150);
+    expect(unitsFromLots).toBe(130);
 
     const viaLots = computeCharges(profile, {
       segment: "OPT",
@@ -212,7 +212,7 @@ describe("lot entry preserves charges + P&L (no silent money change)", () => {
     const viaUnits = computeCharges(profile, {
       segment: "OPT",
       product: "NRML",
-      qty: 150,
+      qty: 130,
       entryPrice: 120,
       exitPrice: 150,
       direction: "long",

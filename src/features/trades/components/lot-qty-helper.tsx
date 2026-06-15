@@ -88,10 +88,10 @@ export function LotQtyHelper({
       : null;
 
   return (
-    <div className={cn("rounded-lg border border-dashed bg-surface-2/40 p-2.5", className)}>
+    <div className={cn("rounded-lg border bg-surface-2/40 p-2.5", className)}>
       <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted">
         <Layers className="h-3.5 w-3.5" aria-hidden />
-        Enter in lots
+        Quantity — in lots
         {ref && (
           <span className="text-[10px] text-muted/80">
             · {ref.symbol} default {ref.lotSize}/lot

@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PnlText } from "@/components/shared/pnl-text";
 import { Ring } from "@/components/shared/ring";
+import { PageHeader } from "@/components/shared/page-header";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function PlaybooksPanel() {
@@ -76,19 +77,21 @@ export function PlaybooksPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">
-          {unassigned > 0 && (
-            <span className="inline-flex items-center gap-1.5">
-              <TriangleAlert className="h-3.5 w-3.5 text-warning" aria-hidden />
-              {unassigned} closed trades have no setup assigned.
-            </span>
-          )}
+      <PageHeader
+        title="Playbooks"
+        description="Your setups, with proof of which ones pay."
+        actions={
+          <Button size="sm" onClick={() => setEditing("new")}>
+            <Plus /> New playbook
+          </Button>
+        }
+      />
+      {unassigned > 0 && (
+        <p className="inline-flex items-center gap-1.5 text-sm text-muted">
+          <TriangleAlert className="h-3.5 w-3.5 text-warning" aria-hidden />
+          {unassigned} closed trades have no setup assigned.
         </p>
-        <Button size="sm" onClick={() => setEditing("new")}>
-          <Plus /> New playbook
-        </Button>
-      </div>
+      )}
 
       {playbooks.length === 0 ? (
         <EmptyState

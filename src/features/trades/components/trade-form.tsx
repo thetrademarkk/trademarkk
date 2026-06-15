@@ -427,15 +427,41 @@ export function TradeForm({
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        {/* Quantity. Derivatives (FUT/OPT/COMM/CDS) trade in LOTS — the primary
+            input is lots × the auto (overridable) lot size, and qty is computed.
+            Qty stays the persisted source of truth (charges/P&L on units). EQ is
+            cash, entered as plain units. */}
+        {segmentUsesLots(segment) ? (
+          <div className="space-y-1.5">
+            <LotQtyHelper
+              symbol={values.symbol}
+              segment={segment}
+              units={activeLeg === 0 ? values.qty : values.extraLegs?.[activeLeg - 1]?.qty}
+              onUnits={(u) =>
+                activeLeg === 0
+                  ? setValue("qty", u, { shouldDirty: true, shouldValidate: true })
+                  : setValue(`extraLegs.${activeLeg - 1}.qty`, u, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+              }
+            />
+            {activeLeg === 0 && err("qty") && <p className="text-xs text-loss">{err("qty")}</p>}
+            {activeLeg > 0 && formState.errors.extraLegs?.[activeLeg - 1]?.qty && (
+              <p className="text-xs text-loss">
+                {formState.errors.extraLegs[activeLeg - 1]?.qty?.message}
+              </p>
+            )}
+          </div>
+        ) : (
           <div className="space-y-1">
             <Label>Qty</Label>
             {activeLeg === 0 ? (
-              <Input type="number" placeholder="75" {...register("qty")} />
+              <Input type="number" placeholder="100" {...register("qty")} />
             ) : (
               <Input
                 type="number"
-                placeholder="75"
+                placeholder="100"
                 {...register(`extraLegs.${activeLeg - 1}.qty`)}
               />
             )}
@@ -446,6 +472,9 @@ export function TradeForm({
               </p>
             )}
           </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label>Entry ₹</Label>
             {activeLeg === 0 ? (
@@ -481,27 +510,6 @@ export function TradeForm({
             )}
           </div>
         </div>
-
-        {/* SEG-10 — lots↔units helper. Derivatives only (EQ is plain units). It
-            writes units (lots × lot size) into the active leg's Qty, which stays
-            the single source of truth, so charges/P&L are byte-identical to
-            typing the unit qty directly. Lot size auto-fills from the reference
-            and is fully overridable; an unknown symbol never blocks entry. */}
-        {segmentUsesLots(segment) && (
-          <LotQtyHelper
-            symbol={values.symbol}
-            segment={segment}
-            units={activeLeg === 0 ? values.qty : values.extraLegs?.[activeLeg - 1]?.qty}
-            onUnits={(u) =>
-              activeLeg === 0
-                ? setValue("qty", u, { shouldDirty: true, shouldValidate: true })
-                : setValue(`extraLegs.${activeLeg - 1}.qty`, u, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-            }
-          />
-        )}
       </div>
 
       <div className="space-y-4">

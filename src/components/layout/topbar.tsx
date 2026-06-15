@@ -42,12 +42,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { withThemeTransition } from "@/lib/theme-transition";
+import { cn } from "@/lib/utils";
 
 const MODE_META = {
   hosted: { icon: Cloud, label: "Hosted" },
   byod: { icon: Database, label: "Your DB" },
   local: { icon: HardDrive, label: "Local" },
 } as const;
+
+/** Compact labels for the segmented period control (desktop topbar). */
+const PERIOD_SHORT: Record<PeriodPreset, string> = {
+  "7d": "1W",
+  "30d": "1M",
+  "90d": "3M",
+  ytd: "YTD",
+  all: "All",
+};
 
 export function Topbar() {
   const router = useRouter();
@@ -88,7 +98,7 @@ export function Topbar() {
         className="text-sm font-semibold md:hidden"
         aria-label="TradeMarkk dashboard"
       >
-        Trade<span className="text-accent">Mark</span>
+        Trade<span className="text-accent">Markk</span>
       </Link>
 
       <div className="ml-auto flex items-center gap-2">
@@ -106,19 +116,38 @@ export function Topbar() {
             <span className="hidden text-xs md:inline">Goals</span>
           </Link>
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="hidden md:inline-flex text-muted gap-2"
+        {/* Search box (desktop) — opens the command palette. */}
+        <button
           onClick={() => setCommandOpen(true)}
+          aria-label="Search or jump to"
+          className="hidden h-9 w-[230px] items-center gap-2 rounded-lg border bg-surface px-3 text-sm text-muted transition-colors hover:border-foreground/25 hover:text-foreground md:flex lg:w-[280px]"
         >
-          <Search className="h-3.5 w-3.5" />
-          <span className="text-xs">Search</span>
-          <kbd className="rounded bg-surface-2 px-1.5 text-[10px]">⌘K</kbd>
-        </Button>
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Search or jump to…</span>
+          <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
+        </button>
 
+        {/* Period — segmented control on desktop, compact dropdown on mobile. */}
+        <div className="hidden items-center gap-0.5 rounded-lg border bg-surface p-0.5 md:flex">
+          {(Object.keys(PERIOD_SHORT) as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              aria-pressed={period === p}
+              title={PERIOD_LABELS[p]}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                period === p
+                  ? "bg-surface-2 text-foreground shadow-sm"
+                  : "text-muted hover:text-foreground"
+              )}
+            >
+              {PERIOD_SHORT[p]}
+            </button>
+          ))}
+        </div>
         <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPreset)}>
-          <SelectTrigger className="w-[110px] h-8 text-xs">
+          <SelectTrigger className="h-8 w-[100px] text-xs md:hidden">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
