@@ -111,11 +111,23 @@ export function useDayTrades(date: string) {
   return useQuery({
     queryKey: ["day-trades", date],
     queryFn: async () => {
+      // A day's trades = those OPENED or CLOSED on that day, keyed by IST.
+      // Two bugs were fixed here at once:
+      //  1) `date(opened_at)` keyed by UTC, but the calendar cell (and todayKey)
+      //     key by IST — a trade opened/closed late IST landed on the wrong day,
+      //     so the panel could say "No trades this day" for a day that clearly
+      //     shows P&L. Shift +5:30 before slicing the date.
+      //  2) it only matched the OPEN day. The calendar cell shows realised P&L on
+      //     the CLOSE day (dailyPnl keys by closed_at), so clicking a day where a
+      //     multi-day position closed found nothing. Match opened OR closed.
       const res = await db.execute(
         `SELECT t.*, p.name AS playbook_name FROM trades t
          LEFT JOIN playbooks p ON p.id = t.playbook_id
-         WHERE date(t.opened_at) = ? ORDER BY t.opened_at`,
-        [date]
+         WHERE substr(datetime(t.opened_at, '+330 minutes'), 1, 10) = ?
+            OR (t.closed_at IS NOT NULL
+                AND substr(datetime(t.closed_at, '+330 minutes'), 1, 10) = ?)
+         ORDER BY t.opened_at`,
+        [date, date]
       );
       return res.rows.map((r) => ({ ...r, tags: [] })) as unknown as TradeWithMeta[];
     },

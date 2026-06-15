@@ -23,8 +23,8 @@ const DONE_KEY = "charges_recomputed_at";
  * per-(segment,product) charges (only charges / net P&L change; never gross).
  *
  * One-time by nature: once the user has run it (or there was nothing to fix),
- * a persisted marker replaces the explainer with a compact "up to date" line —
- * re-running stays available behind the button.
+ * a persisted marker (`charges_recomputed_at`) hides the whole card — it's a
+ * maintenance fix the user shouldn't have to see again.
  */
 export function RecomputeChargesSection() {
   const { db } = useDb();
@@ -97,7 +97,10 @@ export function RecomputeChargesSection() {
   };
 
   const applied = !busy && lastResult != null && !preview.isPending;
-  const done = Boolean(doneAt);
+
+  // Once the user has recomputed (flag persisted), hide the whole card — it's a
+  // one-time maintenance fix and they don't want to see it again afterwards.
+  if (doneAt) return null;
 
   return (
     <Card>
@@ -106,38 +109,21 @@ export function RecomputeChargesSection() {
         <CardTitle>Recompute charges</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {done ? (
-          <p className="flex items-center gap-2 text-sm text-muted">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-profit" aria-hidden />
-            Charges are up to date
-            {doneAt
-              ? ` — last recomputed ${new Date(doneAt).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}`
-              : ""}
-            .
-          </p>
-        ) : (
-          <>
-            <p className="text-sm text-muted">
-              Older trades may have been logged before TradeMarkk knew the difference between an
-              intraday and a delivery position. Their charges (and net P&amp;L) were estimated using
-              intraday rates for <em>every</em> equity trade. Recomputing re-runs the current
-              per-segment, per-product engine — correcting delivery STT, stamp duty and DP charges —
-              so delivery and swing trades show their true cost.
-            </p>
-            <div className="flex items-start gap-2 rounded-lg border bg-surface-2/50 p-2.5 text-xs text-muted">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>
-                Only <strong>charges</strong> and <strong>net P&amp;L</strong> are updated — your
-                entries, exits and gross P&amp;L are never changed. You will see a preview and
-                confirm before anything is written, and running it again is safe.
-              </span>
-            </div>
-          </>
-        )}
+        <p className="text-sm text-muted">
+          Older trades may have been logged before TradeMarkk knew the difference between an
+          intraday and a delivery position. Their charges (and net P&amp;L) were estimated using
+          intraday rates for <em>every</em> equity trade. Recomputing re-runs the current
+          per-segment, per-product engine — correcting delivery STT, stamp duty and DP charges — so
+          delivery and swing trades show their true cost.
+        </p>
+        <div className="flex items-start gap-2 rounded-lg border bg-surface-2/50 p-2.5 text-xs text-muted">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            Only <strong>charges</strong> and <strong>net P&amp;L</strong> are updated — your
+            entries, exits and gross P&amp;L are never changed. You will see a preview and confirm
+            before anything is written, and running it again is safe.
+          </span>
+        </div>
 
         {lastResult && lastResult.nullProductEqCount > 0 && (
           <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs">
@@ -171,7 +157,7 @@ export function RecomputeChargesSection() {
 
         <Button size="sm" onClick={run} disabled={busy} data-testid="recompute-charges-btn">
           <Calculator className="h-3.5 w-3.5" />
-          {busy ? "Checking…" : done ? "Run again" : "Check & recompute charges"}
+          {busy ? "Checking…" : "Check & recompute charges"}
         </Button>
       </CardContent>
     </Card>

@@ -21,7 +21,12 @@ export function useStreak() {
     queryKey: ["streak"],
     queryFn: async (): Promise<StreakData> => {
       const [trades, journal, noTrade] = await Promise.all([
-        db.execute(`SELECT DISTINCT substr(opened_at, 1, 10) AS d FROM trades`),
+        // opened_at is stored UTC; the streak (and todayKey) key days by IST, so
+        // shift +5:30 BEFORE slicing the date — otherwise a trade logged in the
+        // IST morning/late-night can fall on the wrong day and not count today.
+        db.execute(
+          `SELECT DISTINCT substr(datetime(opened_at, '+330 minutes'), 1, 10) AS d FROM trades`
+        ),
         db.execute(`SELECT date AS d FROM journal_entries`),
         db.execute(`SELECT date AS d FROM no_trade_days`),
       ]);

@@ -9,7 +9,6 @@ import {
   FileCheck,
   FlaskConical,
   Flame,
-  Github,
   Landmark,
   Layers,
   Upload,
@@ -192,11 +191,6 @@ const CELLS = [
     icon: Flame,
     title: "Streaks & community",
     text: "Journal daily to build a streak, share trade cards with structured R-multiples, and learn from traders who post losses as openly as wins.",
-  },
-  {
-    icon: Github,
-    title: "Open source, MIT",
-    text: "Read every line, self-host the whole thing, or send a PR. No paywall, no premium tier, no lock-in — today and always.",
   },
 ];
 

@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
-import { useAdherence } from "@/features/rules";
 import { KpiRow, RecentTrades, Greeting } from "@/features/dashboard";
 import {
   TradingStyleSummary,
@@ -51,7 +50,6 @@ export default function DashboardPage() {
       }),
     [allTrades, from, to]
   );
-  const { data: adherence } = useAdherence(from, to);
   const { data: journalDates = [] } = useJournalDates();
   const { data: traderProfile } = useTraderProfile();
 
@@ -126,13 +124,11 @@ export default function DashboardPage() {
         {allClosed.length > 0 && <TradingStyleSummary trades={allClosed} inline />}
       </div>
       <RiskGuardrailBanner />
-      <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
-
-      <AdherenceRingCard from={from} to={to} />
+      <KpiRow trades={trades} />
 
       {positional ? (
-        // Positional/swing lean: holding period sits beside the equity curve; the
-        // intraday checklist and day breakdown drop below.
+        // Positional/swing lean: holding period sits beside the equity curve;
+        // then the day breakdown, with adherence + today's checklist below.
         <>
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -145,22 +141,24 @@ export default function DashboardPage() {
             <MistakesPanel from={from} to={to} />
             <RecentTrades trades={trades} />
           </div>
-          {dailyChecklist}
-        </>
-      ) : (
-        // Intraday / balanced: the day-focused layout, with open positions kept
-        // alongside recent trades rather than hidden.
-        <>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <EquityChart trades={trades} />
-            </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AdherenceRingCard from={from} to={to} />
             {dailyChecklist}
           </div>
+        </>
+      ) : (
+        // Intraday / balanced: equity curve up top (full width), then the day
+        // breakdown, with adherence + today's checklist below.
+        <>
+          <EquityChart trades={trades} />
           <div className="grid gap-4 lg:grid-cols-3">
             {calendarCard}
             <MistakesPanel from={from} to={to} />
             <RecentTrades trades={trades} />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AdherenceRingCard from={from} to={to} />
+            {dailyChecklist}
           </div>
         </>
       )}
