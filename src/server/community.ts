@@ -497,6 +497,10 @@ export async function ensureProfile(userId: string, name: string) {
         userId,
         username,
         displayName: name || "Trader",
+        // New traders share their streak on the leaderboard by default; they can
+        // turn it off any time from the flame in their journal header. (Existing
+        // profiles keep whatever they previously chose.)
+        shareStreak: 1,
         createdAt: new Date().toISOString(),
       });
       return platformDb.select().from(profiles).where(eq(profiles.userId, userId)).get();

@@ -105,8 +105,9 @@ export const profiles = sqliteTable("profiles", {
   bio: text("bio"),
   website: text("website"),
   avatar: text("avatar"), // compressed webp data-url, ≤ ~80KB
-  /** Streaks are journal data (private by design) — published only by opt-in. */
-  shareStreak: integer("share_streak").notNull().default(0),
+  /** Streak sharing defaults ON for new profiles (also set explicitly on insert);
+   *  users can hide it from the flame in their journal header at any time. */
+  shareStreak: integer("share_streak").notNull().default(1),
   streakCurrent: integer("streak_current").notNull().default(0),
   streakBest: integer("streak_best").notNull().default(0),
   streakUpdatedAt: text("streak_updated_at"),
