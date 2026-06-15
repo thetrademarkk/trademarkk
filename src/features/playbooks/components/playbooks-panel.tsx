@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PnlText } from "@/components/shared/pnl-text";
+import { Ring } from "@/components/shared/ring";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function PlaybooksPanel() {
@@ -131,22 +132,24 @@ export function PlaybooksPanel() {
                 </CardHeader>
                 <CardContent>
                   {s ? (
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <div className="micro-label">Net P&L</div>
-                        <PnlText value={s.netPnl} />
-                      </div>
-                      <div>
-                        <div className="micro-label">Trades</div>
-                        <span className="font-money">{s.trades}</span>
-                      </div>
-                      <div>
-                        <div className="micro-label">Win rate</div>
-                        <span className="font-money">{formatPct(s.winRate, 0)}</span>
-                      </div>
-                      <div>
-                        <div className="micro-label">Expectancy</div>
-                        <PnlText value={s.expectancy} />
+                    <div className="flex items-center gap-4">
+                      <Ring
+                        value={s.winRate * 100}
+                        label={formatPct(s.winRate, 0)}
+                        sub="win rate"
+                        size={76}
+                        stroke={7}
+                        color={s.netPnl >= 0 ? "var(--profit)" : "var(--loss)"}
+                      />
+                      <div className="grid flex-1 grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <div className="micro-label">Net P&L</div>
+                          <PnlText value={s.netPnl} />
+                        </div>
+                        <div>
+                          <div className="micro-label">Trades</div>
+                          <span className="font-money">{s.trades}</span>
+                        </div>
                       </div>
                     </div>
                   ) : (
