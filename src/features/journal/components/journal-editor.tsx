@@ -81,7 +81,22 @@ export function JournalEditor({ date }: { date: string }) {
   const dayPnl = dayTrades.filter((t) => t.status === "closed").reduce((s, t) => s + t.net_pnl, 0);
   const streak = journalStreak(dates);
 
+  // A journal entry needs SOME content. Blank premarket/market/review + no mood
+  // + no plan-followed flag is an empty row that shouldn't save (and shouldn't
+  // count toward the streak). serializePrompts folds the structured prompts into
+  // the review, so a blank result means neither prompts nor free-text were set.
+  const isEmpty =
+    !premarket.trim() &&
+    !market.trim() &&
+    !serializePrompts(prompts, postmarket).trim() &&
+    mood == null &&
+    followed == null;
+
   const handleSave = React.useCallback(async () => {
+    if (isEmpty) {
+      toast.info("Nothing to save yet — add a note, pick your mood, or set a plan first");
+      return;
+    }
     await save.mutateAsync({
       date,
       premarket_plan: premarket,
@@ -92,7 +107,7 @@ export function JournalEditor({ date }: { date: string }) {
       followed_plan: followed,
     });
     toast.success("Journal saved");
-  }, [save, date, premarket, market, prompts, postmarket, mood, followed]);
+  }, [save, date, premarket, market, prompts, postmarket, mood, followed, isEmpty]);
 
   // Ctrl/Cmd+S anywhere on the journal page saves (the page is not a <form>).
   React.useEffect(() => {
@@ -228,7 +243,12 @@ export function JournalEditor({ date }: { date: string }) {
             <Switch checked={followed === true} onCheckedChange={(c) => setFollowed(c)} />
           </div>
         </div>
-        <Button className="ml-auto" onClick={handleSave} disabled={save.isPending}>
+        <Button
+          className="ml-auto"
+          onClick={handleSave}
+          disabled={save.isPending || isEmpty}
+          title={isEmpty ? "Add a note, mood or plan to save" : undefined}
+        >
           {save.isPending ? "Saving…" : "Save journal"}
         </Button>
       </div>
