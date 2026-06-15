@@ -51,7 +51,7 @@ export const LOT_SIZE_AS_OF = "2026-06-01";
  * NIFTY option/future is `lotSize` index units. Reconciled June 2026.
  */
 const INDEX_LOTS: LotSizeEntry[] = [
-  { symbol: "NIFTY", segment: "OPT", exchange: "NSE", lotSize: 75, asOf: LOT_SIZE_AS_OF },
+  { symbol: "NIFTY", segment: "OPT", exchange: "NSE", lotSize: 65, asOf: LOT_SIZE_AS_OF },
   { symbol: "BANKNIFTY", segment: "OPT", exchange: "NSE", lotSize: 35, asOf: LOT_SIZE_AS_OF },
   { symbol: "FINNIFTY", segment: "OPT", exchange: "NSE", lotSize: 65, asOf: LOT_SIZE_AS_OF },
   { symbol: "MIDCPNIFTY", segment: "OPT", exchange: "NSE", lotSize: 140, asOf: LOT_SIZE_AS_OF },
