@@ -121,12 +121,12 @@ export default function AnalyticsPage() {
 
         <TabsContent value="time" className="space-y-4">
           {/* Holding period is relevant to every trader type — always shown. */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4 md:grid-cols-2">
             <HoldingPeriodCard trades={closed} />
             <GroupBar title="By day of week" stats={byWeekday(closed)} />
           </div>
           {gateIntraday && <IntradayOnlyNote />}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4 md:grid-cols-2">
             <GroupBar
               title={gateIntraday ? "By entry hour (intraday only)" : "By entry hour"}
               stats={byHourOfDay(closed)}
@@ -146,13 +146,16 @@ export default function AnalyticsPage() {
           <GroupBar title="By playbook / setup" stats={bySetup} />
         </TabsContent>
 
-        <TabsContent value="instrument" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <TabsContent
+          value="instrument"
+          className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3"
+        >
           <GroupBar title="By symbol" stats={bySymbol(closed).slice(0, 10)} />
           <GroupBar title="By segment" stats={bySegment(closed)} />
           <GroupBar title="Long vs short" stats={byDirection(closed)} />
         </TabsContent>
 
-        <TabsContent value="distribution" className="grid gap-4 md:grid-cols-2">
+        <TabsContent value="distribution" className="grid items-start gap-4 md:grid-cols-2">
           <RHistogram trades={closed} />
           <EmotionsPanel from={from} to={to} />
           <Card>
