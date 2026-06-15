@@ -31,10 +31,8 @@ const MonteCarlo = dynamic(
   () => import("@/features/analytics/components/monte-carlo").then((m) => m.MonteCarlo),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
-import {
-  HoldingPeriodCard,
-  TradingStyleSummary,
-} from "@/features/analytics/components/horizon-stats";
+import { HoldingPeriodCard } from "@/features/analytics/components/horizon-stats";
+import { AnalyticsStatCards } from "@/features/analytics/components/analytics-stat-cards";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,9 +101,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Analytics" description="Where your edge actually is — and isn't." />
+      <PageHeader
+        title="Analytics"
+        description="Where your edge actually is — and isn't. Computed on your device."
+      />
 
-      <TradingStyleSummary trades={closed} />
+      <AnalyticsStatCards trades={closed} />
 
       <Tabs defaultValue="time">
         <TabsList className="flex max-w-full justify-start overflow-x-auto">
