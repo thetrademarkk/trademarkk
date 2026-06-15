@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import NumberFlow, { type Format } from "@number-flow/react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,13 @@ export function StatCard({
           : "text-foreground"
       : "text-foreground";
   const resolvedFormat = format ?? { maximumFractionDigits: 2 };
+  // Subtle count-up on mount: NumberFlow only animates value CHANGES, so we paint
+  // 0 first and set the real value after mount → the digits roll up once on load.
+  // Later data updates animate from the previous value as usual. NumberFlow honours
+  // prefers-reduced-motion (it snaps instead of rolling), and the real number is
+  // always in the sr-only span below, so a11y never depends on the animation.
+  const [shown, setShown] = useState(0);
+  useEffect(() => setShown(value), [value]);
   // NumberFlow paints its rolling digits aria-hidden, so a screen reader hears
   // nothing — announce the formatted value (with label + sub) on a wrapper and
   // hide the visual ticker from the a11y tree.
@@ -58,7 +66,7 @@ export function StatCard({
         </span>
         <span aria-hidden="true">
           <NumberFlow
-            value={value}
+            value={shown}
             format={resolvedFormat}
             prefix={prefix}
             suffix={suffix}
