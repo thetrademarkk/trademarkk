@@ -46,7 +46,9 @@ async function validateAndMigrate(db: DbClient): Promise<void> {
 }
 
 async function getHostedConnection(): Promise<{ url: string; token: string }> {
-  // Reuse a cached token while it's fresh (tokens are valid 24h; cache 24h).
+  // Reuse a cached token while it's fresh. Tokens are long-lived (30d); cache
+  // 28d so a working session keeps its DB connection and we re-mint with a
+  // 2-day buffer before the server token actually expires.
   try {
     const cached = sessionStorage.getItem(HOSTED_CONN_KEY);
     if (cached) {
@@ -72,7 +74,7 @@ async function getHostedConnection(): Promise<{ url: string; token: string }> {
   const data = (await res.json()) as { url: string; token: string };
   sessionStorage.setItem(
     HOSTED_CONN_KEY,
-    JSON.stringify({ ...data, until: Date.now() + 24 * 3600 * 1000 })
+    JSON.stringify({ ...data, until: Date.now() + 28 * 24 * 3600 * 1000 })
   );
   return data;
 }

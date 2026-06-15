@@ -7,9 +7,9 @@ import { userDatabases } from "./db/platform-schema";
 
 /**
  * Turso Platform API — provisions per-user databases and mints single-database
- * tokens that expire after 24h (matching the client-side token cache TTL, so an
- * expired token is transparently re-minted on the next request). The org token
- * never leaves the server.
+ * tokens that expire after 30d (the client caches ~28d and re-mints with a
+ * buffer before expiry, so a working session never loses its DB connection).
+ * The org token never leaves the server.
  */
 function api() {
   if (!hasTursoApi()) {
@@ -34,7 +34,7 @@ export async function provisionDatabase(
 }
 
 /**
- * Mints a single-database, full-access token for `dbName` that expires after 24h
+ * Mints a single-database, full-access token for `dbName` that expires after 30d
  * — but ONLY after verifying that `dbName` is the database mapped to `userId` in
  * the platform DB. Without this ownership check, any signed-in user who learned
  * (or guessed) another user's `db_name` could mint a full-access token to that
@@ -42,8 +42,10 @@ export async function provisionDatabase(
  * the mint so every caller is protected, not just the ones that remember to do
  * it themselves.
  *
- * The 24h expiry matches the client-side token cache TTL, so a stale token is
- * transparently re-minted on the next request rather than lingering for a week.
+ * Long-lived (30d) on purpose: this is a personal trading journal, not a banking
+ * session — a day-long token forced a re-mint per session and tripped the route's
+ * burst guard ("try again shortly"). The client caches it ~28d and re-mints with a
+ * buffer before expiry, so a working session never loses its DB connection.
  */
 export async function mintDbToken(dbName: string, userId: string): Promise<string> {
   const owned = await platformDb
@@ -55,7 +57,7 @@ export async function mintDbToken(dbName: string, userId: string): Promise<strin
     throw new Error("Database does not belong to this user");
   }
   const token = await api().databases.createToken(dbName, {
-    expiration: "24h",
+    expiration: "30d",
     authorization: "full-access",
   });
   return token.jwt;

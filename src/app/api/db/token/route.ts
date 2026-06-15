@@ -8,23 +8,18 @@ import { mintDbToken } from "@/server/turso-platform";
 import { rateLimit } from "@/server/rate-limit";
 import { isAllowedOrigin } from "@/server/origin-check";
 
-/** Mints a short-lived read-write token scoped to the session user's hosted DB only. */
+/** Mints a long-lived (30d) read-write token scoped to the session user's hosted DB only. */
 export async function POST(req: Request) {
   if (!isAllowedOrigin(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // At most 10 mints/hour, and never two within 10 minutes — a 24h token plus
-  // the client's 24h cache is already ample, so anything faster is abuse (or a
-  // buggy client loop).
+  // Abuse cap only: at most 10 mints/hour. No sub-10-minute burst block — tokens
+  // are long-lived (30d) and the client caches ~28d, so legitimate re-mints (new
+  // tab, cache miss) are rare and must never be blocked with "try again shortly".
+  // A runaway client still hits the hourly cap.
   const { allowed } = await rateLimit(`token:${session.user.id}`, 10, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  const { allowed: notTooSoon } = await rateLimit(`token-burst:${session.user.id}`, 1, 600);
-  if (!notTooSoon)
-    return NextResponse.json(
-      { error: "A token was just issued — try again shortly" },
-      { status: 429 }
-    );
 
   const row = await platformDb
     .select()
@@ -39,7 +34,7 @@ export async function POST(req: Request) {
       url: `https://${row.hostname}`,
       token,
       storageMode: row.storageMode,
-      expiresInDays: 1,
+      expiresInDays: 28,
     });
   } catch (e) {
     console.error("[token] mint failed", e);

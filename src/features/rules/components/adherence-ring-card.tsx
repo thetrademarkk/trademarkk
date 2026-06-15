@@ -4,13 +4,23 @@ import { Gauge } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ring } from "@/components/shared/ring";
 import { PnlText } from "@/components/shared/pnl-text";
+import { cn } from "@/lib/utils";
 import { useAdherence } from "../queries";
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+/** A compact label-over-value stat — sits in a 2×2 grid so the card stays dense. */
+function Stat({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted">{label}</span>
-      {children}
+    <div className={cn("min-w-0", className)}>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-0.5">{children}</dd>
     </div>
   );
 }
@@ -51,21 +61,21 @@ export function AdherenceRingCard({ from, to }: { from: string | null; to: strin
             stroke={9}
             color="var(--profit)"
           />
-          <dl className="grid flex-1 gap-2.5 text-sm">
-            <Row label="Rules followed">
-              <span className="font-money font-semibold text-profit">{followed}</span>
-            </Row>
-            <Row label="Rules broken">
-              <span className="font-money font-semibold text-loss">{broken}</span>
-            </Row>
-            <Row label="Cost of breaks">
+          <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-3">
+            <Stat label="Followed">
+              <span className="font-money text-lg font-semibold text-profit">{followed}</span>
+            </Stat>
+            <Stat label="Broken">
+              <span className="font-money text-lg font-semibold text-loss">{broken}</span>
+            </Stat>
+            <Stat label="Cost of breaks">
               <PnlText value={cost} className="text-sm font-semibold" />
-            </Row>
-            <Row label="Most broken">
-              <span className="max-w-[55%] truncate font-medium text-warning">
+            </Stat>
+            <Stat label="Most broken">
+              <span className="block truncate text-sm font-medium text-warning">
                 {mostBroken.broken > 0 ? mostBroken.rule.text : "—"}
               </span>
-            </Row>
+            </Stat>
           </dl>
         </div>
       </CardContent>

@@ -21,11 +21,11 @@ export default function RulesPage() {
         title="Rules & Mistakes"
         description="Discipline, measured. What did breaking your rules cost you?"
       />
-      <AdherenceRingCard from={from} to={to} />
       <div className="grid gap-4 lg:grid-cols-2">
+        <AdherenceRingCard from={from} to={to} />
         <DailyChecklist date={todayKey()} />
-        <AdherencePanel from={from} to={to} />
       </div>
+      <AdherencePanel from={from} to={to} />
       <div className="grid gap-4 lg:grid-cols-2">
         <MistakesPanel from={from} to={to} />
         <RulesManager />

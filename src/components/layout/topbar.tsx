@@ -18,6 +18,7 @@ import {
   UserCog,
 } from "lucide-react";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
+import { useGoalSettings } from "@/features/goals";
 import { StreakIndicator } from "@/features/streak";
 import { useFilterStore, PERIOD_LABELS, type PeriodPreset } from "@/stores/filter-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -70,6 +71,17 @@ export function Topbar() {
   const mode = state.status === "ready" ? state.mode : null;
   const ModeIcon = mode ? MODE_META[mode].icon : Database;
 
+  // Light up the Goals link once the user has set any goal — a small "you've
+  // configured this" cue. Only queryable when a DB is connected.
+  const { data: goals } = useGoalSettings();
+  const hasGoals = Boolean(
+    goals &&
+    (goals.weeklyProfitTargetPaise != null ||
+      goals.weeklyJournalDaysTarget != null ||
+      goals.dailyMaxLossPaise != null ||
+      goals.dailyMaxTrades != null)
+  );
+
   // Surfaces the admin link for ADMIN_EMAILS accounts. Only hosted users can
   // have a session, so skip the request entirely in byod/local/demo modes —
   // an unconditional fetch would 401 (console noise) on every page.
@@ -107,9 +119,9 @@ export function Topbar() {
           variant="ghost"
           size="sm"
           asChild
-          aria-label="Weekly goals"
+          aria-label={hasGoals ? "Weekly goals (set)" : "Weekly goals"}
           title="Weekly goals"
-          className="gap-1.5 text-muted"
+          className={cn("gap-1.5", hasGoals ? "text-accent hover:text-accent" : "text-muted")}
         >
           <Link href="/app/settings#goals">
             <Target className="h-4 w-4" />
