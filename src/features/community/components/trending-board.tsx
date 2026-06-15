@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Flame, Hash, Info, LineChart, TrendingUp, Users } from "lucide-react";
+import { Flame, Hash, LineChart, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTrending, type TrendingBoardItem } from "../api";
 import { formatCount } from "../format";
@@ -95,24 +95,6 @@ function TrendingColumn({
   );
 }
 
-/** The non-negotiable "discussion volume, not a recommendation" disclaimer. */
-function Disclaimer({ className }: { className?: string }) {
-  return (
-    <p
-      className={cn(
-        "flex items-start gap-2 rounded-lg bg-surface-2/60 px-3 py-2 text-[11px] leading-4 text-muted",
-        className
-      )}
-    >
-      <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span data-not-advice>
-        Reflects community discussion volume, not a recommendation or tip. Ranked by the number of
-        distinct traders discussing each — never a buy/sell signal.
-      </span>
-    </p>
-  );
-}
-
 const WINDOWS: { id: Window; label: string }[] = [
   { id: "24h", label: "24h" },
   { id: "7d", label: "7d" },
@@ -180,7 +162,6 @@ export function TrendingBoard({
           </h2>
           {toggle}
         </div>
-        <Disclaimer className="mb-3" />
         <div className="space-y-3">
           <TrendingColumn kind="ticker" items={tickers} compact />
           <TrendingColumn kind="topic" items={topics} compact />
@@ -198,7 +179,6 @@ export function TrendingBoard({
 
   return (
     <div data-testid="trending-board">
-      <Disclaimer className="mb-5" />
       <div className="mb-4 flex items-center justify-between gap-2">
         <p className="text-xs text-muted">Latest community discussion focus</p>
         {toggle}

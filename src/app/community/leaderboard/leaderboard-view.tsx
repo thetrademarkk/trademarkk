@@ -31,7 +31,7 @@ function RowBadge({ best }: { best?: number }) {
 }
 
 export function LeaderboardPageClient() {
-  const [board, setBoard] = React.useState<"contrib" | "streak">("contrib");
+  const [board, setBoard] = React.useState<"contrib" | "streak">("streak");
   const [period, setPeriod] = React.useState<"month" | "all">("month");
   const { data, isLoading } = useLeaderboard(board, period);
   const rows = data?.rows ?? [];
@@ -62,7 +62,7 @@ export function LeaderboardPageClient() {
                 board === b ? "bg-bg text-foreground shadow-sm" : "text-muted hover:text-foreground"
               )}
             >
-              {b === "contrib" ? "Contributors" : "Streaks"}
+              {b === "contrib" ? "Contribution" : "Streak"}
             </button>
           ))}
         </div>
@@ -98,7 +98,7 @@ export function LeaderboardPageClient() {
       ) : rows.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed py-14 text-center text-sm text-muted">
           {board === "streak"
-            ? "No shared streaks yet — be the first! Turn it on from the flame in your journal header."
+            ? "No streaks to show yet — journal daily to build yours. (Hide it anytime from the flame in your journal header.)"
             : "No activity yet this period."}
         </p>
       ) : (

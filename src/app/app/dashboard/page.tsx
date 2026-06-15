@@ -4,7 +4,7 @@ import * as React from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
-import { KpiRow, RecentTrades, Greeting, OpenPositionsCard } from "@/features/dashboard";
+import { KpiRow, RecentTrades, Greeting } from "@/features/dashboard";
 import {
   TradingStyleSummary,
   HoldingPeriodCard,
@@ -13,7 +13,12 @@ import { horizonMix, dashboardEmphasis, GATE_MIN_TRADES } from "@/lib/stats/hori
 import { useTraderProfile } from "@/features/onboarding/queries";
 import { dashboardEmphasisForTraderType } from "@/features/onboarding/trader-profile";
 import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
-import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
+import {
+  AdherenceRingCard,
+  DailyChecklist,
+  ExpensiveHabitNudge,
+  MistakesPanel,
+} from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
 import { dailyPnl, closedOnly } from "@/lib/stats/stats";
@@ -71,8 +76,8 @@ export default function DashboardPage() {
 
   const now = new Date();
   // The dashboard adapts to the trader's holding style: positional/swing users
-  // get open-positions + holding emphasis, intraday users keep the day-focused
-  // arrangement, and a thin/mixed journal degrades to the balanced layout.
+  // get holding-period emphasis, intraday users keep the day-focused arrangement,
+  // and a thin/mixed journal degrades to the balanced layout.
   // SEG-08: until there are enough classifiable trades to read the style from
   // the data, fall back to the onboarding trader-type's emphasis so a brand-new
   // swing/F&O trader gets a relevant layout from their very first session.
@@ -121,29 +126,26 @@ export default function DashboardPage() {
         {allClosed.length > 0 && <TradingStyleSummary trades={allClosed} inline />}
       </div>
       <RiskGuardrailBanner />
-      <KpiRow trades={trades} adherencePct={adherence?.overallPct} emphasis={emphasis} />
+      <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
+
+      <AdherenceRingCard from={from} to={to} />
 
       {positional ? (
-        // Positional/swing lean: live carry + holding period come first; the
-        // equity curve and the intraday checklist drop below.
+        // Positional/swing lean: holding period sits beside the equity curve; the
+        // intraday checklist and day breakdown drop below.
         <>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <OpenPositionsCard trades={allTrades ?? []} />
-            </div>
-            <HoldingPeriodCard trades={allClosed} />
-          </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <EquityChart trades={trades} />
             </div>
-            {dailyChecklist}
+            <HoldingPeriodCard trades={allClosed} />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             {calendarCard}
             <MistakesPanel from={from} to={to} />
             <RecentTrades trades={trades} />
           </div>
+          {dailyChecklist}
         </>
       ) : (
         // Intraday / balanced: the day-focused layout, with open positions kept
@@ -160,7 +162,6 @@ export default function DashboardPage() {
             <MistakesPanel from={from} to={to} />
             <RecentTrades trades={trades} />
           </div>
-          <OpenPositionsCard trades={allTrades ?? []} />
         </>
       )}
 

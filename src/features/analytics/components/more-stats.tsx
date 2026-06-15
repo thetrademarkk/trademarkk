@@ -1,21 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Clock, ListOrdered, Gauge, Percent, Boxes, type LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PnlText } from "@/components/shared/pnl-text";
 import { formatINR, formatNumber, formatPct, cn } from "@/lib/utils";
-import { useReducedMotion } from "@/hooks/use-media-query";
 import {
   durationBuckets,
   streakLengthDistribution,
@@ -25,13 +14,6 @@ import {
   MIN_SAMPLE,
   type TradeLike,
 } from "@/lib/stats/stats";
-
-const CHART_TOOLTIP = {
-  background: "var(--surface-2)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  fontSize: 12,
-} as const;
 
 /** A titled card wrapper with a lucide icon and an n-gated empty state. */
 function StatCard({
@@ -62,13 +44,51 @@ function StatCard({
   );
 }
 
-/** Hold-duration buckets — count, avg net P&L, win rate per bucket (n≥MIN_SAMPLE). */
+/** Horizontal gradient bar row — label + value on top, a track sized to `pct`. */
+function BarRow({
+  label,
+  value,
+  pct,
+  pos,
+  meta,
+}: {
+  label: string;
+  value: string;
+  pct: number;
+  pos: boolean;
+  meta?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <span className="truncate text-sm font-semibold">{label}</span>
+        <span className={cn("shrink-0 font-money text-sm", pos ? "text-profit" : "text-loss")}>
+          {value}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={cn(
+            "h-full origin-left rounded-full motion-safe:animate-grow-x",
+            pos
+              ? "bg-gradient-to-r from-profit/60 to-profit"
+              : "bg-gradient-to-r from-loss to-loss/60"
+          )}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
+      {meta && <div className="mt-1 text-[11px] text-muted">{meta}</div>}
+    </div>
+  );
+}
+
+/** Hold-duration buckets — avg net P&L per bucket as gradient bar-rows (n≥MIN_SAMPLE). */
 function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
-  const reduced = useReducedMotion();
   const buckets = useMemo(
     () => durationBuckets(trades).filter((b) => b.trades >= MIN_SAMPLE),
     [trades]
   );
+  const max = Math.max(...buckets.map((b) => Math.abs(b.avgPnl)), 1);
   const aria = `Hold duration, average net profit and loss across ${buckets.length} duration bucket${buckets.length === 1 ? "" : "s"}.`;
   return (
     <StatCard
@@ -77,68 +97,31 @@ function HoldDurationCard({ trades }: { trades: TradeLike[] }) {
       empty={buckets.length === 0}
       emptyLabel={`No hold-duration bucket has ${MIN_SAMPLE}+ trades yet.`}
     >
-      <div className="h-44" role="img" aria-label={aria}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="key"
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-            />
-            <YAxis
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => formatINR(v)}
-              width={64}
-            />
-            <Tooltip
-              cursor={{ fill: "var(--surface-2)" }}
-              contentStyle={CHART_TOOLTIP}
-              formatter={(value: number | string) => [
-                formatINR(Number(value), { signed: true }),
-                "Avg P&L",
-              ]}
-            />
-            <Bar dataKey="avgPnl" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
-              {buckets.map((b) => (
-                <Cell
-                  key={b.key}
-                  fill={b.avgPnl >= 0 ? "var(--profit)" : "var(--loss)"}
-                  fillOpacity={0.85}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="divide-y text-xs">
+      <div className="space-y-3.5" role="img" aria-label={aria}>
         {buckets.map((b) => (
-          <div key={b.key} className="flex items-center justify-between py-1.5">
-            <span className="font-medium">{b.key}</span>
-            <span className="text-muted">
-              {b.trades} trades · {formatPct(b.winRate, 0)} win ·{" "}
-              <PnlText value={b.avgPnl} className="text-xs" /> avg
-            </span>
-          </div>
+          <BarRow
+            key={b.key}
+            label={b.key}
+            value={formatINR(b.avgPnl, { signed: true })}
+            pct={(Math.abs(b.avgPnl) / max) * 100}
+            pos={b.avgPnl >= 0}
+            meta={`${b.trades} trades · ${formatPct(b.winRate, 0)} win`}
+          />
         ))}
       </div>
     </StatCard>
   );
 }
 
-/** Win/loss streak-length distribution histogram (needs MIN_SAMPLE decided trades). */
+/** Win/loss streak-length distribution — paired gradient columns per run length. */
 function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
-  const reduced = useReducedMotion();
   const dist = useMemo(() => streakLengthDistribution(trades), [trades]);
   const decided = useMemo(
     () => trades.filter((t) => t.closed_at && t.net_pnl !== 0).length,
     [trades]
   );
   const data = dist.map((r) => ({ label: `${r.length}`, wins: r.wins, losses: r.losses }));
+  const max = Math.max(...data.flatMap((d) => [d.wins, d.losses]), 1);
   const aria = `Streak-length distribution: how often runs of N consecutive wins or losses occurred, across ${data.length} run length${data.length === 1 ? "" : "s"}.`;
   return (
     <StatCard
@@ -147,43 +130,27 @@ function StreakLengthCard({ trades }: { trades: TradeLike[] }) {
       empty={data.length === 0 || decided < MIN_SAMPLE}
       emptyLabel={`Need ${MIN_SAMPLE}+ decided trades to chart streak lengths.`}
     >
-      <div className="h-44" role="img" aria-label={aria}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="label"
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-            />
-            <YAxis
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              allowDecimals={false}
-              width={28}
-            />
-            <Tooltip cursor={{ fill: "var(--surface-2)" }} contentStyle={CHART_TOOLTIP} />
-            <Bar
-              dataKey="wins"
-              name="Win runs"
-              fill="var(--profit)"
-              fillOpacity={0.85}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={!reduced}
-            />
-            <Bar
-              dataKey="losses"
-              name="Loss runs"
-              fill="var(--loss)"
-              fillOpacity={0.85}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={!reduced}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="flex h-44 items-end gap-2" role="img" aria-label={aria}>
+        {data.map((d) => (
+          <div
+            key={d.label}
+            className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+          >
+            <div className="flex w-full flex-1 items-end justify-center gap-1">
+              <div
+                className="w-1/2 origin-bottom rounded-t-[4px] bg-gradient-to-t from-profit to-profit/55 motion-safe:animate-grow-y"
+                style={{ height: `${(d.wins / max) * 100}%` }}
+                title={`${d.wins} win run${d.wins === 1 ? "" : "s"}`}
+              />
+              <div
+                className="w-1/2 origin-bottom rounded-t-[4px] bg-gradient-to-t from-loss to-loss/55 motion-safe:animate-grow-y"
+                style={{ height: `${(d.losses / max) * 100}%` }}
+                title={`${d.losses} loss run${d.losses === 1 ? "" : "s"}`}
+              />
+            </div>
+            <span className="font-money text-[10px] text-muted">{d.label}</span>
+          </div>
+        ))}
       </div>
       <p className="text-[11px] text-muted">
         How often a run of N consecutive wins (green) or losses (red) occurred.
@@ -283,7 +250,6 @@ function RPercentilesCard({ trades }: { trades: TradeLike[] }) {
 
 /** Position-size (notional) buckets vs win rate — flags over/under-sizing (n≥MIN_SAMPLE). */
 function PositionSizeCard({ trades }: { trades: TradeLike[] }) {
-  const reduced = useReducedMotion();
   const all = useMemo(() => notionalBuckets(trades), [trades]);
   const buckets = all.filter((b) => b.trades >= MIN_SAMPLE);
   const aria = `Position size, win rate by notional size across ${buckets.length} size bucket${buckets.length === 1 ? "" : "s"}.`;
@@ -298,64 +264,26 @@ function PositionSizeCard({ trades }: { trades: TradeLike[] }) {
           : `No size bucket has ${MIN_SAMPLE}+ trades yet.`
       }
     >
-      <div className="h-44" role="img" aria-label={aria}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={buckets} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="key"
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-              angle={buckets.length > 4 ? -30 : 0}
-              height={buckets.length > 4 ? 44 : 24}
-              textAnchor={buckets.length > 4 ? "end" : "middle"}
-            />
-            <YAxis
-              tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
-              domain={[0, 1]}
-              width={36}
-            />
-            <Tooltip
-              cursor={{ fill: "var(--surface-2)" }}
-              contentStyle={CHART_TOOLTIP}
-              formatter={(value: number | string) => [formatPct(Number(value), 0), "Win rate"]}
-            />
-            <Bar dataKey="winRate" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
-              {buckets.map((b) => (
-                <Cell
-                  key={b.key}
-                  fill={b.netPnl >= 0 ? "var(--profit)" : "var(--loss)"}
-                  fillOpacity={0.85}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="divide-y text-xs">
+      <div className="space-y-3.5" role="img" aria-label={aria}>
         {buckets.map((b) => (
-          <div key={b.key} className="flex items-center justify-between py-1.5">
-            <span className="font-medium">{b.key}</span>
-            <span className="text-muted">
-              {b.trades} trades · {formatPct(b.winRate, 0)} win ·{" "}
-              <PnlText value={b.avgPnl} className="text-xs" /> avg
-            </span>
-          </div>
+          <BarRow
+            key={b.key}
+            label={b.key}
+            value={formatPct(b.winRate, 0)}
+            pct={b.winRate * 100}
+            pos={b.netPnl >= 0}
+            meta={`${b.trades} trades · ${formatINR(b.avgPnl, { signed: true })} avg`}
+          />
         ))}
       </div>
     </StatCard>
   );
 }
 
-/** The "More statistics" section — six charts gated at MIN_SAMPLE per bucket. */
+/** The "More statistics" section — six panels gated at MIN_SAMPLE per bucket. */
 export function MoreStats({ trades }: { trades: TradeLike[] }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid items-start gap-4 md:grid-cols-2">
       <HoldDurationCard trades={trades} />
       <PositionSizeCard trades={trades} />
       <StreakLengthCard trades={trades} />

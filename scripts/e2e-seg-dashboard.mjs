@@ -3,10 +3,8 @@
  *
  * Verifies in a real Chromium against a running build (demo mode, no platform
  * users):
- *   - a PREDOMINANTLY-POSITIONAL book (delivery EQ trades held >7 days + a
- *     still-open position) makes the dashboard lean positional: the "Open
- *     positions" card is promoted high, shows the open count + cost-basis
- *     exposure + longest-held days, and the trading-style line reads positional;
+ *   - a PREDOMINANTLY-POSITIONAL book (delivery EQ trades held >7 days) makes the
+ *     dashboard lean positional: the trading-style line reads positional;
  *   - the position-hold calendar draws a hold bar under every day a multi-day
  *     position was live (a span), plus an open-position bar from open → today,
  *     WITHOUT moving the P&L (P&L still lands only on the close day);
@@ -140,31 +138,6 @@ await step("the trading-style line reads positional", async () => {
     throw new Error(`expected a positional style verdict, saw: ${text}`);
 });
 
-await step("the Open positions card is present with count + exposure + longest-held", async () => {
-  const card = page.getByTestId("open-positions");
-  await card.waitFor({ timeout: 20000 });
-  const countText = await card.locator("[data-open-count]").innerText();
-  if (countText.trim() !== "1") throw new Error(`expected 1 open position, saw: ${countText}`);
-  const exposure = await card.locator("[data-exposure]").innerText();
-  // 8 × ₹200 = ₹1,600 cost basis (paise-correct).
-  if (!/1,600/.test(exposure)) throw new Error(`expected ₹1,600 exposure, saw: ${exposure}`);
-  const maxHeld = await card.locator("[data-max-held]").innerText();
-  if (!/\dd/.test(maxHeld)) throw new Error(`expected a days-held figure, saw: ${maxHeld}`);
-});
-
-await step("the 7th KPI tile relabels to 'Open positions' for a positional book", async () => {
-  if ((await page.getByText("Open positions").count()) < 1)
-    throw new Error("positional dashboard should surface an Open positions emphasis");
-});
-
-await step("the Open positions card is promoted ABOVE the equity curve", async () => {
-  const openY = await page.getByTestId("open-positions").boundingBox();
-  const equityY = await page.getByText("Equity curve").first().boundingBox();
-  if (!openY || !equityY) throw new Error("missing card / equity bounding boxes");
-  if (openY.y >= equityY.y)
-    throw new Error("Open positions should sit above the equity curve for positional users");
-});
-
 console.log("— Position-hold calendar (spans) —");
 await step("the calendar draws hold bars across the days a position was held", async () => {
   // The closed positional trades live 5–20 May 2025 → navigate there.
@@ -200,7 +173,7 @@ console.log("— 360px (positional) —");
 await step("dashboard + calendar fit 360px with zero overflow", async () => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto(`${BASE}/app/dashboard`, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("open-positions").waitFor({ timeout: 20000 });
+  await page.getByTestId("trading-style").waitFor({ timeout: 20000 });
   await noOverflow(page);
   await page.goto(`${BASE}/app/calendar?date=2025-05-12`, { waitUntil: "domcontentloaded" });
   await page.getByText("May 2025").first().waitFor({ timeout: 20000 });
@@ -228,23 +201,9 @@ await step("the trading-style line reads intraday", async () => {
   if (!/intraday/i.test(text)) throw new Error(`expected an intraday style verdict, saw: ${text}`);
 });
 
-await step("the day-focused layout keeps the equity curve ABOVE open positions", async () => {
-  const equityY = await page.getByText("Equity curve").first().boundingBox();
-  const openY = await page.getByTestId("open-positions").boundingBox();
-  if (!equityY || !openY) throw new Error("missing equity / open-positions bounding boxes");
-  if (equityY.y >= openY.y)
-    throw new Error("intraday dashboard should keep the equity curve above open positions");
+await step("the day-focused layout renders the equity curve up top", async () => {
+  await page.getByText("Equity curve").first().waitFor({ timeout: 20000 });
 });
-
-await step(
-  "an all-square intraday book shows the explicit 'No open positions' empty state",
-  async () => {
-    await page
-      .getByTestId("open-positions")
-      .getByText("No open positions")
-      .waitFor({ timeout: 15000 });
-  }
-);
 
 await ctx.close();
 
@@ -265,14 +224,10 @@ await step("a thin journal (1 trade) degrades to the balanced layout (hides noth
   await page.goto(`${BASE}/app/dashboard`, { waitUntil: "domcontentloaded" });
   await page.getByTestId("trading-style").waitFor({ timeout: 30000 });
   // Below the 5-trade emphasis gate → the dashboard must NOT re-emphasise: the
-  // balanced layout keeps the equity curve up top (above any open-positions
-  // card), and nothing is hidden. (The style summary line is informational and
-  // shown in every mode — the gate governs the LAYOUT, not the copy.)
-  const equityY = await page.getByText("Equity curve").first().boundingBox();
-  const openY = await page.getByTestId("open-positions").boundingBox();
-  if (!equityY || !openY) throw new Error("thin journal must still render both cards");
-  if (equityY.y >= openY.y)
-    throw new Error("a thin journal must stay balanced (equity curve above open positions)");
+  // balanced layout keeps the equity curve up top and hides nothing. (The style
+  // summary line is informational and shown in every mode — the gate governs the
+  // LAYOUT, not the copy.)
+  await page.getByText("Equity curve").first().waitFor({ timeout: 20000 });
 });
 
 await ctx.close();

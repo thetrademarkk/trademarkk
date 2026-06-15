@@ -11,9 +11,17 @@ import type { NextConfig } from "next";
  * - img-src data: blob:: avatars and post images are compressed data-URLs.
  * - frame-ancestors 'none' mirrors X-Frame-Options: DENY.
  */
+// Next's dev server (React Refresh / HMR) compiles modules with eval(), which
+// needs 'unsafe-eval'. It is added ONLY in development — the production policy
+// (what ships) is byte-for-byte unchanged and never grants 'unsafe-eval'.
+const scriptSrc =
+  process.env.NODE_ENV === "development"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

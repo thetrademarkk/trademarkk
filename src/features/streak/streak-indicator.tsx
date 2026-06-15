@@ -18,8 +18,8 @@ import { useStreak, useToggleNoTradeDay } from "./queries";
 
 /**
  * LeetCode-style header streak: flame + count; popover holds milestone badges,
- * rest-day logging, and the opt-in "show on leaderboard" toggle. Streaks are
- * journal data (private) — publishing them is always an explicit choice.
+ * rest-day logging, and the "show on leaderboard" toggle. New traders share their
+ * streak by default; the toggle hides it whenever they want.
  */
 export function StreakIndicator() {
   const { data } = useStreak();
@@ -147,7 +147,7 @@ export function StreakIndicator() {
           </Button>
         )}
 
-        {/* ── Opt-in publishing (privacy-first: off by default) ── */}
+        {/* ── Leaderboard publishing (on by default; toggle off to hide) ── */}
         <div className="mt-3 flex items-center justify-between gap-2 border-t pt-3">
           <div className="min-w-0">
             <p className="text-xs font-medium">Show on leaderboard</p>

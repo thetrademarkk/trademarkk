@@ -96,6 +96,9 @@
   --radius-lg: 10px;
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-slide-up: slide-up 0.25s ease-out;
+  /* Bars grow from their baseline on mount (analytics charts). */
+  --animate-grow-x: grow-x 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-grow-y: grow-y 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   /* Extra small breakpoint (between mobile and Tailwind's sm=640px) — used to
      keep tight action rows readable on ~360px phones without overflowing. */
   --breakpoint-xs: 480px;
@@ -117,6 +120,22 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
   }
 }
 

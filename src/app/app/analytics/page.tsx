@@ -31,10 +31,8 @@ const MonteCarlo = dynamic(
   () => import("@/features/analytics/components/monte-carlo").then((m) => m.MonteCarlo),
   { ssr: false, loading: () => <Skeleton className="h-64" /> }
 );
-import {
-  HoldingPeriodCard,
-  TradingStyleSummary,
-} from "@/features/analytics/components/horizon-stats";
+import { HoldingPeriodCard } from "@/features/analytics/components/horizon-stats";
+import { AnalyticsStatCards } from "@/features/analytics/components/analytics-stat-cards";
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,9 +101,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Analytics" description="Where your edge actually is — and isn't." />
+      <PageHeader
+        title="Analytics"
+        description="Where your edge actually is — and isn't. Computed on your device."
+      />
 
-      <TradingStyleSummary trades={closed} />
+      <AnalyticsStatCards trades={closed} />
 
       <Tabs defaultValue="time">
         <TabsList className="flex max-w-full justify-start overflow-x-auto">
@@ -119,39 +120,38 @@ export default function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="time" className="space-y-4">
-          {/* Holding period is relevant to every trader type — always shown. */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <HoldingPeriodCard trades={closed} />
-            <GroupBar title="By day of week" stats={byWeekday(closed)} />
-          </div>
           {gateIntraday && <IntradayOnlyNote />}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid items-start gap-4 md:grid-cols-2">
             <GroupBar
               title={gateIntraday ? "By entry hour (intraday only)" : "By entry hour"}
               stats={byHourOfDay(closed)}
             />
-            <GroupBar
-              title={
-                gateIntraday
-                  ? "Expiry day vs other days (intraday only)"
-                  : "Expiry day vs other days (options)"
-              }
-              stats={byExpiryDay(closed)}
-            />
+            <GroupBar title="By day of week" stats={byWeekday(closed)} />
           </div>
+          <GroupBar
+            title={
+              gateIntraday
+                ? "Expiry day vs other days (intraday only)"
+                : "Expiry day vs other days (options)"
+            }
+            stats={byExpiryDay(closed)}
+          />
         </TabsContent>
 
         <TabsContent value="setup">
           <GroupBar title="By playbook / setup" stats={bySetup} />
         </TabsContent>
 
-        <TabsContent value="instrument" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <TabsContent
+          value="instrument"
+          className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3"
+        >
           <GroupBar title="By symbol" stats={bySymbol(closed).slice(0, 10)} />
           <GroupBar title="By segment" stats={bySegment(closed)} />
           <GroupBar title="Long vs short" stats={byDirection(closed)} />
         </TabsContent>
 
-        <TabsContent value="distribution" className="grid gap-4 md:grid-cols-2">
+        <TabsContent value="distribution" className="grid items-start gap-4 md:grid-cols-2">
           <RHistogram trades={closed} />
           <EmotionsPanel from={from} to={to} />
           <Card>
@@ -191,6 +191,7 @@ export default function AnalyticsPage() {
 
         <TabsContent value="more" className="space-y-4">
           {gateIntraday && <IntradayOnlyNote />}
+          <HoldingPeriodCard trades={closed} />
           <DayTimeHeatmap trades={closed} />
           <MoreStats trades={closed} />
         </TabsContent>

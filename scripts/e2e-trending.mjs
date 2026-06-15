@@ -213,27 +213,17 @@ try {
       throw new Error(`$${SPAM} trended with ${hit.posts} posts but only 1 author — gate failed`);
   });
 
-  await step(
-    "/community/trending page shows the board + not-a-recommendation disclaimer",
-    async () => {
-      const page = viewer.page;
-      await page.goto(`${BASE}/community/trending`, { waitUntil: "domcontentloaded" });
-      await page
-        .getByRole("heading", { name: "Trending", exact: true })
-        .first()
-        .waitFor({ timeout: 30000 });
-      await page.getByTestId("trending-board").waitFor({ timeout: 15000 });
-      const disclaimer = page.locator("[data-not-advice]").first();
-      await disclaimer.waitFor({ timeout: 10000 });
-      const text = (await disclaimer.textContent()) ?? "";
-      if (!/not a recommendation/i.test(text))
-        throw new Error(
-          `disclaimer missing the 'not a recommendation' wording: ${text.slice(0, 80)}`
-        );
-      // The trend ticker appears as a $-prefixed row linking to its stream.
-      await page.locator(`a[href="/community/s/${TREND}"]`).first().waitFor({ timeout: 15000 });
-    }
-  );
+  await step("/community/trending page shows the board with trend rows", async () => {
+    const page = viewer.page;
+    await page.goto(`${BASE}/community/trending`, { waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("heading", { name: "Trending", exact: true })
+      .first()
+      .waitFor({ timeout: 30000 });
+    await page.getByTestId("trending-board").waitFor({ timeout: 15000 });
+    // The trend ticker appears as a $-prefixed row linking to its stream.
+    await page.locator(`a[href="/community/s/${TREND}"]`).first().waitFor({ timeout: 15000 });
+  });
 
   await step("a trending row navigates to the symbol stream", async () => {
     const page = viewer.page;
@@ -250,11 +240,6 @@ try {
     const page = viewer.page;
     await page.goto(`${BASE}/community`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("trending-widget").waitFor({ timeout: 20000 });
-    await page
-      .getByTestId("trending-widget")
-      .locator("[data-not-advice]")
-      .first()
-      .waitFor({ timeout: 10000 });
   });
 
   await step("mobile 360px: /community/trending has no horizontal overflow", async () => {

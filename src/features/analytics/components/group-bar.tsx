@@ -1,94 +1,61 @@
 "use client";
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatINR, formatPct } from "@/lib/utils";
+import { formatINR, formatPct, cn } from "@/lib/utils";
 import type { GroupStat } from "@/lib/stats/stats";
-import { useReducedMotion } from "@/hooks/use-media-query";
 import { groupBarAriaSummary } from "../chart-aria";
 
-/** Net P&L bar chart per group (hour, weekday, setup, instrument…) + stat list. */
+/**
+ * Net P&L per group (hour, weekday, setup, instrument…) as horizontal bars —
+ * label + signed value on top, a gradient track sized to |net| vs the row max,
+ * and a trades/win-rate meta line. Profit bars run green, losses red.
+ */
 export function GroupBar({ title, stats }: { title: string; stats: GroupStat[] }) {
-  const reduced = useReducedMotion();
+  const max = Math.max(...stats.map((s) => Math.abs(s.netPnl)), 1);
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent>
         {stats.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">Not enough data yet.</p>
         ) : (
-          <>
-            <div className="h-44" role="img" aria-label={groupBarAriaSummary(title, stats)}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="key"
-                    tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                    angle={stats.length > 7 ? -35 : 0}
-                    height={stats.length > 7 ? 50 : 24}
-                    textAnchor={stats.length > 7 ? "end" : "middle"}
-                  />
-                  <YAxis
-                    tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v: number) => formatINR(v)}
-                    width={64}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "var(--surface-2)" }}
-                    contentStyle={{
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      fontSize: 12,
-                    }}
-                    formatter={(value: number | string) => [
-                      formatINR(Number(value), { signed: true }),
-                      "Net P&L",
-                    ]}
-                  />
-                  <Bar dataKey="netPnl" radius={[4, 4, 0, 0]} isAnimationActive={!reduced}>
-                    {stats.map((s) => (
-                      <Cell
-                        key={s.key}
-                        fill={s.netPnl >= 0 ? "var(--profit)" : "var(--loss)"}
-                        fillOpacity={0.85}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="divide-y text-xs">
-              {stats.map((s) => (
-                <div key={s.key} className="flex items-center justify-between py-1.5">
-                  <span className="font-medium">{s.key}</span>
-                  <span className="text-muted">
-                    {s.trades} trades · {formatPct(s.winRate, 0)} win ·{" "}
-                    <span className={s.netPnl >= 0 ? "text-profit" : "text-loss"}>
+          <div className="space-y-3.5" role="img" aria-label={groupBarAriaSummary(title, stats)}>
+            {stats.map((s) => {
+              const pos = s.netPnl >= 0;
+              const pct = (Math.abs(s.netPnl) / max) * 100;
+              return (
+                <div key={s.key}>
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <span className="truncate text-sm font-semibold">{s.key}</span>
+                    <span
+                      className={cn(
+                        "shrink-0 font-money text-sm",
+                        pos ? "text-profit" : "text-loss"
+                      )}
+                    >
                       {formatINR(s.netPnl, { signed: true })}
                     </span>
-                  </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className={cn(
+                        "h-full origin-left rounded-full motion-safe:animate-grow-x",
+                        pos
+                          ? "bg-gradient-to-r from-profit/60 to-profit"
+                          : "bg-gradient-to-r from-loss to-loss/60"
+                      )}
+                      style={{ width: `${Math.max(pct, 2)}%` }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted">
+                    {s.trades} trades · {formatPct(s.winRate, 0)} win
+                  </div>
                 </div>
-              ))}
-            </div>
-          </>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
