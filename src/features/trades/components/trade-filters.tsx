@@ -657,8 +657,9 @@ function ViewsMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 rounded-full">
-          <Bookmark className="h-3.5 w-3.5" /> Views
+        <Button variant="outline" size="sm" className="h-8 rounded-full" aria-label="Saved views">
+          <Bookmark className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Views</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 space-y-3 p-3" align="end">
@@ -740,7 +741,9 @@ function GroupByMenu({
           aria-label="Group trades"
         >
           <Group className="h-3.5 w-3.5" />
-          {active ? `Grouped: ${GROUP_BY_LABELS[groupBy]}` : "Group"}
+          <span className="hidden sm:inline">
+            {active ? `Grouped: ${GROUP_BY_LABELS[groupBy]}` : "Group"}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-52 p-1" align="end">

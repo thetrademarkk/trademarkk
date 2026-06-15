@@ -97,24 +97,43 @@ export default function TradesPage() {
       <PageHeader
         title="Trades"
         description={
-          trades && trades.length > 0 && filtered
-            ? nActive > 0
-              ? `${filtered.length} of ${trades.length} trades`
-              : `${trades.length} trades`
-            : "Every trade, marked."
+          trades && trades.length > 0 && filtered ? (
+            <span className="inline-flex flex-wrap items-center gap-x-2">
+              <span>
+                {nActive > 0
+                  ? `${filtered.length} of ${trades.length} trades`
+                  : `${trades.length} trades`}
+              </span>
+              {filtered.length > 0 && (
+                <span>
+                  · Net <PnlText value={netPnl(closedOnly(filtered))} className="font-semibold" />
+                </span>
+              )}
+            </span>
+          ) : (
+            "Every trade, marked."
+          )
         }
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={() => setPlanOpen(true)}>
-              <ClipboardList className="h-3.5 w-3.5" /> Plan a trade
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPlanOpen(true)}
+              aria-label="Plan a trade"
+            >
+              <ClipboardList className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Plan a trade</span>
             </Button>
             {hasTrades && (
               <Button
                 variant={selectMode ? "default" : "outline"}
                 size="sm"
                 onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                aria-label={selectMode ? "Done selecting" : "Select trades"}
               >
-                <ListChecks className="h-3.5 w-3.5" /> {selectMode ? "Done" : "Select"}
+                <ListChecks className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{selectMode ? "Done" : "Select"}</span>
               </Button>
             )}
             <CsvImport />
@@ -122,11 +141,6 @@ export default function TradesPage() {
         }
       />
       <RiskGuardrailBanner />
-      {filtered && filtered.length > 0 && (
-        <div className="-mt-3 text-sm text-muted">
-          Net: <PnlText value={netPnl(closedOnly(filtered))} className="font-semibold" />
-        </div>
-      )}
 
       <TradeFiltersBar
         filters={filters}

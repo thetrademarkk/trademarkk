@@ -101,8 +101,9 @@ export function CsvImport() {
         if (!o) reset();
       }}
     >
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Upload className="h-3.5 w-3.5" /> Import CSV
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} aria-label="Import CSV">
+        <Upload className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Import CSV</span>
       </Button>
       <DialogContent className="max-w-xl">
         <DialogHeader>
