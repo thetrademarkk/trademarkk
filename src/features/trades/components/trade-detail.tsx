@@ -340,6 +340,7 @@ export function TradeDetail({ id }: { id: string }) {
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent
+          className="sm:max-w-2xl"
           onInteractOutside={(e) => {
             // Unsaved edits? A misclick outside must not discard them.
             if (editDirtyRef.current) e.preventDefault();
