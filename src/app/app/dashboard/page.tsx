@@ -13,7 +13,12 @@ import { horizonMix, dashboardEmphasis, GATE_MIN_TRADES } from "@/lib/stats/hori
 import { useTraderProfile } from "@/features/onboarding/queries";
 import { dashboardEmphasisForTraderType } from "@/features/onboarding/trader-profile";
 import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
-import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
+import {
+  AdherenceRingCard,
+  DailyChecklist,
+  ExpensiveHabitNudge,
+  MistakesPanel,
+} from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
 import { dailyPnl, closedOnly } from "@/lib/stats/stats";
@@ -122,6 +127,8 @@ export default function DashboardPage() {
       </div>
       <RiskGuardrailBanner />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} emphasis={emphasis} />
+
+      <AdherenceRingCard from={from} to={to} />
 
       {positional ? (
         // Positional/swing lean: live carry + holding period come first; the
