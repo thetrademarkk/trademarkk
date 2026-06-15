@@ -100,11 +100,8 @@ export function Sidebar() {
             <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
               <User className="size-4" aria-hidden />
             </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[12.5px] font-bold leading-tight">
-                My account
-              </span>
-              <span className="block truncate text-[11px] text-muted">Local · paise-accurate</span>
+            <span className="min-w-0 truncate text-[12.5px] font-bold leading-tight">
+              My account
             </span>
           </Link>
         )}
