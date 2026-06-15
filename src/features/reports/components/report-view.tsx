@@ -129,14 +129,23 @@ export function ReportView() {
             size="sm"
             disabled={closed.length === 0}
             onClick={() => setShareOpen(true)}
+            aria-label="Share image"
           >
-            <ImageDown className="h-3.5 w-3.5" /> Share image
+            <ImageDown className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Share image</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={exportCsv}>
-            <Download className="h-3.5 w-3.5" /> CSV
+          <Button variant="outline" size="sm" onClick={exportCsv} aria-label="Export CSV">
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">CSV</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-3.5 w-3.5" /> PDF / Print
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            aria-label="PDF / Print"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">PDF / Print</span>
           </Button>
         </div>
       </div>
