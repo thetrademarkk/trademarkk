@@ -120,26 +120,22 @@ export default function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="time" className="space-y-4">
-          {/* Holding period is relevant to every trader type — always shown. */}
-          <div className="grid items-start gap-4 md:grid-cols-2">
-            <HoldingPeriodCard trades={closed} />
-            <GroupBar title="By day of week" stats={byWeekday(closed)} />
-          </div>
           {gateIntraday && <IntradayOnlyNote />}
           <div className="grid items-start gap-4 md:grid-cols-2">
             <GroupBar
               title={gateIntraday ? "By entry hour (intraday only)" : "By entry hour"}
               stats={byHourOfDay(closed)}
             />
-            <GroupBar
-              title={
-                gateIntraday
-                  ? "Expiry day vs other days (intraday only)"
-                  : "Expiry day vs other days (options)"
-              }
-              stats={byExpiryDay(closed)}
-            />
+            <GroupBar title="By day of week" stats={byWeekday(closed)} />
           </div>
+          <GroupBar
+            title={
+              gateIntraday
+                ? "Expiry day vs other days (intraday only)"
+                : "Expiry day vs other days (options)"
+            }
+            stats={byExpiryDay(closed)}
+          />
         </TabsContent>
 
         <TabsContent value="setup">
@@ -195,6 +191,7 @@ export default function AnalyticsPage() {
 
         <TabsContent value="more" className="space-y-4">
           {gateIntraday && <IntradayOnlyNote />}
+          <HoldingPeriodCard trades={closed} />
           <DayTimeHeatmap trades={closed} />
           <MoreStats trades={closed} />
         </TabsContent>

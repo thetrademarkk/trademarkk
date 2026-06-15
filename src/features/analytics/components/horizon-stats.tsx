@@ -94,6 +94,7 @@ export function TradingStyleSummary({
 export function HoldingPeriodCard({ trades }: { trades: HorizonTradeLike[] }) {
   const buckets = useMemo(() => holdingPeriodBuckets(trades), [trades]);
   const anyEnough = buckets.some((b) => b.enough);
+  const max = Math.max(...buckets.map((b) => Math.abs(b.netPnl)), 1);
 
   return (
     <Card>
@@ -103,7 +104,7 @@ export function HoldingPeriodCard({ trades }: { trades: HorizonTradeLike[] }) {
           Holding period
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3.5">
         {buckets.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">
             No closed trades to break down by holding period yet.
@@ -116,30 +117,43 @@ export function HoldingPeriodCard({ trades }: { trades: HorizonTradeLike[] }) {
                 hidden until there&rsquo;s enough.
               </p>
             )}
-            <div className="divide-y text-sm">
-              {buckets.map((b) => (
+            {buckets.map((b) => {
+              const pos = b.netPnl >= 0;
+              const pct = (Math.abs(b.netPnl) / max) * 100;
+              return (
                 <div
                   key={b.horizon}
-                  className={cn(
-                    "flex items-center justify-between gap-3 py-2",
-                    !b.enough && "opacity-50"
-                  )}
                   data-horizon={b.horizon}
+                  className={cn(!b.enough && "opacity-50")}
                 >
-                  <span className="font-medium">{b.label}</span>
-                  {b.enough ? (
-                    <span className="text-muted">
-                      {b.trades} trades · {formatPct(b.winRate, 0)} win ·{" "}
-                      <PnlText value={b.netPnl} className="text-sm" />
-                    </span>
-                  ) : (
-                    <span className="text-muted">
-                      {b.trades} trade{b.trades === 1 ? "" : "s"} · need {MIN_SAMPLE}
-                    </span>
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <span className="truncate text-sm font-semibold">{b.label}</span>
+                    {b.enough ? (
+                      <PnlText value={b.netPnl} className="shrink-0 text-sm" />
+                    ) : (
+                      <span className="shrink-0 text-xs text-muted">need {MIN_SAMPLE}</span>
+                    )}
+                  </div>
+                  {b.enough && (
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                      <div
+                        className={cn(
+                          "h-full origin-left rounded-full motion-safe:animate-grow-x",
+                          pos
+                            ? "bg-gradient-to-r from-profit/60 to-profit"
+                            : "bg-gradient-to-r from-loss to-loss/60"
+                        )}
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                    </div>
                   )}
+                  <div className="mt-1 text-[11px] text-muted">
+                    {b.trades} trade{b.trades === 1 ? "" : "s"}
+                    {b.enough ? ` · ${formatPct(b.winRate, 0)} win` : ""}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </>
         )}
       </CardContent>
