@@ -1,60 +1,57 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { rHistogram, type TradeLike } from "@/lib/stats/stats";
-import { useReducedMotion } from "@/hooks/use-media-query";
 import { rHistogramAriaSummary } from "../chart-aria";
+import { cn } from "@/lib/utils";
+
+/** Strip the ≤/≥ prefix so "≤ -2R" / "≥ 3R" still parse to a signed number. */
+function bucketSign(bucket: string): boolean {
+  const r = parseFloat(bucket.replace("≤", "").replace("≥", ""));
+  return !(r < 0); // ≥ 0R counts as a win bucket
+}
 
 export function RHistogram({ trades }: { trades: TradeLike[] }) {
   const data = rHistogram(trades);
-  const reduced = useReducedMotion();
+  const max = Math.max(...data.map((d) => d.count), 1);
   return (
     <Card>
       <CardHeader>
         <CardTitle>R-multiple distribution</CardTitle>
       </CardHeader>
-      <CardContent className="h-52">
+      <CardContent>
         {data.length === 0 ? (
-          <p className="flex h-full items-center justify-center text-sm text-muted">
+          <p className="flex h-52 items-center justify-center text-center text-sm text-muted">
             Set stop losses on trades to build the R distribution.
           </p>
         ) : (
-          <div className="h-full" role="img" aria-label={rHistogramAriaSummary(data)}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                  width={28}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--surface-2)" }}
-                  contentStyle={{
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
-                <Bar
-                  dataKey="count"
-                  fill="var(--accent)"
-                  fillOpacity={0.85}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={!reduced}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+          <div
+            className="flex h-52 items-end gap-1.5"
+            role="img"
+            aria-label={rHistogramAriaSummary(data)}
+          >
+            {data.map((d) => {
+              const pos = bucketSign(d.bucket);
+              const hPct = (d.count / max) * 100;
+              return (
+                <div
+                  key={d.bucket}
+                  className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                >
+                  <span className="font-money text-[10px] text-muted">{d.count || ""}</span>
+                  <div
+                    className={cn(
+                      "w-full origin-bottom rounded-t-[5px] motion-safe:animate-grow-y",
+                      pos
+                        ? "bg-gradient-to-t from-profit to-profit/55"
+                        : "bg-gradient-to-t from-loss to-loss/55"
+                    )}
+                    style={{ height: `${Math.max(hPct, d.count ? 4 : 0)}%` }}
+                  />
+                  <span className="font-money text-[10px] text-muted">{d.bucket}</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
