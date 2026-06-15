@@ -13,7 +13,7 @@ import {
   maxDrawdown,
   equityCurve,
 } from "@/lib/stats/stats";
-import { formatINR, formatPct, toDateKey } from "@/lib/utils";
+import { toDateKey } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { PnlText } from "@/components/shared/pnl-text";
 import { ShareImagePanel } from "@/components/shared/share-image-panel";
+import { StatCard, inrFormat } from "@/components/shared/stat-card";
 import { TagChip } from "@/components/shared/tag-chip";
 import { describeInstrument } from "@/features/trades";
 import { downloadFile } from "@/features/settings";
@@ -157,56 +158,61 @@ export function ReportView() {
         </DialogContent>
       </Dialog>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-1.5 text-base">
-            <BarChart3 className="h-4 w-4 text-muted" aria-hidden /> {range.label} review
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {closed.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted">No closed trades in this period.</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <div>
-                  <div className="micro-label">Net P&L</div>
-                  <PnlText value={netPnl(closed)} className="text-lg font-semibold" />
-                </div>
-                <div>
-                  <div className="micro-label">Trades / Win rate</div>
-                  <span className="font-money">
-                    {closed.length} · {formatPct(winRate(closed), 0)}
-                  </span>
-                </div>
-                <div>
-                  <div className="micro-label">Profit factor</div>
-                  <span className="font-money">
-                    {Number.isFinite(profitFactor(closed)) ? profitFactor(closed).toFixed(2) : "∞"}
-                  </span>
-                </div>
-                <div>
-                  <div className="micro-label">Expectancy</div>
-                  <PnlText value={expectancy(closed)} />
-                </div>
-                <div>
-                  <div className="micro-label">Charges paid</div>
-                  <span className="font-money">{formatINR(charges)}</span>
-                </div>
-                <div>
-                  <div className="micro-label">Max drawdown</div>
-                  <span className="font-money text-loss">
-                    {formatINR(maxDrawdown(equityCurve(closed)))}
-                  </span>
-                </div>
-                {adherence && (
-                  <div>
-                    <div className="micro-label">Rule adherence</div>
-                    <span className="font-money">{formatPct(adherence.overallPct, 0)}</span>
-                  </div>
-                )}
-              </div>
+      {closed.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted">
+            No closed trades in this period.
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Headline KPIs — redesign tiles with rolling numbers. */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Net P&L" value={netPnl(closed)} format={inrFormat} tone="auto" />
+            <StatCard
+              label="Win rate"
+              value={winRate(closed) * 100}
+              format={{ maximumFractionDigits: 0 }}
+              suffix="%"
+              sub={`${closed.length} trades`}
+            />
+            <StatCard
+              label="Profit factor"
+              value={Number.isFinite(profitFactor(closed)) ? profitFactor(closed) : 0}
+              format={{ maximumFractionDigits: 2 }}
+              sub={!Number.isFinite(profitFactor(closed)) ? "no losses yet" : undefined}
+            />
+            <StatCard
+              label="Expectancy"
+              value={expectancy(closed)}
+              format={inrFormat}
+              tone="auto"
+              sub="per trade"
+            />
+            <StatCard label="Charges paid" value={charges} format={inrFormat} />
+            <StatCard
+              label="Max drawdown"
+              value={-Math.abs(maxDrawdown(equityCurve(closed)))}
+              format={inrFormat}
+              tone="auto"
+            />
+            {adherence && (
+              <StatCard
+                label="Rule adherence"
+                value={adherence.overallPct * 100}
+                format={{ maximumFractionDigits: 0 }}
+                suffix="%"
+              />
+            )}
+          </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-1.5 text-base">
+                <BarChart3 className="h-4 w-4 text-muted" aria-hidden /> {range.label} review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
                 {best && (
                   <div className="rounded-lg border p-3">
@@ -244,10 +250,10 @@ export function ReportView() {
                   </div>
                 </div>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
