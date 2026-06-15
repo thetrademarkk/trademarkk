@@ -71,6 +71,7 @@ export function QuickAdd() {
     return (
       <Dialog open={quickAddOpen} onOpenChange={handleOpenChange}>
         <DialogContent
+          className="sm:max-w-2xl"
           // Dirty form? Outside clicks are ignored — a misclick can't eat your entry.
           onInteractOutside={(e) => {
             if (dirtyRef.current) e.preventDefault();
