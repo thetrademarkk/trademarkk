@@ -12,12 +12,7 @@ import { horizonMix, dashboardEmphasis, GATE_MIN_TRADES } from "@/lib/stats/hori
 import { useTraderProfile } from "@/features/onboarding/queries";
 import { dashboardEmphasisForTraderType } from "@/features/onboarding/trader-profile";
 import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
-import {
-  AdherenceRingCard,
-  DailyChecklist,
-  ExpensiveHabitNudge,
-  MistakesPanel,
-} from "@/features/rules";
+import { AdherenceRingCard, DailyChecklist, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
 import { dailyPnl, closedOnly } from "@/lib/stats/stats";
@@ -85,15 +80,10 @@ export default function DashboardPage() {
       : dashboardEmphasis(mix);
   const positional = emphasis === "positional";
 
-  // Daily checklist / expensive-habit nudge — an intraday-trader staple. Held
-  // high for intraday/balanced, demoted (not removed) for positional users.
-  const dailyChecklist = (
-    <DailyChecklist
-      date={todayKey()}
-      compact
-      footer={<ExpensiveHabitNudge from={from} to={to} />}
-    />
-  );
+  // Daily checklist — an intraday-trader staple. Held high for intraday/balanced,
+  // demoted (not removed) for positional users. (The expensive-habit nudge now
+  // lives at the top of the Adherence card, so it's no longer pinned here.)
+  const dailyChecklist = <DailyChecklist date={todayKey()} compact />;
 
   const calendarCard = (
     <Card>
