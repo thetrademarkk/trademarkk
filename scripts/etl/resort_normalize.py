@@ -137,21 +137,31 @@ def opt_schema() -> pa.Schema:
     ])
 
 
-def write_daily_rowgroups(tbl: pa.Table, out_path: str) -> None:
-    """Write with ~1-trading-day row groups, ZSTD, stats on. Row groups respect
-    the sort order so a (trading_day, strike) predicate prunes to a couple groups."""
+def write_daily_rowgroups(tbl: pa.Table, out_path: str, group_keys=None) -> None:
+    """Write row groups along contiguous runs of `group_keys`, ZSTD, stats on, so a
+    (trading_day, strike) predicate prunes to a couple of groups.
+
+    `group_keys` is a per-row list whose contiguous runs define the row-group
+    boundaries (the table must already be sorted so equal keys are contiguous).
+    Defaults to one row group per `trading_day` — correct for an OPTION file (a
+    handful of days). The INDEX file spans ~1200 trading days, so one-per-day makes
+    ~1200 tiny row groups and a windowed read must touch hundreds of them (≈20s);
+    pass MONTH keys there instead (~60 groups, each still trading_day-sorted so
+    min/max stats prune a date window cleanly)."""
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    days = tbl.column("trading_day").to_pylist()
-    # contiguous run-length of each trading_day (tbl is already sorted day-first)
+    keys = group_keys if group_keys is not None else tbl.column("trading_day").to_pylist()
+    # contiguous run-length of each key (tbl is already sorted so runs are contiguous)
     boundaries = []
     start = 0
-    for i in range(1, len(days) + 1):
-        if i == len(days) or days[i] != days[start]:
+    for i in range(1, len(keys) + 1):
+        if i == len(keys) or keys[i] != keys[start]:
             boundaries.append(i - start)
             start = i
+    # Only dictionary-encode columns that exist (the index file has no option_type).
+    dict_cols = [c for c in ("symbol", "option_type", "trading_day") if c in tbl.schema.names]
     writer = pq.ParquetWriter(
         out_path, tbl.schema, compression="zstd",
-        use_dictionary=["symbol", "option_type", "trading_day"],
+        use_dictionary=dict_cols,
         write_statistics=True,
     )
     off = 0
@@ -226,7 +236,11 @@ def resort_index(archive: str, sym: str, out_root: str) -> dict:
     idx = pc.sort_indices(combined, sort_keys=[("timestamp", "ascending")])
     sorted_tbl = combined.take(idx)
     out_path = os.path.join(out_root, "index", f"{sym}.parquet")
-    write_daily_rowgroups(sorted_tbl, out_path)
+    # MONTH-sized row groups (not per-day): the index spans ~1200 days, so per-day
+    # groups (~1200) make a windowed read crawl. Month keys give ~60 groups, each
+    # trading_day-sorted so a `trading_day BETWEEN` window still prunes cleanly.
+    month_keys = [d[:7] for d in sorted_tbl.column("trading_day").to_pylist()]
+    write_daily_rowgroups(sorted_tbl, out_path, group_keys=month_keys)
     return {
         "symbol": sym, "skipped": False, "in_files": len(files), "in_bytes": in_bytes,
         "out_file": out_path, "out_bytes": os.path.getsize(out_path),
