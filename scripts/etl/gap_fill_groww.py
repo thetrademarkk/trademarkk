@@ -1,0 +1,426 @@
+"""
+gap_fill_groww.py — fill ONLY the gaps in gap-plan.json from the Groww API, in
+the EXACT archive layout the existing ETL expects. Idempotent, resumable,
+rate-limit aware. It NEVER re-fetches a contract that already has a real parquet,
+an .empty.json marker, or (unless --retry-failures) a recorded failure.
+
+Per missing (symbol, expiry, strike, type) it:
+  1. builds the deterministic groww_symbol  NSE-<SYM>-<ddMmmyy>-<STRIKE>-<CE|PE>
+     (ddMmmyy from the EXPIRY date — matches the archive's filenames),
+  2. fetches 1m candles over the contract's lifetime window (expiry's
+     tradingDays from the plan: [first..expiry]) via the V2 endpoint
+     get_historical_candles(candle_interval=CANDLE_INTERVAL_MIN_1) — proven to
+     return option 1m history back to 2022 with no 7-day window cap,
+  3. writes the result in the SAME shape the archive already uses:
+       * real bars        -> options/<SYM>/<EXPIRY>/NSE-...-<STRIKE>-<CE|PE>.parquet
+                             (8 cols, STRING timestamp 'YYYY-MM-DDThh:mm:ss+05:30'
+                             so resort_normalize.py normalizes it identically),
+       * zero bars        -> ...<contract>.parquet.empty.json  (so we never re-probe),
+       * fetch error      -> failures/<SYM>/<EXPIRY>/<contract>.json (retryable),
+  4. throttles to --min-interval seconds between calls (default 0.75s ~= the
+     original builder; well under Groww's ~10 req/s data limit) with exponential
+     backoff + jitter on 429/5xx, and a hard --max-retries per contract.
+
+RESUMABLE: the very act of writing a parquet/empty/failure marker IS the
+checkpoint. Re-running re-scans the archive and skips anything already present, so
+Ctrl-C / crash / nightly cron all just continue. A small --state json also records
+per-contract attempt counts so permanently-failing contracts aren't retried
+forever.
+
+SAFETY: READ-ONLY against Groww (only get_access_token + get_historical_candles);
+no order/position calls are ever imported or invoked. Credentials come from
+.env.local (GROWW_API_KEY + GROWW_API_SECRET; the secret flow is what works —
+TOTP returned 400 in probing). Secrets are never printed.
+
+Usage:
+    python scripts/etl/gap_fill_groww.py \
+        --archive C:/.../market-data/market_archive_1m \
+        --plan    C:/.../market-data/_etl_staging/gap-plan.json \
+        --symbols NIFTY \
+        --min-interval 0.75 \
+        --max-contracts 0          # 0 = no cap; set small to smoke-test
+
+    # nightly resumable run (cron): same command; it skips everything already done.
+    # to also retry past errors:  --retry-failures
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import random
+import sys
+import time
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+SYMBOLS = ("NIFTY", "BANKNIFTY", "SENSEX")
+CANON_TS_SUFFIX = "+05:30"  # archive convention: naive IST wall-clock + fixed offset
+MARKET_OPEN = "09:15:00"
+MARKET_CLOSE = "15:30:00"
+
+# Archive parquet schema (matches what resort_normalize.py reads: 8 string/double cols)
+ARCHIVE_SCHEMA = pa.schema([
+    ("timestamp", pa.string()),
+    ("open", pa.float64()), ("high", pa.float64()),
+    ("low", pa.float64()), ("close", pa.float64()),
+    ("volume", pa.float64()), ("open_interest", pa.float64()),
+    ("trading_day", pa.string()),
+])
+
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def load_env(path: str = ".env.local") -> dict[str, str]:
+    env: dict[str, str] = {}
+    if not os.path.exists(path):
+        return env
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        env[k.strip()] = v.strip().strip("'").strip('"')
+    return env
+
+
+def expiry_to_ddmmmyy(expiry: str) -> str:
+    """2024-07-25 -> 25Jul24 (the archive/groww filename token)."""
+    d = dt.date.fromisoformat(expiry)
+    return f"{d.day:02d}{_MONTHS[d.month - 1]}{d.year % 100:02d}"
+
+
+def groww_symbol(sym: str, expiry: str, strike: int, ot: str) -> str:
+    return f"NSE-{sym}-{expiry_to_ddmmmyy(expiry)}-{strike}-{ot}"
+
+
+def contract_filename(sym: str, expiry: str, strike: int, ot: str) -> str:
+    return f"{groww_symbol(sym, expiry, strike, ot)}.parquet"
+
+
+def parquet_path(archive: str, sym: str, expiry: str, strike: int, ot: str) -> str:
+    return os.path.join(archive, "options", sym, expiry,
+                        contract_filename(sym, expiry, strike, ot))
+
+
+def already_done(archive: str, sym: str, expiry: str, strike: int, ot: str,
+                 retry_failures: bool) -> bool:
+    """Idempotency guard: real parquet OR empty marker (always skip), failure
+    (skip unless --retry-failures)."""
+    base = parquet_path(archive, sym, expiry, strike, ot)
+    if os.path.exists(base):
+        return True
+    if os.path.exists(base + ".empty.json"):
+        return True
+    if not retry_failures:
+        froot = os.path.join(archive, "failures", sym, expiry)
+        fp = os.path.join(froot, groww_symbol(sym, expiry, strike, ot) + ".json")
+        if os.path.exists(fp):
+            return True
+    return False
+
+
+def _epoch_or_iso_to_archive_ts(val) -> tuple[str, str]:
+    """Normalize a Groww candle time field to the archive's string form.
+
+    Groww V2 returns either an ISO 'YYYY-MM-DDThh:mm:ss' (naive IST wall-clock)
+    or an epoch-seconds int (IST wall-clock seconds). Return
+    ('YYYY-MM-DDThh:mm:ss+05:30', 'YYYY-MM-DD').
+    """
+    if isinstance(val, (int, float)):
+        # epoch seconds expressed as IST wall-clock (probe-confirmed: 1780976700 -> 09:15)
+        t = dt.datetime.utcfromtimestamp(int(val))
+        iso = t.strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        s = str(val)
+        iso = s[:19].replace(" ", "T")  # 'YYYY-MM-DD HH:MM:SS' or already 'T'
+    return iso + CANON_TS_SUFFIX, iso[:10]
+
+
+def candles_to_table(candles: list) -> pa.Table:
+    """Groww candle rows -> archive-schema table.
+
+    Row shapes seen in probing:
+      index:  [iso/epoch, o, h, l, c, vol|None, None]   (7 cols, vol may be null)
+      option: [iso/epoch, o, h, l, c, vol, open_interest] (7 cols)
+    Some rows are 6-wide (no OI) — handled defensively.
+    """
+    ts, o, h, l, c, vol, oi, day = [], [], [], [], [], [], [], []
+    for row in candles:
+        t_iso, t_day = _epoch_or_iso_to_archive_ts(row[0])
+        ts.append(t_iso)
+        day.append(t_day)
+        o.append(_f(row[1])); h.append(_f(row[2])); l.append(_f(row[3])); c.append(_f(row[4]))
+        vol.append(_f(row[5]) if len(row) > 5 else 0.0)
+        oi.append(_f(row[6]) if len(row) > 6 else 0.0)
+    return pa.table({
+        "timestamp": pa.array(ts, pa.string()),
+        "open": pa.array(o, pa.float64()), "high": pa.array(h, pa.float64()),
+        "low": pa.array(l, pa.float64()), "close": pa.array(c, pa.float64()),
+        "volume": pa.array(vol, pa.float64()), "open_interest": pa.array(oi, pa.float64()),
+        "trading_day": pa.array(day, pa.string()),
+    }, schema=ARCHIVE_SCHEMA)
+
+
+def _f(v):
+    if v is None:
+        return 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def write_real(archive, sym, expiry, strike, ot, table: pa.Table) -> str:
+    out = parquet_path(archive, sym, expiry, strike, ot)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    tmp = out + ".tmp"
+    # ZSTD + stats so it matches the archive's other files; tiny per-contract files
+    pq.write_table(table, tmp, compression="zstd", write_statistics=True)
+    os.replace(tmp, out)  # atomic publish -> resumable (no half-written .parquet)
+    return out
+
+
+def write_empty(archive, sym, expiry, strike, ot, lookback_days: int) -> str:
+    out = parquet_path(archive, sym, expiry, strike, ot) + ".empty.json"
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    rec = {
+        "expiry": expiry,
+        "option_lookback_days": lookback_days,
+        "reason": "no_candles",
+        "symbol": groww_symbol(sym, expiry, strike, ot),
+        "underlying": sym,
+        "filled_by": "gap_fill_groww.py",
+    }
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh, indent=2)
+    return out
+
+
+def write_failure(archive, sym, expiry, strike, ot, err: str) -> str:
+    froot = os.path.join(archive, "failures", sym, expiry)
+    os.makedirs(froot, exist_ok=True)
+    out = os.path.join(froot, groww_symbol(sym, expiry, strike, ot) + ".json")
+    rec = {
+        "at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "error": err[:400],
+        "expiry": expiry,
+        "symbol": groww_symbol(sym, expiry, strike, ot),
+        "underlying": sym,
+        "filled_by": "gap_fill_groww.py",
+    }
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh, indent=2)
+    return out
+
+
+def clear_failure(archive, sym, expiry, strike, ot) -> None:
+    fp = os.path.join(archive, "failures", sym, expiry,
+                      groww_symbol(sym, expiry, strike, ot) + ".json")
+    try:
+        os.remove(fp)
+    except FileNotFoundError:
+        pass
+
+
+class Throttle:
+    """Min-interval pacing + exponential backoff with jitter on transient errors."""
+
+    def __init__(self, min_interval: float):
+        self.min_interval = min_interval
+        self._last = 0.0
+
+    def wait(self):
+        dtm = time.monotonic() - self._last
+        if dtm < self.min_interval:
+            time.sleep(self.min_interval - dtm)
+        self._last = time.monotonic()
+
+    @staticmethod
+    def backoff(attempt: int):
+        base = min(2 ** attempt, 60)
+        time.sleep(base + random.uniform(0, base * 0.25))
+
+
+def is_transient(err: str) -> bool:
+    e = err.lower()
+    return any(s in e for s in ("429", "rate", "timeout", "timed out", "502",
+                                "503", "504", "temporarily", "connection"))
+
+
+def fetch_contract(g, sym, expiry, strike, ot, start_day, end_day, thr: Throttle,
+                   max_retries: int):
+    """Return (candles, error). candles=None on hard error; [] means empty."""
+    from growwapi import GrowwAPI  # local import so --help works without creds
+    gs = groww_symbol(sym, expiry, strike, ot)
+    start = f"{start_day} {MARKET_OPEN}"
+    end = f"{end_day} {MARKET_CLOSE}"
+    last_err = ""
+    for attempt in range(max_retries + 1):
+        thr.wait()
+        try:
+            r = g.get_historical_candles(
+                exchange="NSE", segment="FNO", groww_symbol=gs,
+                start_time=start, end_time=end,
+                candle_interval=GrowwAPI.CANDLE_INTERVAL_MIN_1,
+            )
+            candles = r.get("candles") if isinstance(r, dict) else None
+            return (candles or []), ""
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{type(e).__name__}: {e}"
+            if is_transient(last_err) and attempt < max_retries:
+                Throttle.backoff(attempt + 1)
+                continue
+            return None, last_err
+    return None, last_err
+
+
+def load_state(path: str) -> dict:
+    if path and os.path.exists(path):
+        try:
+            return json.load(open(path, encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def save_state(path: str, state: dict) -> None:
+    if not path:
+        return
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    json.dump(state, open(tmp, "w", encoding="utf-8"))
+    os.replace(tmp, path)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="Fill archive gaps from Groww (idempotent, resumable).")
+    ap.add_argument("--archive", required=True)
+    ap.add_argument("--plan", required=True, help="gap-plan.json from gap_detect.py")
+    ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
+    ap.add_argument("--env", default=".env.local")
+    ap.add_argument("--min-interval", type=float, default=0.75, help="Seconds between API calls.")
+    ap.add_argument("--max-retries", type=int, default=4, help="Transient retries per contract.")
+    ap.add_argument("--max-contracts", type=int, default=0, help="Cap contracts this run (0 = all).")
+    ap.add_argument("--retry-failures", action="store_true", help="Also re-attempt recorded failures.")
+    ap.add_argument("--state", default=None, help="Resumable attempt-count state json (optional).")
+    ap.add_argument("--giveup-after", type=int, default=3, help="Stop retrying a contract after N hard fails.")
+    ap.add_argument("--dry-run", action="store_true", help="Plan only; no API calls, no writes.")
+    args = ap.parse_args(argv)
+
+    if not os.path.isdir(args.archive):
+        print(f"ERROR: archive not found: {args.archive}", file=sys.stderr)
+        return 2
+    plan = json.load(open(args.plan, encoding="utf-8"))
+    state = load_state(args.state)
+
+    # Build the flat work list from the plan (missing + optionally retry).
+    work = []  # (sym, expiry, strike, ot, start_day, end_day)
+    for sym in args.symbols:
+        sblock = plan.get("symbols", {}).get(sym)
+        if not sblock:
+            continue
+        for exp, eb in sblock["expiries"].items():
+            life = eb.get("tradingDays") or []
+            if not life:
+                continue
+            start_day, end_day = life[0], life[-1]
+            todo = list(eb.get("missingContracts", []))
+            if args.retry_failures:
+                todo += list(eb.get("retryContracts", []))
+            for strike, ot in todo:
+                work.append((sym, exp, int(strike), ot, start_day, end_day))
+
+    print(f"plan work list: {len(work)} contracts "
+          f"({'+retry' if args.retry_failures else 'missing only'})")
+
+    if args.dry_run:
+        # show the first few groww_symbols that WOULD be fetched
+        for w in work[:10]:
+            print("  WOULD fetch", groww_symbol(w[0], w[1], w[2], w[3]),
+                  f"[{w[4]}..{w[5]}]")
+        print("DRY RUN — no API calls, no writes.")
+        return 0
+
+    env = load_env(args.env)
+    if not env.get("GROWW_API_KEY") or not env.get("GROWW_API_SECRET"):
+        print("ERROR: GROWW_API_KEY / GROWW_API_SECRET missing in env file.", file=sys.stderr)
+        return 3
+    from growwapi import GrowwAPI
+    tok = GrowwAPI.get_access_token(api_key=env["GROWW_API_KEY"], secret=env["GROWW_API_SECRET"])
+    tok = tok.get("token") if isinstance(tok, dict) else tok
+    g = GrowwAPI(tok)
+    print("Groww auth OK (secret flow).")
+
+    thr = Throttle(args.min_interval)
+    n_real = n_empty = n_fail = n_skip = n_done = 0
+    t0 = time.monotonic()
+
+    for i, (sym, exp, strike, ot, start_day, end_day) in enumerate(work):
+        if args.max_contracts and n_done >= args.max_contracts:
+            print(f"reached --max-contracts={args.max_contracts}; stopping (resumable).")
+            break
+        # idempotency re-check at fetch time (archive is the source of truth)
+        if already_done(args.archive, sym, exp, strike, ot, args.retry_failures):
+            n_skip += 1
+            continue
+        gs = groww_symbol(sym, exp, strike, ot)
+        st = state.setdefault(gs, {"hardFails": 0})
+        if st.get("hardFails", 0) >= args.giveup_after:
+            n_skip += 1
+            continue
+
+        candles, err = fetch_contract(g, sym, exp, strike, ot, start_day, end_day,
+                                      thr, args.max_retries)
+        if candles is None:
+            write_failure(args.archive, sym, exp, strike, ot, err)
+            st["hardFails"] = st.get("hardFails", 0) + 1
+            n_fail += 1
+        elif len(candles) == 0:
+            write_empty(args.archive, sym, exp, strike, ot,
+                        plan.get("params", {}).get("lookbackDays", 60))
+            clear_failure(args.archive, sym, exp, strike, ot)
+            n_empty += 1
+        else:
+            try:
+                tbl = candles_to_table(candles)
+                write_real(args.archive, sym, exp, strike, ot, tbl)
+                clear_failure(args.archive, sym, exp, strike, ot)
+                st["hardFails"] = 0
+                n_real += 1
+            except Exception as e:  # noqa: BLE001
+                write_failure(args.archive, sym, exp, strike, ot, f"write:{type(e).__name__}:{e}")
+                st["hardFails"] = st.get("hardFails", 0) + 1
+                n_fail += 1
+        n_done += 1
+
+        if n_done % 200 == 0:
+            save_state(args.state, state)
+            rate = n_done / max(time.monotonic() - t0, 1e-6)
+            remaining = len(work) - i - 1
+            eta_min = remaining / max(rate, 1e-6) / 60
+            sys.stderr.write(
+                f"  [{n_done}/{len(work)}] real={n_real} empty={n_empty} "
+                f"fail={n_fail} skip={n_skip}  {rate:.2f}/s  ETA~{eta_min:.0f}m\n"
+            )
+
+    save_state(args.state, state)
+    print("\n=== GAP FILL SUMMARY ===")
+    print(f"  fetched   : {n_done}")
+    print(f"  real      : {n_real}")
+    print(f"  empty     : {n_empty}")
+    print(f"  failed    : {n_fail}")
+    print(f"  skipped   : {n_skip} (already present / gave up)")
+    print(f"  elapsed   : {(time.monotonic()-t0)/60:.1f} min")
+    if n_fail:
+        print("  re-run to retry transient failures (idempotent); "
+              "add --retry-failures to re-attempt recorded errors.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
