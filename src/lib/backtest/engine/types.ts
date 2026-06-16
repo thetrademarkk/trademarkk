@@ -33,6 +33,25 @@ export const MAX_BARS_PER_DAY = 375;
 /** Strike-resolution thresholds (§8). */
 export const MIN_COVERAGE = 0.6;
 export const MAX_FALLBACK_STEPS = 5;
+/**
+ * D2 hard-fail CEILING (07-data-layer §7b critique). A nearest-available
+ * substitute whose coverage is BELOW this floor is rejected outright
+ * (resolveStrike returns null → MISSING_LEG), never a silent confidence:"low"
+ * fill. It sits intentionally BELOW ILLIQUID_COVERAGE (0.5): the band
+ * [0.2, 0.5) is still a fillable-but-flagged "illiquid" substitute (§3.2 keeps
+ * the LOW_LIQUIDITY slippage bump for it); only a near-empty strike (< 0.2,
+ * i.e. <20% of the session printed) is treated as un-fillable and hard-failed.
+ * Pre-D2 even a coverage-0.1 strike filled silently at confidence "low".
+ */
+export const MIN_FALLBACK_COVERAGE = 0.2;
+/**
+ * D2 premium-deviation CEILING (07-data-layer §7b). For premium selection, the
+ * chosen strike's entry price must be within this fractional deviation of the
+ * target premium (|price − target| / target ≤ this). A "closest" strike that is
+ * still wildly off the target (no real strike near the requested premium) is a
+ * MISSING_LEG, not a silent fill at an unrelated premium. 0.5 = ±50%.
+ */
+export const MAX_PREMIUM_DEVIATION = 0.5;
 /** Carry-forward cap before a held leg is force-marked stale on square-off (§2). */
 export const MAX_STALE_MINUTES = 15;
 /** Liquidity-scaled slippage bump for illiquid strikes / zero-volume bars (§3.2, D4). */
