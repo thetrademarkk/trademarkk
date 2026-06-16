@@ -6,6 +6,7 @@ import { Ring } from "@/components/shared/ring";
 import { PnlText } from "@/components/shared/pnl-text";
 import { cn } from "@/lib/utils";
 import { useAdherence } from "../queries";
+import { ExpensiveHabitNudge } from "./expensive-habit";
 
 /** A compact label-over-value stat — sits in a 2×2 grid so the card stays dense. */
 function Stat({
@@ -26,10 +27,12 @@ function Stat({
 }
 
 /**
- * Headline rule-adherence card: a fill-in ring (% of checks followed) beside the
- * followed / broken counts, the ₹ cost of broken-rule days, and the most-broken
- * rule. Renders nothing until at least one rule check is logged in the range, so
- * it never shows an empty 100% on a fresh journal.
+ * Headline rule-adherence card: the costliest-habit nudge pinned at the top, then
+ * a fill-in ring (% of checks followed) beside the followed / broken counts and
+ * the ₹ cost of broken-rule days. (The nudge already names the worst rule, so the
+ * old "most broken" stat was dropped to avoid showing the same rule twice.)
+ * Renders nothing until at least one rule check is logged in the range, so it
+ * never shows an empty 100% on a fresh journal.
  */
 export function AdherenceRingCard({ from, to }: { from: string | null; to: string | null }) {
   const { data } = useAdherence(from, to);
@@ -40,7 +43,6 @@ export function AdherenceRingCard({ from, to }: { from: string | null; to: strin
   if (followed + broken === 0) return null;
 
   const cost = data.rules.reduce((s, r) => s + r.brokenDayCost, 0);
-  const mostBroken = data.rules.reduce((a, b) => (b.broken > a.broken ? b : a));
   const pct = data.overallPct * 100;
 
   return (
@@ -51,7 +53,8 @@ export function AdherenceRingCard({ from, to }: { from: string | null; to: strin
         </CardTitle>
         <p className="text-xs text-muted">This period</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <ExpensiveHabitNudge from={from} to={to} />
         <div className="flex items-center gap-5">
           <Ring
             value={pct}
@@ -68,13 +71,8 @@ export function AdherenceRingCard({ from, to }: { from: string | null; to: strin
             <Stat label="Broken">
               <span className="font-money text-lg font-semibold text-loss">{broken}</span>
             </Stat>
-            <Stat label="Cost of breaks">
+            <Stat label="Cost of breaks" className="col-span-2">
               <PnlText value={cost} className="text-sm font-semibold" />
-            </Stat>
-            <Stat label="Most broken">
-              <span className="block truncate text-sm font-medium text-warning">
-                {mostBroken.broken > 0 ? mostBroken.rule.text : "—"}
-              </span>
             </Stat>
           </dl>
         </div>

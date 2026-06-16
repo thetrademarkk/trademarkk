@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { NAV_SECTIONS, type NavItem } from "@/config/nav";
 import { useUiStore } from "@/stores/ui-store";
+import { useAccounts } from "@/features/trades";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,10 @@ import { cn } from "@/lib/utils";
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, setQuickAddOpen } = useUiStore();
+  // Show the user's own account name (set in Settings) instead of a generic
+  // label; falls back to "My account" before accounts load / if it's blank.
+  const { data: accounts = [] } = useAccounts();
+  const accountName = accounts[0]?.name?.trim() || "My account";
 
   return (
     <aside
@@ -101,7 +106,7 @@ export function Sidebar() {
               <User className="size-4" aria-hidden />
             </span>
             <span className="min-w-0 truncate text-[12.5px] font-bold leading-tight">
-              My account
+              {accountName}
             </span>
           </Link>
         )}
