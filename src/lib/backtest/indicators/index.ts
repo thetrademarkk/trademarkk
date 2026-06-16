@@ -16,6 +16,10 @@ import { volatilityIndicators } from "./volatility";
 import { volumeIndicators } from "./volume";
 import { directionalIndicators } from "./directional";
 import { statisticalIndicators } from "./statistical";
+import { maExtIndicators } from "./ma_ext";
+import { oscillatorsExtIndicators } from "./oscillators_ext";
+import { bandsVolExtIndicators } from "./bands_vol_ext";
+import { volumeExtIndicators } from "./volume_ext";
 
 // Public surface.
 export * from "./types";
@@ -37,6 +41,10 @@ export function registerIndicators(): number {
     ...volumeIndicators,
     ...directionalIndicators,
     ...statisticalIndicators,
+    ...maExtIndicators,
+    ...oscillatorsExtIndicators,
+    ...bandsVolExtIndicators,
+    ...volumeExtIndicators,
   ]);
   return (
     trendIndicators.length +
@@ -44,6 +52,10 @@ export function registerIndicators(): number {
     volatilityIndicators.length +
     volumeIndicators.length +
     directionalIndicators.length +
-    statisticalIndicators.length
+    statisticalIndicators.length +
+    maExtIndicators.length +
+    oscillatorsExtIndicators.length +
+    bandsVolExtIndicators.length +
+    volumeExtIndicators.length
   );
 }
