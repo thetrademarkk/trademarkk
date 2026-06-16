@@ -23,9 +23,21 @@ import type { BacktestPhase } from "../../../features/backtest/shared/backtest-s
 import type { RunResult } from "../../../features/backtest/shared/run-result";
 import type { StrategyDef } from "../../../features/backtest/shared/strategy-def";
 
-/** How the worker should obtain its DataSource. Discriminated for forward-compat. */
-export type BacktestDataPayload = { kind: "fixture"; snapshot: FixtureSnapshot };
-// BT-08 will add: | { kind: "hf"; manifestUrl: string; proxyBase: string; ... }
+/**
+ * How the worker should obtain its DataSource. Discriminated for forward-compat.
+ *
+ *   - "fixture" — an in-memory `FixtureSnapshot` (unit tests + golden runs).
+ *   - "hf" — the BT-08 duckdb-wasm-over-HuggingFace source. The payload carries
+ *     NO data: the worker builds the source by prefetching from HF using the
+ *     request's own `strategy` (its day spine + expiry rule + strike band).
+ *     `bandPts` optionally overrides the derived chain width. The dataset is
+ *     public + ungated, so there is NO secret/token in this payload (or anywhere
+ *     in client code). The signed CDN redirect is never cached (urls.ts uses the
+ *     stable resolve/main form).
+ */
+export type BacktestDataPayload =
+  | { kind: "fixture"; snapshot: FixtureSnapshot }
+  | { kind: "hf"; bandPts?: number };
 
 /** Main-thread → worker: run this strategy against this data, tagged with runId. */
 export interface BacktestRunRequest {
