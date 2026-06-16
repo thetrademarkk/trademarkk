@@ -85,19 +85,16 @@ await step(
     await page.getByTestId("bt-run").click();
     await page.getByTestId("bt-result").waitFor({ timeout: 30000 });
 
-    // duckdb-wasm boot + HF reads + engine can take a while on a cold worker.
+    // duckdb-wasm boot + HF reads + engine can take a while on a cold worker. Poll
+    // the status attribute directly (resilient) rather than page.waitForFunction,
+    // whose injected rAF poller can reject mid-run while the heavy worker churns.
     const statusEl = page.getByTestId("bt-status");
-    await page
-      .waitForFunction(
-        () => {
-          const el = document.querySelector('[data-testid="bt-status"]');
-          const s = el?.getAttribute("data-status");
-          return s === "done" || s === "empty" || s === "error";
-        },
-        { timeout: 260000 }
-      )
-      .catch(() => {});
-    finalStatus = (await statusEl.getAttribute("data-status")) ?? "";
+    const terminal = new Set(["done", "empty", "error"]);
+    for (let i = 0; i < 90; i++) {
+      finalStatus = (await statusEl.getAttribute("data-status").catch(() => "")) ?? "";
+      if (terminal.has(finalStatus)) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     if (finalStatus === "error") throw new Error(`run errored (not honest empty/done)`);
     if (finalStatus !== "done" && finalStatus !== "empty") {
       throw new Error(`run did not reach a terminal state in time: "${finalStatus}"`);
