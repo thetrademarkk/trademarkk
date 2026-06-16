@@ -252,31 +252,60 @@ def is_transient(err: str) -> bool:
                                 "503", "504", "temporarily", "connection"))
 
 
+def _date_windows(start_day: str, end_day: str, max_days: int = 28):
+    """Yield (chunk_start, chunk_end) ISO days covering [start_day, end_day] in
+    windows of <= max_days. Groww's 1-minute history API rejects any single
+    request spanning > 30 days ("Interval 1minute can only be queried for a
+    maximum of 30 days"), so every contract whose life exceeds that must be
+    fetched in chunks and concatenated. 28 keeps a safety margin."""
+    import datetime as _dt
+
+    d0 = _dt.date.fromisoformat(start_day)
+    d1 = _dt.date.fromisoformat(end_day)
+    if d1 < d0:
+        d1 = d0
+    cur = d0
+    while cur <= d1:
+        chunk_end = min(cur + _dt.timedelta(days=max_days - 1), d1)
+        yield cur.isoformat(), chunk_end.isoformat()
+        cur = chunk_end + _dt.timedelta(days=1)
+
+
 def fetch_contract(g, sym, expiry, strike, ot, start_day, end_day, thr: Throttle,
                    max_retries: int):
-    """Return (candles, error). candles=None on hard error; [] means empty."""
+    """Return (candles, error). candles=None on hard error; [] means empty.
+    Splits the contract's date range into <=28-day windows (Groww 1m cap is
+    30 days/request) and concatenates the bars in chronological order."""
     from growwapi import GrowwAPI  # local import so --help works without creds
     gs = groww_symbol(sym, expiry, strike, ot)
-    start = f"{start_day} {MARKET_OPEN}"
-    end = f"{end_day} {MARKET_CLOSE}"
-    last_err = ""
-    for attempt in range(max_retries + 1):
-        thr.wait()
-        try:
-            r = g.get_historical_candles(
-                exchange="NSE", segment="FNO", groww_symbol=gs,
-                start_time=start, end_time=end,
-                candle_interval=GrowwAPI.CANDLE_INTERVAL_MIN_1,
-            )
-            candles = r.get("candles") if isinstance(r, dict) else None
-            return (candles or []), ""
-        except Exception as e:  # noqa: BLE001
-            last_err = f"{type(e).__name__}: {e}"
-            if is_transient(last_err) and attempt < max_retries:
-                Throttle.backoff(attempt + 1)
-                continue
+    all_candles: list = []
+    for cs, ce in _date_windows(start_day, end_day):
+        start = f"{cs} {MARKET_OPEN}"
+        end = f"{ce} {MARKET_CLOSE}"
+        last_err = ""
+        ok = False
+        for attempt in range(max_retries + 1):
+            thr.wait()
+            try:
+                r = g.get_historical_candles(
+                    exchange="NSE", segment="FNO", groww_symbol=gs,
+                    start_time=start, end_time=end,
+                    candle_interval=GrowwAPI.CANDLE_INTERVAL_MIN_1,
+                )
+                candles = r.get("candles") if isinstance(r, dict) else None
+                if candles:
+                    all_candles.extend(candles)
+                ok = True
+                break
+            except Exception as e:  # noqa: BLE001
+                last_err = f"{type(e).__name__}: {e}"
+                if is_transient(last_err) and attempt < max_retries:
+                    Throttle.backoff(attempt + 1)
+                    continue
+                return None, last_err  # hard error on a window -> contract fails (retryable)
+        if not ok:
             return None, last_err
-    return None, last_err
+    return all_candles, ""
 
 
 def load_state(path: str) -> dict:
