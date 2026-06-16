@@ -63,3 +63,4 @@ demo/clicks.json
 
 # Playwright MCP browser artifacts (snapshots/screenshots from local verification)
 .playwright-mcp/
+/public/duckdb/

@@ -50,6 +50,57 @@ export function sqlDate(day: string): string {
 }
 
 /**
+ * A bare VARCHAR string literal for the `trading_day` column. The dataset stores
+ * `trading_day` as a VARCHAR "YYYY-MM-DD" (NOT a DATE), so comparisons must be
+ * string-vs-string — `trading_day BETWEEN DATE '..' AND DATE '..'` is a binder
+ * type error in DuckDB. ISO "YYYY-MM-DD" sorts lexicographically === chronological,
+ * so `BETWEEN '..' AND '..'` is exact, and a VARCHAR-vs-VARCHAR predicate keeps
+ * the column's row-group min/max stats prunable. Throws on a non `YYYY-MM-DD`.
+ */
+export function sqlTradingDay(day: string): string {
+  if (!DATE_RE.test(day)) {
+    throw new Error(`sqlTradingDay: expected YYYY-MM-DD, got ${JSON.stringify(day)}`);
+  }
+  return `'${day}'`;
+}
+
+/**
+ * A `TIMESTAMPTZ '... +05:30'` literal for comparing against the dataset's
+ * `timestamp` column, which is stored as TIMESTAMP WITH TIME ZONE (a true UTC
+ * instant; IST wall-clock 09:15 = instant 03:45Z). The engine speaks IST
+ * wall-clock strings, so we pin the +05:30 offset EXPLICITLY: an explicit numeric
+ * offset is pure instant arithmetic — it needs NO ICU extension and is independent
+ * of the browser's session TimeZone (which defaults to UTC in duckdb-wasm). A bare
+ * `TIMESTAMP '..'` literal would be cast in the UTC session TZ and silently match
+ * the bar 5:30 away. Accepts "YYYY-MM-DD HH:MM:SS" or the ISO "T" separator.
+ */
+export function sqlTsTz(ts: string): string {
+  const m = TIMESTAMP_RE.exec(ts);
+  if (!m) {
+    throw new Error(`sqlTsTz: expected 'YYYY-MM-DD HH:MM:SS', got ${JSON.stringify(ts)}`);
+  }
+  return `TIMESTAMPTZ '${m[1]} ${m[2]}+05:30'`;
+}
+
+/** IST is UTC+5:30 (no DST) → 5.5h in MICROSECONDS, for the IST-render shift. */
+const IST_OFFSET_US = 19_800_000_000;
+
+/**
+ * A SQL expression that renders a TIMESTAMPTZ `expr` as the §2 IST wall-clock
+ * STRING "YYYY-MM-DD HH:MM:SS" — ICU-free and session-TZ-independent. The stored
+ * `timestamp` is a true UTC instant; `epoch_us` gives its microseconds, we add the
+ * fixed +5:30h IST offset, `make_timestamp` rebuilds a NAIVE timestamp from those
+ * microseconds (no zone), and `strftime` on a naive timestamp formats without any
+ * TZ involvement. This is the boundary contract both consumers expect
+ * (client.ts toTsString / hf-source.ts istStringToEpochMs), so the data is correct
+ * regardless of whether duckdb-wasm materializes the cell as a string, Date, or
+ * epoch — it is ALWAYS a clean IST string here. Verified in real duckdb-wasm.
+ */
+function istTs(expr: string): string {
+  return `strftime(make_timestamp(epoch_us(${expr}) + ${IST_OFFSET_US}), '%Y-%m-%d %H:%M:%S')`;
+}
+
+/**
  * A `TIMESTAMP '...'` literal; accepts "YYYY-MM-DD HH:MM:SS" or the ISO "T"
  * separator and normalizes to a space (DuckDB accepts both, we canonicalize).
  * Throws on anything else.
@@ -102,10 +153,23 @@ export function sqlSource(url: string): string {
  */
 export const SESSION_ORIGIN = "1970-01-01 09:15:00" as const;
 
-/** Standard projected columns for an index/spot bar (no `SELECT *`, §4). */
-const INDEX_COLS = "timestamp, open, high, low, close, volume";
+/**
+ * The session-open origin as a TIMESTAMPTZ literal (explicit +05:30). `time_bucket`
+ * over the TIMESTAMPTZ `timestamp` column needs a TIMESTAMPTZ origin; the explicit
+ * offset keeps minute-bucketing aligned to the IST 09:15 boundary with NO ICU and
+ * independent of session TZ (verified: identical epoch buckets under UTC and IST).
+ */
+const SESSION_ORIGIN_TZ = `TIMESTAMPTZ ${sqlStr(`${SESSION_ORIGIN}+05:30`)}` as const;
+
+/**
+ * Standard projected columns for an index/spot bar (no `SELECT *`, §4). The
+ * timestamp is rendered to the §2 IST wall-clock STRING and aliased `ts` (NOT the
+ * raw TIMESTAMPTZ column) so the boundary mappers receive a clean string; queries
+ * still ORDER BY the real `timestamp` column (unambiguous — `ts` is the alias).
+ */
+const INDEX_COLS = `${istTs("timestamp")} AS ts, open, high, low, close, volume`;
 /** Standard projected columns for an option bar (adds open_interest, §4b). */
-const OPTION_COLS = "timestamp, open, high, low, close, volume, open_interest";
+const OPTION_COLS = `${istTs("timestamp")} AS ts, open, high, low, close, volume, open_interest`;
 
 /** Map a parsed minute count to a DuckDB INTERVAL literal. */
 function minutesInterval(minutes: number): string {
@@ -132,7 +196,7 @@ export function buildIndexSlice({ url, from, to }: IndexSliceArgs): string {
   return [
     `SELECT ${INDEX_COLS}`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `ORDER BY timestamp`,
   ].join("\n");
 }
@@ -150,17 +214,17 @@ export function buildIndexSlice({ url, from, to }: IndexSliceArgs): string {
  */
 export function buildIndexResample(args: IndexSliceArgs & { intervalMinutes: number }): string {
   const { url, from, to, intervalMinutes } = args;
-  const bucket = `time_bucket(${minutesInterval(intervalMinutes)}, timestamp, TIMESTAMP ${sqlStr(SESSION_ORIGIN)})`;
+  const bucket = `time_bucket(${minutesInterval(intervalMinutes)}, timestamp, ${SESSION_ORIGIN_TZ})`;
   return [
     `SELECT`,
-    `  ${bucket} AS ts,`,
+    `  ${istTs(bucket)} AS ts,`,
     `  first(open ORDER BY timestamp) AS open,`,
     `  max(high) AS high,`,
     `  min(low) AS low,`,
     `  last(close ORDER BY timestamp) AS close,`,
     `  sum(volume) AS volume`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `GROUP BY trading_day, ts`,
     `ORDER BY ts`,
   ].join("\n");
@@ -189,7 +253,7 @@ export function buildOptionLeg({ url, strike, optionType, from, to }: OptionLegA
   return [
     `SELECT ${OPTION_COLS}`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `  AND strike = ${sqlInt(strike)}`,
     `  AND option_type = ${sqlOptionType(optionType)}`,
     `ORDER BY timestamp`,
@@ -204,10 +268,10 @@ export function buildOptionLeg({ url, strike, optionType, from, to }: OptionLegA
  */
 export function buildOptionLegResample(args: OptionLegArgs & { intervalMinutes: number }): string {
   const { url, strike, optionType, from, to, intervalMinutes } = args;
-  const bucket = `time_bucket(${minutesInterval(intervalMinutes)}, timestamp, TIMESTAMP ${sqlStr(SESSION_ORIGIN)})`;
+  const bucket = `time_bucket(${minutesInterval(intervalMinutes)}, timestamp, ${SESSION_ORIGIN_TZ})`;
   return [
     `SELECT`,
-    `  ${bucket} AS ts,`,
+    `  ${istTs(bucket)} AS ts,`,
     `  first(open ORDER BY timestamp) AS open,`,
     `  max(high) AS high,`,
     `  min(low) AS low,`,
@@ -215,7 +279,7 @@ export function buildOptionLegResample(args: OptionLegArgs & { intervalMinutes: 
     `  sum(volume) AS volume,`,
     `  last(open_interest ORDER BY timestamp) AS open_interest`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `  AND strike = ${sqlInt(strike)}`,
     `  AND option_type = ${sqlOptionType(optionType)}`,
     `GROUP BY trading_day, ts`,
@@ -257,9 +321,9 @@ export function buildStrikeRange({
   const lo = sqlInt(atm - bandPts);
   const hi = sqlInt(atm + bandPts);
   return [
-    `SELECT strike, option_type, timestamp, close, volume, open_interest`,
+    `SELECT strike, option_type, ${istTs("timestamp")} AS ts, close, volume, open_interest`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `  AND option_type = ${sqlOptionType(optionType)}`,
     `  AND strike BETWEEN ${lo} AND ${hi}`,
     `ORDER BY strike, timestamp`,
@@ -291,7 +355,7 @@ export function buildChainSlice({
   return [
     `SELECT strike, option_type, ${OPTION_COLS}`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `  AND option_type = ${sqlOptionType(optionType)}`,
     `  AND strike BETWEEN ${lo} AND ${hi}`,
     `ORDER BY strike, timestamp`,
@@ -309,7 +373,7 @@ export function buildChainSnapshot(args: { url: string; at: string }): string {
   return [
     `SELECT strike, option_type, close, volume, open_interest`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE timestamp = ${sqlTimestamp(at)}`,
+    `WHERE timestamp = ${sqlTsTz(at)}`,
     `ORDER BY strike, option_type`,
   ].join("\n");
 }
@@ -326,7 +390,7 @@ export function buildAtmFromSpot(args: { url: string; at: string; step: number }
   return [
     `SELECT CAST(round(close / ${s}) * ${s} AS INTEGER) AS atm_strike`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE timestamp = ${sqlTimestamp(at)}`,
+    `WHERE timestamp = ${sqlTsTz(at)}`,
   ].join("\n");
 }
 
@@ -340,7 +404,7 @@ export function buildAtmAsOf(args: { url: string; at: string; step: number }): s
   return [
     `SELECT CAST(round(close / ${s}) * ${s} AS INTEGER) AS atm_strike`,
     `FROM read_parquet(${sqlSource(url)})`,
-    `WHERE timestamp <= ${sqlTimestamp(at)}`,
+    `WHERE timestamp <= ${sqlTsTz(at)}`,
     `ORDER BY timestamp DESC`,
     `LIMIT 1`,
   ].join("\n");
@@ -370,7 +434,7 @@ export function buildCoverageAgg(args: {
     `WITH win AS (`,
     `  SELECT strike, option_type, volume, trading_day`,
     `  FROM read_parquet(${sqlSource(url)})`,
-    `  WHERE trading_day BETWEEN ${sqlDate(from)} AND ${sqlDate(to)}`,
+    `  WHERE trading_day BETWEEN ${sqlTradingDay(from)} AND ${sqlTradingDay(to)}`,
     `)`,
     `SELECT`,
     `  strike,`,
@@ -401,8 +465,11 @@ export function buildGapGrid(args: {
   optionType: OptionType;
 }): string {
   const { url, day, strike, optionType } = args;
-  const open = sqlTimestamp(`${day} 09:15:00`);
-  const close = sqlTimestamp(`${day} 15:30:00`);
+  // TIMESTAMPTZ range bounds (+05:30) so the generated minute grid is TIMESTAMPTZ
+  // and joins value-for-value against the TIMESTAMPTZ `timestamp` column; the
+  // projected grid time is rendered to the §2 IST wall-clock string.
+  const open = sqlTsTz(`${day} 09:15:00`);
+  const close = sqlTsTz(`${day} 15:30:00`);
   return [
     `WITH grid AS (`,
     `  SELECT ts`,
@@ -411,11 +478,11 @@ export function buildGapGrid(args: {
     `bars AS (`,
     `  SELECT timestamp, close`,
     `  FROM read_parquet(${sqlSource(url)})`,
-    `  WHERE trading_day = ${sqlDate(day)}`,
+    `  WHERE trading_day = ${sqlTradingDay(day)}`,
     `    AND strike = ${sqlInt(strike)}`,
     `    AND option_type = ${sqlOptionType(optionType)}`,
     `)`,
-    `SELECT g.ts, b.close, (b.close IS NULL) AS is_gap`,
+    `SELECT ${istTs("g.ts")} AS ts, b.close, (b.close IS NULL) AS is_gap`,
     `FROM grid g LEFT JOIN bars b ON g.ts = b.timestamp`,
     `ORDER BY g.ts`,
   ].join("\n");

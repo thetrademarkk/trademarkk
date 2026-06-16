@@ -27,12 +27,23 @@ import {
   sqlSource,
   sqlStr,
   sqlTimestamp,
+  sqlTradingDay,
+  sqlTsTz,
 } from "./sql";
 
 const IDX_URL =
   "https://huggingface.co/datasets/thetrademarkk/india-index-options-1m/resolve/main/index/NIFTY.parquet";
 const OPT_URL =
   "https://huggingface.co/datasets/thetrademarkk/india-index-options-1m/resolve/main/options/NIFTY/2026-01-29.parquet";
+
+/**
+ * Mirror of sql.ts' internal `istTs` expression: renders a TIMESTAMPTZ expr to the
+ * §2 IST wall-clock string, ICU-free (epoch_us + fixed +5:30h µs shift +
+ * make_timestamp + strftime). The dataset stores `timestamp` as TIMESTAMP WITH
+ * TIME ZONE, so every projected bar time goes through this and is aliased `ts`.
+ */
+const IST = (expr: string): string =>
+  `strftime(make_timestamp(epoch_us(${expr}) + 19800000000), '%Y-%m-%d %H:%M:%S')`;
 
 describe("literal quoters", () => {
   it("sqlStr doubles single quotes", () => {
@@ -53,6 +64,18 @@ describe("literal quoters", () => {
     expect(sqlTimestamp("2026-01-15T09:20:00")).toBe("TIMESTAMP '2026-01-15 09:20:00'");
     expect(() => sqlTimestamp("2026-01-15 09:20")).toThrow();
     expect(() => sqlTimestamp("not-a-ts")).toThrow();
+  });
+
+  it("sqlTradingDay emits a bare VARCHAR literal (trading_day is VARCHAR, not DATE)", () => {
+    expect(sqlTradingDay("2026-01-15")).toBe("'2026-01-15'");
+    expect(() => sqlTradingDay("2026/01/15")).toThrow();
+    expect(() => sqlTradingDay("not-a-date")).toThrow();
+  });
+
+  it("sqlTsTz pins the explicit +05:30 IST offset (ICU-free, session-TZ-independent)", () => {
+    expect(sqlTsTz("2026-01-15 09:20:00")).toBe("TIMESTAMPTZ '2026-01-15 09:20:00+05:30'");
+    expect(sqlTsTz("2026-01-15T09:20:00")).toBe("TIMESTAMPTZ '2026-01-15 09:20:00+05:30'");
+    expect(() => sqlTsTz("2026-01-15 09:20")).toThrow();
   });
 
   it("sqlInt rejects non-integers", () => {
@@ -81,9 +104,9 @@ describe("buildIndexSlice (§4a raw)", () => {
     const sql = buildIndexSlice({ url: IDX_URL, from: "2026-01-01", to: "2026-03-31" });
     expect(sql).toBe(
       [
-        "SELECT timestamp, open, high, low, close, volume",
+        `SELECT ${IST("timestamp")} AS ts, open, high, low, close, volume`,
         `FROM read_parquet('${IDX_URL}')`,
-        "WHERE trading_day BETWEEN DATE '2026-01-01' AND DATE '2026-03-31'",
+        "WHERE trading_day BETWEEN '2026-01-01' AND '2026-03-31'",
         "ORDER BY timestamp",
       ].join("\n")
     );
@@ -104,7 +127,7 @@ describe("buildIndexResample (§4a resampled, mirrors resample.ts)", () => {
       intervalMinutes: 5,
     });
     expect(sql).toContain(
-      `time_bucket(INTERVAL '5 minutes', timestamp, TIMESTAMP '${SESSION_ORIGIN}') AS ts`
+      `${IST(`time_bucket(INTERVAL '5 minutes', timestamp, TIMESTAMPTZ '${SESSION_ORIGIN}+05:30')`)} AS ts`
     );
     // resample.ts aggregation contract, verbatim
     expect(sql).toContain("first(open ORDER BY timestamp) AS open");
@@ -133,9 +156,9 @@ describe("buildOptionLeg (§4b predicate pushdown)", () => {
     });
     expect(sql).toBe(
       [
-        "SELECT timestamp, open, high, low, close, volume, open_interest",
+        `SELECT ${IST("timestamp")} AS ts, open, high, low, close, volume, open_interest`,
         `FROM read_parquet('${OPT_URL}')`,
-        "WHERE trading_day BETWEEN DATE '2026-01-15' AND DATE '2026-01-29'",
+        "WHERE trading_day BETWEEN '2026-01-15' AND '2026-01-29'",
         "  AND strike = 21500",
         "  AND option_type = 'CE'",
         "ORDER BY timestamp",
@@ -173,7 +196,9 @@ describe("buildStrikeRange (§4c)", () => {
     });
     expect(sql).toContain("AND strike BETWEEN 21200 AND 21800");
     expect(sql).toContain("AND option_type = 'CE'");
-    expect(sql).toContain("SELECT strike, option_type, timestamp, close, volume, open_interest");
+    expect(sql).toContain(
+      `SELECT strike, option_type, ${IST("timestamp")} AS ts, close, volume, open_interest`
+    );
     expect(sql).toContain("ORDER BY strike, timestamp");
   });
 
@@ -202,11 +227,11 @@ describe("buildChainSlice (§4c full-OHLCV chain)", () => {
       to: "2026-01-15",
     });
     expect(sql).toContain(
-      "SELECT strike, option_type, timestamp, open, high, low, close, volume, open_interest"
+      `SELECT strike, option_type, ${IST("timestamp")} AS ts, open, high, low, close, volume, open_interest`
     );
     expect(sql).toContain("AND option_type = 'PE'");
     expect(sql).toContain("AND strike BETWEEN 21100 AND 21900");
-    expect(sql).toContain("WHERE trading_day BETWEEN DATE '2026-01-15' AND DATE '2026-01-15'");
+    expect(sql).toContain("WHERE trading_day BETWEEN '2026-01-15' AND '2026-01-15'");
     expect(sql).toContain("ORDER BY strike, timestamp");
     expect(sql).not.toContain("SELECT *");
   });
@@ -229,7 +254,7 @@ describe("buildChainSnapshot (§2 optionChainAt)", () => {
   it("one row per (strike, side) at an exact timestamp", () => {
     const sql = buildChainSnapshot({ url: OPT_URL, at: "2026-01-15 09:20:00" });
     expect(sql).toContain("SELECT strike, option_type, close, volume, open_interest");
-    expect(sql).toContain("WHERE timestamp = TIMESTAMP '2026-01-15 09:20:00'");
+    expect(sql).toContain("WHERE timestamp = TIMESTAMPTZ '2026-01-15 09:20:00+05:30'");
     expect(sql).toContain("ORDER BY strike, option_type");
   });
 });
@@ -241,14 +266,14 @@ describe("buildAtmFromSpot / buildAtmAsOf (§5)", () => {
       [
         "SELECT CAST(round(close / 50) * 50 AS INTEGER) AS atm_strike",
         `FROM read_parquet('${IDX_URL}')`,
-        "WHERE timestamp = TIMESTAMP '2026-01-15 09:20:00'",
+        "WHERE timestamp = TIMESTAMPTZ '2026-01-15 09:20:00+05:30'",
       ].join("\n")
     );
   });
 
   it("as-of variant takes the last bar at or before the time", () => {
     const sql = buildAtmAsOf({ url: IDX_URL, at: "2026-01-15 09:20:00", step: 100 });
-    expect(sql).toContain("WHERE timestamp <= TIMESTAMP '2026-01-15 09:20:00'");
+    expect(sql).toContain("WHERE timestamp <= TIMESTAMPTZ '2026-01-15 09:20:00+05:30'");
     expect(sql).toContain("ORDER BY timestamp DESC");
     expect(sql).toContain("LIMIT 1");
     expect(sql).toContain("round(close / 100) * 100");
@@ -285,11 +310,11 @@ describe("buildGapGrid (§7c)", () => {
       optionType: "CE",
     });
     expect(sql).toContain(
-      "range(TIMESTAMP '2026-01-15 09:15:00', TIMESTAMP '2026-01-15 15:30:00', INTERVAL '1 minute')"
+      "range(TIMESTAMPTZ '2026-01-15 09:15:00+05:30', TIMESTAMPTZ '2026-01-15 15:30:00+05:30', INTERVAL '1 minute')"
     );
     expect(sql).toContain("LEFT JOIN bars b ON g.ts = b.timestamp");
     expect(sql).toContain("(b.close IS NULL) AS is_gap");
-    expect(sql).toContain("WHERE trading_day = DATE '2026-01-15'");
+    expect(sql).toContain("WHERE trading_day = '2026-01-15'");
     expect(sql).toContain("AND strike = 21500");
     expect(sql).toContain("AND option_type = 'CE'");
   });

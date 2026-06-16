@@ -5,6 +5,8 @@
   "description": "TradeMarkk — mark your trade, every day. Open-source trading journal for Indian intraday & FnO traders.",
   "scripts": {
     "dev": "next dev",
+    "predev": "node scripts/copy-duckdb-assets.mjs",
+    "prebuild": "node scripts/copy-duckdb-assets.mjs",
     "build": "next build",
     "postbuild": "node scripts/gen-sw.mjs",
     "start": "next start",

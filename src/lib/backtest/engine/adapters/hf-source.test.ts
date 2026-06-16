@@ -42,7 +42,7 @@ function result<Row>(rows: Row[]): QueryResult<Row> {
  */
 function fakeQuery(opts: {
   index: Array<{
-    timestamp: string;
+    ts: string;
     open: number;
     high: number;
     low: number;
@@ -152,7 +152,7 @@ const DAY = "2026-01-16";
 /** A few index bars from 09:15. */
 const INDEX_ROWS = [
   {
-    timestamp: `${DAY} 09:15:00`,
+    ts: `${DAY} 09:15:00`,
     open: 21500,
     high: 21520,
     low: 21490,
@@ -160,7 +160,7 @@ const INDEX_ROWS = [
     volume: 1000,
   },
   {
-    timestamp: `${DAY} 09:16:00`,
+    ts: `${DAY} 09:16:00`,
     open: 21510,
     high: 21530,
     low: 21505,
@@ -174,7 +174,7 @@ function chainRow(strike: number, ot: "CE" | "PE", min: string, close: number, v
   return {
     strike,
     option_type: ot,
-    timestamp: `${DAY} ${min}:00`,
+    ts: `${DAY} ${min}:00`,
     open: close,
     high: close + 1,
     low: close - 1,
@@ -229,15 +229,17 @@ describe("createHfDataSource (prefetch via mocked QueryFn)", () => {
   it("pushes all filtering into SQL (index slice, CE/PE chain by side + strike band)", async () => {
     const { seen } = await build();
     const idxSql = seen.find((s) => s.includes("index/"));
-    expect(idxSql).toContain("WHERE trading_day BETWEEN DATE '2026-01-16' AND DATE '2026-01-16'");
+    expect(idxSql).toContain("WHERE trading_day BETWEEN '2026-01-16' AND '2026-01-16'");
     expect(idxSql).not.toContain("SELECT *");
 
     const ceSql = seen.find((s) => s.includes("option_type = 'CE'"));
     // band derived = 400 pts around ATM 21500.
     expect(ceSql).toContain("AND strike BETWEEN 21100 AND 21900");
-    expect(ceSql).toContain(
-      "SELECT strike, option_type, timestamp, open, high, low, close, volume, open_interest"
-    );
+    // The timestamp is rendered to an IST wall-clock string aliased `ts` (the
+    // stored TIMESTAMPTZ would otherwise materialize as a Date/epoch); the OHLCV+oi
+    // tail and the (strike, side) identity columns are projected verbatim.
+    expect(ceSql).toContain("strike, option_type,");
+    expect(ceSql).toContain("AS ts, open, high, low, close, volume, open_interest");
   });
 
   it("respects a bandPts override", async () => {
@@ -269,7 +271,7 @@ describe("loadResolvedLeg", () => {
       seen.push(sql);
       return result([
         {
-          timestamp: `${DAY} 09:15:00`,
+          ts: `${DAY} 09:15:00`,
           open: 100,
           high: 105,
           low: 98,

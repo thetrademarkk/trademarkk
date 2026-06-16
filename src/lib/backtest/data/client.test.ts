@@ -356,7 +356,7 @@ describe("OptionsDataClient.optionChainAt", () => {
       optionType: "CE",
       oi: 90000,
     });
-    expect(calls[0]).toContain("WHERE timestamp = TIMESTAMP '2026-01-15 09:20:00'");
+    expect(calls[0]).toContain("WHERE timestamp = TIMESTAMPTZ '2026-01-15 09:20:00+05:30'");
   });
 });
 

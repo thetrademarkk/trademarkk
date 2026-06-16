@@ -64,7 +64,22 @@ async function instantiate(): Promise<duckdb.AsyncDuckDB> {
   // graph only pulls duckdb-wasm in when a data call actually fires.
   const duckdb = await import("@duckdb/duckdb-wasm");
 
-  const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+  // SAME-ORIGIN bundle. The app CSP is `worker-src 'self' blob:` (no CDN), so the
+  // default jsDelivr bundle's cross-origin worker is BLOCKED. We self-host the
+  // pinned wasm + worker under /duckdb/ (scripts/copy-duckdb-assets.mjs, run as a
+  // `prebuild` step) and let selectBundle pick `eh` vs `mvp` from the SAME-ORIGIN
+  // manifest — so `new Worker(...)` is same-origin and CSP-clean, and the SW can
+  // precache the blobs for offline LOCAL mode.
+  const bundle = await duckdb.selectBundle({
+    mvp: {
+      mainModule: "/duckdb/duckdb-mvp.wasm",
+      mainWorker: "/duckdb/duckdb-browser-mvp.worker.js",
+    },
+    eh: {
+      mainModule: "/duckdb/duckdb-eh.wasm",
+      mainWorker: "/duckdb/duckdb-browser-eh.worker.js",
+    },
+  });
   if (!bundle.mainWorker) {
     throw new Error("duckdb-wasm: selected bundle has no mainWorker");
   }

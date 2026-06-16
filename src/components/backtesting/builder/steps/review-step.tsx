@@ -7,14 +7,9 @@ import { formatINR, formatNumber } from "@/lib/utils";
 import { useBacktestRunner } from "@/components/backtesting/backtest-runner-provider";
 import { STATUS_LABEL, isActive } from "@/features/backtest/shared/backtest-status";
 import { INDEX_META } from "@/features/backtest/shared/instruments";
-import {
-  adaptDraftForGoldenRun,
-  builderDataPayload,
-} from "@/features/backtest/builder/run-adapter";
+import { builderHfPayload } from "@/features/backtest/builder/run-adapter";
 import type { StrategyDef, WizardStep } from "@/features/backtest/builder/types";
 import { ResultsView } from "@/components/backtesting/results/results-view";
-import { CoverageBadge } from "@/components/backtesting/presets/coverage-badge";
-import { useCoverage } from "@/features/backtest/presets/use-coverage";
 
 /**
  * Step 5 — Review & run. Read-only recap of the whole strategy with inline
@@ -40,22 +35,13 @@ export function ReviewStep({
   const active = isActive(status);
   const meta = INDEX_META[draft.market.symbol];
 
-  // Keep the data payload so the results benchmark overlay can read the same
-  // fixture the engine ran against (no extra data fetch).
-  const payload = React.useMemo(() => builderDataPayload(), []);
-  const snapshot = payload.kind === "fixture" ? payload.snapshot : null;
-
-  // Coverage for the data the engine actually ran against (the served expiries
-  // in the snapshot). MANDATORY on any run result — never hidden.
-  const servedExpiries = React.useMemo(
-    () => (snapshot ? [...new Set(snapshot.days.map((d) => d.expiry))].sort() : []),
-    [snapshot]
-  );
-  const runCoverage = useCoverage(snapshot?.symbol ?? null, servedExpiries);
-
-  // The EXACT strategy fed to the engine — also what Save/Share persists, so a
-  // saved run round-trips to the same definition that produced it.
-  const ranStrategy = React.useMemo(() => adaptDraftForGoldenRun(draft), [draft]);
+  // LIVE run: the user's EXACT strategy (symbol / interval / date range,
+  // unchanged) against the real HuggingFace 1-minute dataset via the worker's
+  // duckdb-wasm data layer. Coverage-honesty comes from the run RESULT's
+  // coverageReport (per-leg served-strike coverage + confidence), so no fixture
+  // snapshot is needed; an empty window resolves to an honest `empty` state.
+  const payload = React.useMemo(() => builderHfPayload(), []);
+  const ranStrategy = draft; // run exactly what the user built — no clamp
   const onRun = React.useCallback(() => run(ranStrategy, payload), [run, ranStrategy, payload]);
 
   // Auto-run once for a preset "Run" deep link (the data-backed presets execute
@@ -105,8 +91,8 @@ export function ReviewStep({
       <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         Backtests can over-fit. Past results never guarantee future returns. This educational run
-        executes your legs against a committed sample window; the full historical data layer is on
-        the way.
+        executes your legs against live 1-minute market data, with honest coverage shown on every
+        result.
       </p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -143,31 +129,15 @@ export function ReviewStep({
           the prev run via the per-stat deltas); Re-run replays the same draft. */}
       {status !== "idle" && (
         <div data-testid="bt-result" className="pt-1">
-          {/* MANDATORY coverage honesty on the run result (BT-10). */}
-          {snapshot && (
-            <div
-              className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted"
-              data-testid="bt-result-coverage"
-            >
-              <span>Data coverage for this run:</span>
-              <CoverageBadge
-                fraction={runCoverage.fraction}
-                symbol={snapshot.symbol}
-                scope="over the run window"
-              />
-              <span className="text-[11px]">
-                Ran against the committed {snapshot.symbol} sample window — the full historical data
-                layer is on the way.
-              </span>
-            </div>
-          )}
+          {/* Coverage honesty is rendered inside ResultsView from the run
+              result's own coverageReport (per-leg served-strike coverage +
+              confidence) — see run-result.ts. */}
           <ResultsView
             status={status}
             result={result}
             progress={progress}
             error={error}
             emptyReason={emptyReason}
-            snapshot={snapshot}
             strategy={ranStrategy}
             onEdit={() => onEdit("legs")}
             onReRun={onRun}

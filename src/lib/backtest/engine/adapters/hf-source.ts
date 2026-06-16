@@ -40,6 +40,7 @@ import type { QueryFn, QueryResult } from "../../data/duck-browser";
 import { STRIKE_STEP, type IndexSymbol } from "../../../../features/backtest/shared/instruments";
 import type { StrategyDef } from "../../../../features/backtest/shared/strategy-def";
 import { expiryFor, tradingDays, type ExpiryKind } from "../../calendar/market-calendar";
+import { resolveExpiryFromManifest } from "../../calendar/expiry-manifest";
 import {
   FixtureDataSource,
   type FixtureContract,
@@ -70,9 +71,13 @@ export function istStringToEpochMs(ts: string): number {
 
 /* ───────────────────────── parquet row → engine Bar ──────────────────────── */
 
-/** A spot/index parquet row as projected by buildIndexSlice (column names). */
+/**
+ * A spot/index parquet row as projected by buildIndexSlice. The timestamp is the
+ * §2 IST wall-clock string, aliased `ts` in SQL (sql.ts renders the stored
+ * TIMESTAMPTZ to an IST string so the cell is never a Date/epoch here).
+ */
 interface IndexRow {
-  timestamp: string;
+  ts: string;
   open: number;
   high: number;
   low: number;
@@ -103,10 +108,30 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : String(v);
 }
 
+/**
+ * Note a per-day read that failed (a missing expiry file or a transient range-read
+ * error). We DON'T throw — a missing slice is honest no-data for that day, and the
+ * rest of the window still runs (07-data-layer §0.2). Logged at warn for
+ * diagnosis; silent in node/test where `console.warn` is typically captured.
+ */
+function warnRead(what: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[hf-source] no data for ${what}: ${msg.slice(0, 160)}`);
+  }
+}
+
+/** Append `value` to the array at `key`, creating the bucket on first use. */
+function pushTo<T>(map: Map<string, T[]>, key: string, value: T): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 /** Map an index parquet row to an engine OHLCV `Bar` (no oi on spot). */
 function indexRowToBar(r: IndexRow): Bar {
   return {
-    ts: istStringToEpochMs(str(r.timestamp)),
+    ts: istStringToEpochMs(str(r.ts)),
     o: num(r.open),
     h: num(r.high),
     l: num(r.low),
@@ -193,7 +218,14 @@ export function planDayExpiries(strategy: StrategyDef): DayExpiry[] {
       : all;
 
   const rule = (strategy.legs.find((l) => l.enabled) ?? strategy.legs[0]!).expiry as ExpiryKind;
-  return days.map((day) => ({ day, expiry: expiryFor(index, day, rule) }));
+  // Resolve each day's contract from the DATASET MANIFEST first (the real traded
+  // expiries) so we never point at a missing file when NSE/BSE shifted the
+  // expiry weekday; fall back to the weekday-rule calendar only for days beyond
+  // the dataset (where there is no file to read anyway).
+  return days.map((day) => ({
+    day,
+    expiry: resolveExpiryFromManifest(index, day, rule) ?? expiryFor(index, day, rule),
+  }));
 }
 
 /* ─────────────────────────── snapshot assembly ───────────────────────────── */
@@ -299,37 +331,85 @@ export async function createHfDataSource(
   const days: FixtureDay[] = [];
   let done = 0;
   const total = plan.length;
+  const step = STRIKE_STEP[index];
+  const { start, end } = strategy.market.dateRange;
 
+  // (1) Index spot for the WHOLE window in ONE range read — DuckDB row-group
+  //     stats prune to just the window's groups, so this is far cheaper than one
+  //     read per day (the master grid for 60 days loads in a single request). A
+  //     missing index file / transient error is HONEST no-data (07-data-layer
+  //     §0.2): the affected days simply yield no bars. Split by IST trading day.
+  const idxRowsByDay = new Map<string, IndexRow[]>();
+  try {
+    const idxRes = await run<IndexRow>(buildIndexSlice({ url: idxUrl, from: start, to: end }));
+    for (const r of idxRes.toArray()) pushTo(idxRowsByDay, str(r.ts).slice(0, 10), r);
+  } catch (err) {
+    warnRead(`index ${sym} ${start}..${end}`, err);
+  }
+
+  // (2) Per EXPIRY FILE, read the full-OHLCV chain ONCE across that expiry's whole
+  //     span of trading days (one parquet per expiry → one read covers the week of
+  //     days that trade it), with a strike band wide enough to cover the ATM drift
+  //     across those days. Then fold rows into per-(strike, side) contracts per
+  //     day. This replaces ~N-days × 2-sides reads with ~N-expiries × 2-sides.
   for (const [expiry, expiryDays] of byExpiry) {
     const optUrl = optionUrl(sym, expiry);
+
+    // Per-day index bars + each day's ATM estimate (drives the band center/width).
+    const barsByDay = new Map<string, Bar[]>();
+    const atms: number[] = [];
     for (const day of expiryDays) {
-      // (1) Index spot 1m slice for the day (the master grid).
-      const idxRes = await run<IndexRow>(buildIndexSlice({ url: idxUrl, from: day, to: day }));
-      const indexBars = idxRes.toArray().map(indexRowToBar);
+      const bars = (idxRowsByDay.get(day) ?? []).map(indexRowToBar);
+      barsByDay.set(day, bars);
+      const atm = estimateAtm(index, bars);
+      if (atm !== null) atms.push(atm);
+    }
 
-      // (2) The full-OHLCV chain around the spot-derived ATM — availability +
-      //     coverage + the real o/h/l/c bars the engine fills/marks off. Skipped
-      //     when the index has no print all day (engine treats it as no-decision).
-      let contracts: FixtureContract[] = [];
-      const atm = estimateAtm(index, indexBars);
-      if (atm !== null) {
-        const ceRes = await run<ChainSliceRow>(
-          buildChainSlice({ url: optUrl, optionType: "CE", atm, bandPts, from: day, to: day })
-        );
-        const peRes = await run<ChainSliceRow>(
-          buildChainSlice({ url: optUrl, optionType: "PE", atm, bandPts, from: day, to: day })
-        );
-        contracts = [
-          ...contractsFromChain(ceRes.toArray()),
-          ...contractsFromChain(peRes.toArray()),
-        ];
+    // One CE + one PE read covering [minATM, maxATM] ± the per-leg band over the
+    // expiry's day span; grouped back to per-day rows. A missing option file is
+    // honest no-data — those days contribute an empty chain, the window runs on.
+    const chainRowsByDay = new Map<string, ChainSliceRow[]>();
+    if (atms.length > 0) {
+      const lo = Math.min(...atms);
+      const hi = Math.max(...atms);
+      const center = Math.round((lo + hi) / 2 / step) * step;
+      const halfBand = Math.ceil((hi - lo) / 2 / step) * step + bandPts;
+      const from = expiryDays[0]!;
+      const to = expiryDays[expiryDays.length - 1]!;
+      try {
+        for (const ot of ["CE", "PE"] as const) {
+          const res = await run<ChainSliceRow>(
+            buildChainSlice({
+              url: optUrl,
+              optionType: ot,
+              atm: center,
+              bandPts: halfBand,
+              from,
+              to,
+            })
+          );
+          for (const r of res.toArray()) pushTo(chainRowsByDay, str(r.ts).slice(0, 10), r);
+        }
+      } catch (err) {
+        warnRead(`chain ${sym} ${expiry} ${from}..${to}`, err);
       }
+    }
 
-      days.push({ day, expiry, index: indexBars, contracts });
+    for (const day of expiryDays) {
+      days.push({
+        day,
+        expiry,
+        index: barsByDay.get(day) ?? [],
+        contracts: contractsFromChain(chainRowsByDay.get(day) ?? []),
+      });
       done++;
       opts.onProgress?.(done, total);
     }
   }
+
+  // The engine assumes an ascending day spine; expiry-grouped assembly is already
+  // ascending, but sort defensively so an out-of-order plan can never mis-feed it.
+  days.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 
   const snapshot: FixtureSnapshot = {
     snapshotId: hfSnapshotId(strategy),
