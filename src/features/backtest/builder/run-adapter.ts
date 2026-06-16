@@ -19,7 +19,19 @@ import type { BacktestDataPayload } from "@/lib/backtest/worker/messages";
 import type { FixtureSnapshot } from "@/lib/backtest/engine/adapters/fixture-source";
 import type { StrategyDef } from "../shared/strategy-def";
 
-/** The committed golden slice the builder runs against (pre-BT-08). */
+/**
+ * LIVE data payload — the builder runs the user's ACTUAL strategy (their symbol,
+ * interval and date range, unchanged) against the real HuggingFace 1-minute
+ * dataset via the duckdb-wasm data layer in the worker. `bandPts` optionally
+ * widens the prefetched option-chain band; the worker derives a sensible default
+ * from the legs when omitted. When the chosen window has no data the run resolves
+ * to an honest `empty` state — never fabricated.
+ */
+export function builderHfPayload(bandPts?: number): BacktestDataPayload {
+  return { kind: "hf", bandPts };
+}
+
+/** The committed golden slice — kept only as the no-Worker synchronous fallback. */
 export function builderDataPayload(): BacktestDataPayload {
   const snapshot: FixtureSnapshot = loadGoldenSnapshot();
   return { kind: "fixture", snapshot };

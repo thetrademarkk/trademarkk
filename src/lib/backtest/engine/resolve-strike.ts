@@ -13,7 +13,9 @@ import { STRIKE_STEP, type IndexSymbol } from "../../../features/backtest/shared
 import {
   EPS,
   MAX_FALLBACK_STEPS,
+  MAX_PREMIUM_DEVIATION,
   MIN_COVERAGE,
+  MIN_FALLBACK_COVERAGE,
   type ContractMeta,
   type OptionType,
   type StrikeIntent,
@@ -76,7 +78,10 @@ function confidenceFor(fallbackSteps: number, coverage: number): StrikeResolutio
  *   2. if it exists & coverage ≥ 0.6 → high,
  *   3. else search outward ±step (nearest, ties→higher) within ±5 steps for
  *      coverage ≥ 0.6 → medium,
- *   4. else nearest existing strike at ANY coverage → low + LOW_LIQUIDITY,
+ *   4. else nearest existing strike — but only if it clears the D2 hard-fail
+ *      CEILING (≤ MAX_FALLBACK_STEPS away AND coverage ≥ MIN_FALLBACK_COVERAGE):
+ *      → low + LOW_LIQUIDITY. A substitute that is too far OR below the
+ *      coverage floor is REJECTED (returns null), never a silent low fill.
  *   5. else → null (MISSING_LEG).
  */
 export function resolveStrike(
@@ -136,11 +141,18 @@ export function resolveStrike(
     }
   }
 
-  // 4. Nearest existing strike at ANY coverage → low + LOW_LIQUIDITY.
+  // 4. Nearest existing strike — but enforce the D2 hard-fail CEILING. A
+  //    too-far OR too-illiquid substitute is a MISSING_LEG, NOT a silent
+  //    confidence:"low" fill (07-data-layer §7b critique).
   const nearest = nearestAvailableStrike(side, ideal);
   if (nearest !== null) {
     const cov = coverageOf(side, nearest);
     const steps = Math.round(Math.abs(nearest - ideal) / step);
+    // CEILING: reject if the only substitute is beyond the fallback window or
+    // below the coverage floor — either way it cannot be filled credibly.
+    if (steps > MAX_FALLBACK_STEPS || cov < MIN_FALLBACK_COVERAGE) {
+      return null;
+    }
     return {
       requested: ideal,
       served: nearest,
@@ -204,7 +216,7 @@ export function resolvePremiumStrike(
   if (side.length === 0) return null;
   const atm = atmStrike(side, spot) ?? spot;
 
-  let best: { strike: number; coverage: number } | null = null;
+  let best: { strike: number; coverage: number; diff: number } | null = null;
   let bestScore = Infinity;
   for (const c of side) {
     const px = prices.get(c.strike);
@@ -215,10 +227,18 @@ export function resolvePremiumStrike(
     const score = diff * 1e6 + tieBreak; // diff dominates; ATM-distance breaks ties
     if (score < bestScore - EPS) {
       bestScore = score;
-      best = { strike: c.strike, coverage: c.coverage };
+      best = { strike: c.strike, coverage: c.coverage, diff };
     }
   }
   if (best === null) return null;
+  // D2 premium-deviation CEILING: the closest strike must still be CLOSE to the
+  // target premium. If the best match is more than MAX_PREMIUM_DEVIATION off the
+  // target (no real strike near the requested premium), it is a MISSING_LEG, not
+  // a silent fill at an unrelated premium (07-data-layer §7b). With no usable
+  // band/target (target ≤ 0) skip the relative check (defensive).
+  if (target > EPS && best.diff / target > MAX_PREMIUM_DEVIATION + EPS) {
+    return null;
+  }
   const cov = best.coverage;
   // Premium selection always carries confidence ≤ medium (no exact "requested"
   // strike — the requested is the target premium, served is the chosen strike).

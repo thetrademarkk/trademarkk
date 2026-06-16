@@ -64,35 +64,34 @@ describe("decidePresetRun — run vs honest-locked", () => {
   });
 });
 
-describe("local committed data (golden slice)", () => {
-  it("the golden NIFTY 2024-07-25 slice unlocks the NIFTY presets that overlap it", () => {
+describe("live HF availability (expiry manifest)", () => {
+  it("unlocks NIFTY presets whose window is in the dataset", () => {
     const avail = localDataAvailability();
-    const niftyJul = presetById("nifty-short-straddle")!;
-    expect(isPresetRunnable(niftyJul, avail)).toBe(true);
+    expect(isPresetRunnable(presetById("nifty-short-straddle")!, avail)).toBe(true);
   });
 
-  it("BANKNIFTY / SENSEX presets are honestly LOCKED on local data today", () => {
+  it("now unlocks BANKNIFTY / SENSEX presets too (the seam is connected)", () => {
     const avail = localDataAvailability();
-    expect(isPresetRunnable(presetById("banknifty-short-strangle")!, avail)).toBe(false);
-    expect(isPresetRunnable(presetById("sensex-iron-condor")!, avail)).toBe(false);
+    // These were locked on the golden-only slice; the live dataset spans their
+    // windows, so they run with NO change to the preset definitions.
+    expect(isPresetRunnable(presetById("banknifty-short-strangle")!, avail)).toBe(true);
+    expect(isPresetRunnable(presetById("sensex-iron-condor")!, avail)).toBe(true);
   });
 
-  it("at least one preset is runnable today and at least one is honestly locked", () => {
+  it("every catalogue preset is runnable against the live dataset", () => {
     const avail = localDataAvailability();
-    const runnable = PRESETS.filter((p) => isPresetRunnable(p, avail));
     const locked = PRESETS.filter((p) => !isPresetRunnable(p, avail));
-    expect(runnable.length).toBeGreaterThan(0);
-    expect(locked.length).toBeGreaterThan(0);
+    expect(locked).toEqual([]);
   });
 });
 
 describe("BT-08 swap seam — zero preset code change", () => {
-  it("the SAME locked preset flips to run when the data source reports its days", () => {
+  it("a preset is LOCKED with no data and RUNS once the source reports its window — same definition", () => {
     const preset = presetById("sensex-iron-condor")!;
-    // Today: no SENSEX local data -> locked
-    expect(decidePresetRun(preset, localDataAvailability()).kind).toBe("locked");
-    // BT-08: the HF source now reports a day in the preset's window -> run,
-    // with NO change to the preset definition itself.
+    // No data at all -> honest locked.
+    expect(decidePresetRun(preset, availabilityFrom([])).kind).toBe("locked");
+    // The source reports a day in the preset's window -> run, with NO change to
+    // the preset definition itself.
     const hfLike = availabilityFrom([{ symbol: "SENSEX", days: ["2025-01-14"] }]);
     expect(decidePresetRun(preset, hfLike).kind).toBe("run");
   });

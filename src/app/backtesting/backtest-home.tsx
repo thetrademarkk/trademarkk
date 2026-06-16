@@ -58,7 +58,7 @@ const TWO_WAYS = [
     icon: Code2,
     title: "Bring your own code",
     blurb:
-      "Write a Python strategy and run it in your browser against the same data. Best if you want full control.",
+      "Write a JavaScript strategy and run it in a sandboxed VM in your browser, against the same data. Best if you want full control.",
     cta: "Write code",
   },
 ] as const;

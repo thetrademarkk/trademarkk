@@ -10,6 +10,7 @@ import {
 } from "@/features/backtest/shared/instruments";
 import { useBuilderStore } from "@/features/backtest/builder/builder-store";
 import { defaultRange } from "@/features/backtest/builder/draft";
+import { parseInterval } from "@/lib/backtest/data/interval";
 import type { StrategyDef } from "@/features/backtest/builder/types";
 
 const INTERVALS = ["1m", "3m", "5m", "15m"] as const;
@@ -99,27 +100,38 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
         <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
           Candle interval
         </legend>
-        <div className="mt-2 inline-flex rounded-lg border bg-surface-2 p-0.5">
-          {INTERVALS.map((iv) => (
-            <button
-              key={iv}
-              type="button"
-              onClick={() => setMarket({ interval: iv })}
-              aria-pressed={interval === iv}
-              data-interval={iv}
-              className={cn(
-                "rounded-md px-3 py-1 text-sm transition-colors",
-                interval === iv
-                  ? "bg-surface font-medium shadow"
-                  : "text-muted hover:text-foreground"
-              )}
-            >
-              {iv}
-            </button>
-          ))}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border bg-surface-2 p-0.5">
+            {INTERVALS.map((iv) => (
+              <button
+                key={iv}
+                type="button"
+                onClick={() => setMarket({ interval: iv })}
+                aria-pressed={interval === iv}
+                data-interval={iv}
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm transition-colors",
+                  interval === iv
+                    ? "bg-surface font-medium shadow"
+                    : "text-muted hover:text-foreground"
+                )}
+              >
+                {iv}
+              </button>
+            ))}
+          </div>
+          <CustomInterval
+            interval={interval}
+            isPreset={(INTERVALS as readonly string[]).includes(interval)}
+            onCommit={(iv) => setMarket({ interval: iv })}
+          />
         </div>
         <p className="mt-1.5 text-[11px] text-muted">
-          1m is most precise; coarser candles run faster but may miss intraday SL/target hits.
+          1m is most precise; coarser candles run faster but may miss intraday SL/target hits. Type
+          any interval — e.g. <span className="font-medium text-foreground">10m</span>,{" "}
+          <span className="font-medium text-foreground">30m</span>,{" "}
+          <span className="font-medium text-foreground">1h</span> or{" "}
+          <span className="font-medium text-foreground">1d</span>.
         </p>
       </fieldset>
 
@@ -182,5 +194,57 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
         {defaultRange(symbol).start} so the first run is well-covered.
       </p>
     </div>
+  );
+}
+
+/**
+ * Free-form interval input — type ANY timeframe (e.g. "10m", "30m", "1h", "1d")
+ * and it commits on a valid token (validated by the resampler's parseInterval, the
+ * single source of truth). Invalid input shows a red ring and is not committed.
+ * Highlighted (accent) when the active interval is a custom value, not a preset.
+ */
+function CustomInterval({
+  interval,
+  isPreset,
+  onCommit,
+}: {
+  interval: string;
+  isPreset: boolean;
+  onCommit: (interval: string) => void;
+}) {
+  // Seed from the current interval when it's a custom value (so it round-trips).
+  const [text, setText] = React.useState(isPreset ? "" : interval);
+  const parsed = parseInterval(text.trim());
+  const valid = text.trim().length > 0 && parsed.valid;
+
+  const commit = () => {
+    if (valid) onCommit(text.trim());
+  };
+
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+      <span>Custom</span>
+      <Input
+        type="text"
+        inputMode="text"
+        value={text}
+        placeholder="30m"
+        aria-label="Custom candle interval"
+        data-testid="bt-interval-custom"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+        onBlur={commit}
+        className={cn(
+          "h-8 w-20",
+          text.trim().length > 0 && !valid && "border-loss focus-visible:ring-loss",
+          !isPreset && interval === text.trim() && valid && "border-accent"
+        )}
+      />
+    </label>
   );
 }

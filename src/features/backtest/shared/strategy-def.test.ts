@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   STRATEGY_SCHEMA_VERSION,
+  intervalSchema,
   makeDefaultStrategy,
   parseStrategyDef,
   safeParseStrategyDef,
@@ -8,6 +9,21 @@ import {
   validateExactStrike,
   type StrategyDef,
 } from "./strategy-def";
+
+describe("intervalSchema — arbitrary timeframe", () => {
+  it("accepts the legacy presets AND any resampler-valid token", () => {
+    for (const ok of ["1m", "3m", "5m", "15m", "10m", "30m", "45m", "1h", "2h", "1d", "1w"]) {
+      expect(intervalSchema.safeParse(ok).success).toBe(true);
+    }
+  });
+
+  it("rejects junk / unsupported tokens", () => {
+    // (a bare "<N>" IS valid minutes per the resampler grammar, so it's not here)
+    for (const bad of ["", "abc", "0m", "2.5m", "1minute", "-5m", "5 m", "400m", "7h"]) {
+      expect(intervalSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
 
 describe("makeDefaultStrategy + round-trip", () => {
   it("produces a valid, parseable strategy", () => {

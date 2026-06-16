@@ -123,8 +123,9 @@ export function PresetCard({ card }: { card: PresetCardData }) {
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-[260px] leading-5">
-                Full historical results unlock when the market dataset goes live. You can still open
-                this educational example in the builder to inspect its legs.
+                This strategy&apos;s window isn&apos;t in the dataset yet. You can still open it in
+                the builder to inspect its legs — results unlock as the dataset&apos;s coverage
+                expands.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
