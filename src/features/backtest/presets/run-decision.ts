@@ -90,7 +90,7 @@ export function decidePresetRun(
     return {
       kind: "locked",
       reason:
-        "Full historical results unlock when the market dataset goes live. This educational example is run-ready — the same definition will execute unchanged once the data layer is connected.",
+        "This strategy's window isn't in the dataset yet — open it in the builder to inspect the legs. Results unlock automatically as the dataset's coverage expands.",
     };
   }
 

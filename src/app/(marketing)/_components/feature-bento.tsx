@@ -179,8 +179,7 @@ const CELLS = [
   {
     icon: FlaskConical,
     title: "Backtesting",
-    text: "Replay your saved playbooks against historical NIFTY & BANKNIFTY data — equity curves, expectancy and walk-forward checks. Coming as the 1-minute dataset goes live.",
-    badge: "Coming soon",
+    text: "Replay your strategies against real 1-minute NIFTY, BANKNIFTY & SENSEX options data — right in your browser. Equity curves, expectancy and walk-forward checks, with honest data-coverage on every result.",
   },
   {
     icon: Database,
@@ -204,11 +203,6 @@ export function FeatureBento() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/15 text-accent transition-transform group-hover:scale-110">
                 <c.icon className="h-4.5 w-4.5" aria-hidden />
               </div>
-              {"badge" in c && c.badge ? (
-                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                  {c.badge}
-                </span>
-              ) : null}
             </div>
             <h3 className="mt-4 text-base font-semibold">{c.title}</h3>
             <p className="mt-1.5 text-sm leading-6 text-muted">{c.text}</p>

@@ -35,8 +35,8 @@ const SECTIONS = [
     text: "Upload tradebook CSVs from Zerodha Console, Upstox, Angel One, Dhan, Fyers or Groww — fills FIFO-pair into round trips with charges applied and re-imports never duplicate. The companion Chrome extension captures trades and runs a pre-trade rules checklist straight from your Kite, Upstox, Groww, Dhan or Fyers tab.",
   },
   {
-    title: "Backtesting — coming as the dataset goes live",
-    text: "Replay your saved playbooks against historical NIFTY & BANKNIFTY data with per-strategy equity curves, expectancy and walk-forward validation. We're building this on 5 years of 1-minute data; it ships as the dataset goes live.",
+    title: "Backtesting on real 1-minute options data",
+    text: "Replay your strategies against years of real 1-minute NIFTY, BANKNIFTY & SENSEX options data — per-strategy equity curves, expectancy, drawdown and walk-forward validation. It runs entirely in your browser (the dataset streams directly from a public archive), with honest data-coverage shown on every result. Build legs no-code with flexible strike selection (ATM±, spot-%, premium) and any candle interval.",
   },
   {
     title: "Your data, three ways",

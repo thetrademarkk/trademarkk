@@ -6,9 +6,13 @@ import { Input } from "@/components/ui/input";
 import { cn, formatINR, formatNumber } from "@/lib/utils";
 import {
   buildLadder,
+  estimateCoverage,
+  estimatePremium,
+  resolveIntentStrike,
   type EstimateChain,
   type LadderRung,
 } from "@/features/backtest/builder/estimate-chain";
+import { STRIKE_STEP } from "@/features/backtest/shared/instruments";
 import type { OptionTypeT, StrikeSelector } from "@/features/backtest/builder/types";
 
 export interface StrikeLadderProps {
@@ -24,6 +28,7 @@ export interface StrikeLadderProps {
 type Mode = StrikeSelector["mode"];
 const MODE_TABS: { value: Mode; label: string }[] = [
   { value: "ATM_OFFSET", label: "ATM ±" },
+  { value: "PERCENT", label: "Spot %" },
   { value: "PREMIUM", label: "Premium ₹" },
   { value: "EXACT", label: "Exact" },
   // Delta DEFERRED (D7) — no IV/Greeks data — so there is intentionally no delta tab.
@@ -110,6 +115,7 @@ export function StrikeLadder({
         onValueChange={(m) => {
           // Switching modes seeds a sane default for the new mode (no flicker).
           if (m === "ATM_OFFSET") onChange({ mode: "ATM_OFFSET", steps: 0 });
+          else if (m === "PERCENT") onChange({ mode: "PERCENT", pct: 0 });
           else if (m === "PREMIUM") onChange({ mode: "PREMIUM", target: estDefaultPremium(rungs) });
           else if (m === "EXACT") onChange({ mode: "EXACT", strike: chain.atm });
         }}
@@ -142,6 +148,15 @@ export function StrikeLadder({
             />
           ))}
         </div>
+      )}
+
+      {selector.mode === "PERCENT" && (
+        <PercentSelector
+          chain={chain}
+          optionType={optionType}
+          pct={selector.pct}
+          onChange={(pct) => onChange({ mode: "PERCENT", pct })}
+        />
       )}
 
       {selector.mode === "PREMIUM" && (
@@ -204,6 +219,66 @@ function Rung({
       <span className="font-money text-[11px]">{formatINR(rung.premium, { decimals: true })}</span>
       <CoveragePip coverage={rung.coverage} />
     </button>
+  );
+}
+
+/** Spot-% strike selector: a signed percentage offset from spot (−15…+15), with a
+ * live preview of the strike it resolves to (the engine walks the fallback ladder
+ * at run time; this is the estimate). +% is OTM for a call/away-from-spot, the
+ * sign is literal "% above/below spot". */
+function PercentSelector({
+  chain,
+  optionType,
+  pct,
+  onChange,
+}: {
+  chain: EstimateChain;
+  optionType: OptionTypeT;
+  pct: number;
+  onChange: (pct: number) => void;
+}) {
+  const step = STRIKE_STEP[chain.index];
+  const served = React.useMemo(
+    () => resolveIntentStrike(chain.index, optionType, { mode: "PERCENT", pct }, chain),
+    [chain, optionType, pct]
+  );
+  const premium =
+    served != null ? estimatePremium(chain.index, optionType, served, chain.spot) : null;
+  const coverage =
+    served != null ? estimateCoverage(chain.index, Math.round((served - chain.atm) / step)) : null;
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-surface/40 p-2.5">
+      <label className="flex items-center gap-2 text-xs">
+        <span className="text-muted">Offset from spot</span>
+        <span className="inline-flex items-center">
+          <Input
+            type="number"
+            min={-15}
+            max={15}
+            step={0.5}
+            value={Number.isFinite(pct) ? pct : ""}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onChange(Math.max(-15, Math.min(15, Number.isFinite(v) ? v : 0)));
+            }}
+            className="h-8 w-24 rounded-r-none"
+            data-testid="bt-percent-offset"
+          />
+          <span className="rounded-r-md border border-l-0 bg-surface-2 px-2 py-1 text-xs text-muted">
+            %
+          </span>
+        </span>
+      </label>
+      {served != null && (
+        <p className="text-[11px] text-muted">
+          {pct === 0 ? "At spot" : pct > 0 ? `${pct}% above spot` : `${Math.abs(pct)}% below spot`}{" "}
+          ≈ <span className="font-medium text-foreground">{formatNumber(served, 0)}</span>
+          {premium != null && <> @ est {formatINR(premium, { decimals: true })}</>}
+          {coverage != null && <> · coverage {Math.round(coverage * 100)}%</>}
+        </p>
+      )}
+    </div>
   );
 }
 
