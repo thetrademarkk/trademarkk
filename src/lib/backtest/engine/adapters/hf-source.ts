@@ -41,6 +41,7 @@ import { STRIKE_STEP, type IndexSymbol } from "../../../../features/backtest/sha
 import type { StrategyDef } from "../../../../features/backtest/shared/strategy-def";
 import { expiryFor, tradingDays, type ExpiryKind } from "../../calendar/market-calendar";
 import { resolveExpiryFromManifest } from "../../calendar/expiry-manifest";
+import { resample } from "../../data/resample";
 import {
   FixtureDataSource,
   type FixtureContract,
@@ -334,6 +335,15 @@ export async function createHfDataSource(
   const step = STRIKE_STEP[index];
   const { start, end } = strategy.market.dateRange;
 
+  // Honour the chosen candle INTERVAL: we always READ 1-minute bars (the dataset's
+  // native grain), then resample each day's index + option series to the
+  // strategy's interval with the committed, golden-tested resampler before the
+  // engine sees them. So "5m" / "15m" / any minute token actually runs at that
+  // grain (coarser candles run faster but may miss intrabar SL/target hits — the
+  // honest trade-off the builder already states). 1m is the identity pass.
+  const ivl = strategy.market.interval;
+  const resampleBars = (bars: Bar[]): Bar[] => (ivl && ivl !== "1m" ? resample(bars, ivl) : bars);
+
   // (1) Index spot for the WHOLE window in ONE range read — DuckDB row-group
   //     stats prune to just the window's groups, so this is far cheaper than one
   //     read per day (the master grid for 60 days loads in a single request). A
@@ -396,11 +406,15 @@ export async function createHfDataSource(
     }
 
     for (const day of expiryDays) {
+      const contracts = contractsFromChain(chainRowsByDay.get(day) ?? []);
       days.push({
         day,
         expiry,
-        index: barsByDay.get(day) ?? [],
-        contracts: contractsFromChain(chainRowsByDay.get(day) ?? []),
+        index: resampleBars(barsByDay.get(day) ?? []),
+        contracts:
+          ivl && ivl !== "1m"
+            ? contracts.map((c) => ({ ...c, bars: resampleBars(c.bars) }))
+            : contracts,
       });
       done++;
       opts.onProgress?.(done, total);

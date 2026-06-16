@@ -21,6 +21,7 @@
 
 import { z } from "zod";
 import { INDEX_SYMBOLS, STRIKE_STEP, type IndexSymbol } from "./instruments";
+import { parseInterval } from "../../../lib/backtest/data/interval";
 
 export const STRATEGY_SCHEMA_VERSION = 1 as const;
 
@@ -30,7 +31,17 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
 export const indexSymbolSchema = z.enum(
   INDEX_SYMBOLS as unknown as [IndexSymbol, ...IndexSymbol[]]
 );
-export const intervalSchema = z.enum(["1m", "3m", "5m", "15m"]);
+/**
+ * ARBITRARY candle interval: any token the resampler understands — a minute count
+ * ("1m" … "390m"), hours ("1h", "2h"), a day ("1d") or a week ("1w"). We validate
+ * via the single source of truth (parseInterval) rather than a fixed enum, so a
+ * trader can type any timeframe and it resamples + runs unchanged. The old preset
+ * values ("1m"/"3m"/"5m"/"15m") all remain valid, so persisted drafts need no
+ * migration (the type widens from a 4-literal union to a validated string).
+ */
+export const intervalSchema = z
+  .string()
+  .refine((t) => parseInterval(t).valid, { message: "Unsupported candle interval" });
 export const optionTypeSchema = z.enum(["CE", "PE"]);
 export const sideSchema = z.enum(["buy", "sell"]);
 
