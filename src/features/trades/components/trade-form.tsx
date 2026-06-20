@@ -322,8 +322,8 @@ export function TradeForm({
         {/* ── LEFT: form sections ── */}
         <div className="space-y-5">
           <Group title="Instrument">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2 space-y-1">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="space-y-1 sm:col-span-2">
                 <Label>Symbol</Label>
                 <Input
                   placeholder="NIFTY / RELIANCE"
@@ -355,7 +355,7 @@ export function TradeForm({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label>Product</Label>
                 <Controller
@@ -629,7 +629,7 @@ export function TradeForm({
           </Group>
 
           <Group title="Plan & journal">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label>Stop loss</Label>
                 <Input
@@ -650,11 +650,11 @@ export function TradeForm({
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-muted">Planned entry</span>
+                <Label>Planned entry</Label>
                 <Input type="number" inputMode="decimal" step="any" {...register("plannedEntry")} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label>Playbook / setup</Label>
                 <Controller
@@ -718,9 +718,9 @@ export function TradeForm({
           </Group>
 
           <Group title="Timing & charges">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
-                <span className="text-xs text-muted">Opened at</span>
+                <Label>Opened at</Label>
                 <Controller
                   control={control}
                   name="openedAt"
@@ -735,7 +735,7 @@ export function TradeForm({
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-muted">Closed at</span>
+                <Label>Closed at</Label>
                 <Controller
                   control={control}
                   name="closedAt"
@@ -756,7 +756,7 @@ export function TradeForm({
               </p>
             )}
             <div className="space-y-1">
-              <span className="text-xs text-muted">Charges override ₹</span>
+              <Label>Charges override ₹</Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -770,7 +770,7 @@ export function TradeForm({
         </div>
 
         {/* ── RIGHT: summary rail (desktop) / bottom summary + Save (mobile) ── */}
-        <aside className="mt-5 space-y-3 rounded-lg border bg-surface-2/40 p-3 md:mt-0 md:self-start md:[position:sticky] md:top-0">
+        <aside className="hidden space-y-3 rounded-lg border bg-surface-2/40 p-3 md:flex md:flex-col md:self-start md:[position:sticky] md:top-0">
           <span className="block text-[11px] font-medium uppercase tracking-wide text-muted">
             Summary
           </span>
@@ -801,6 +801,30 @@ export function TradeForm({
             {saveTrade.isPending ? "Saving…" : tradeId ? "Update trade" : "Save trade"}
           </Button>
         </aside>
+      </div>
+
+      {/* Mobile broker-ticket footer — the consequence + Save, always reachable */}
+      <div className="sticky bottom-0 z-10 -mx-5 -mb-5 border-t bg-surface/95 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur md:hidden">
+        <div className="mb-2">{completenessChips}</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-muted">
+              {preview || exposure == null ? "Net" : "Exposure"}
+            </div>
+            <div className="truncate font-money text-base font-semibold tabular-nums">
+              {preview ? (
+                <PnlText value={preview.net} />
+              ) : exposure != null ? (
+                `₹${exposure.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+              ) : (
+                "—"
+              )}
+            </div>
+          </div>
+          <Button type="submit" className="h-11 shrink-0 px-6" disabled={saveTrade.isPending}>
+            {saveTrade.isPending ? "Saving…" : tradeId ? "Update" : "Save trade"}
+          </Button>
+        </div>
       </div>
     </form>
   );
