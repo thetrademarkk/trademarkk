@@ -55,14 +55,36 @@ export default function DashboardPage() {
   const mix = React.useMemo(() => horizonMix(allClosed), [allClosed]);
 
   if (isLoading || !trades) {
+    // Mirror the real dashboard skeleton so the loading state reads as the page,
+    // not a generic box grid: greeting + KPI row (KpiRow's 6-col grid) + the
+    // equity chart beside a card + the two card grids below.
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <Skeleton key={i} className="h-20" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-44" />
+            <Skeleton className="h-4 w-60" />
+          </div>
+          <Skeleton className="hidden h-9 w-40 rounded-lg sm:block" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-lg" />
           ))}
         </div>
-        <Skeleton className="h-64" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Skeleton className="h-72 rounded-lg lg:col-span-2" />
+          <Skeleton className="h-72 rounded-lg" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-56 rounded-lg" />
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-40 rounded-lg" />
+          <Skeleton className="h-40 rounded-lg" />
+        </div>
       </div>
     );
   }
