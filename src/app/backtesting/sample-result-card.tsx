@@ -59,7 +59,7 @@ function Stat({
   tone?: "profit" | "loss" | "default";
 }) {
   return (
-    <div className="rounded-lg border bg-surface px-3 py-3">
+    <div className="rounded-lg border bg-surface-2 px-3 py-3">
       <div className="micro-label">{label}</div>
       <div
         className={cn(
@@ -86,7 +86,7 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
   const up = s.netPnl >= 0;
   const seam = seamFromCoverage(run.coverage);
   return (
-    <div className="rounded-lg border bg-surface-2 p-4 sm:p-5">
+    <div className="rounded-lg border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent" aria-hidden />
@@ -121,7 +121,7 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Stat label="Win rate" value={`${Math.round(s.winRate * 100)}%`} />
         <Stat label="Max drawdown" value={formatINR(s.maxDrawdown)} tone="loss" />
         <Stat label="Expectancy" value={`${formatINR(s.expectancy, { signed: true })}/trade`} />
@@ -129,7 +129,7 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
         <Stat label="Sharpe" value={s.sharpe.toFixed(2)} />
       </div>
 
-      <div className="mt-4 rounded-lg border bg-surface p-3">
+      <div className="mt-4 rounded-lg border bg-surface-2 p-3">
         <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
           {up ? (
             <TrendingUp className="h-3.5 w-3.5 text-profit" aria-hidden />
