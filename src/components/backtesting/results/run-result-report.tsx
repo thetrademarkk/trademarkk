@@ -6,6 +6,7 @@ import { deriveQualityChips, type RunResult } from "@/features/backtest/shared/r
 import { buildVerdictHeadline, buildCoverageCaveat } from "@/features/backtest/results/verdict";
 import { buildBenchmark, type BenchmarkPoint } from "@/features/backtest/results/benchmark";
 import type { FixtureSnapshot } from "@/lib/backtest/engine/adapters/fixture-source";
+import { Card, CardContent } from "@/components/ui/card";
 import { QualityChipRow } from "./quality-chip-row";
 import { VerdictStatStrip } from "./verdict-stat-strip";
 import { HeroEquityChart } from "./hero-equity-chart";
@@ -61,31 +62,33 @@ export function RunResultReport({
     >
       {/* Tier 1 — VERDICT */}
       <BtSection number="01" eyebrow="Verdict" data-testid="bt-tier-verdict">
-        <div className="animate-slide-up space-y-3 rounded-lg border bg-surface p-4 sm:p-5">
-          {isPartial && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 p-2.5 text-xs leading-5 text-warning">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
-              partial, indicative result, not a verdict.
-            </div>
-          )}
-          <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
-          <p className="text-sm leading-6" data-testid="bt-verdict-headline">
-            {headline}
-          </p>
-          {caveat && <p className="text-xs text-muted">{caveat}</p>}
-          <VerdictStatStrip run={result} prevStats={prevStats} />
-          {/* The hero equity is the one living amber curve; the Coverage Seam is
+        <Card className="animate-slide-up">
+          <CardContent className="space-y-3 pt-4">
+            {isPartial && (
+              <div className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 p-2.5 text-xs leading-5 text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
+                partial, indicative result, not a verdict.
+              </div>
+            )}
+            <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
+            <p className="text-sm leading-6" data-testid="bt-verdict-headline">
+              {headline}
+            </p>
+            {caveat && <p className="text-xs text-muted">{caveat}</p>}
+            <VerdictStatStrip run={result} prevStats={prevStats} />
+            {/* The hero equity is the one living amber curve; the Coverage Seam is
               welded full-width directly beneath it — the marquee honesty signal. */}
-          <div>
-            <HeroEquityChart curve={result.equityCurve} benchmark={benchmark} />
-            <CoverageSeam
-              segments={seam}
-              className="mt-1"
-              label="Data coverage across the equity period"
-            />
-          </div>
-        </div>
+            <div>
+              <HeroEquityChart curve={result.equityCurve} benchmark={benchmark} />
+              <CoverageSeam
+                segments={seam}
+                className="mt-1"
+                label="Data coverage across the equity period"
+              />
+            </div>
+          </CardContent>
+        </Card>
       </BtSection>
 
       {/* Tier 2 — EVIDENCE */}

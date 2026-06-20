@@ -49,7 +49,7 @@ export function VerdictStatStrip({
 
   return (
     <div data-testid="bt-stat-strip">
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         {cards.map((card) => (
           <StatTile
             key={card.key}
