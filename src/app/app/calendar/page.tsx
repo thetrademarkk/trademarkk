@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Receipt } from "lucide-react";
-import { MonthHeatmap } from "@/features/calendar";
+import { MonthHeatmap, UpcomingExpiriesView } from "@/features/calendar";
 import { useTrades, describeInstrument } from "@/features/trades";
 import { useJournalDates, useDayTrades } from "@/features/journal";
 import { dailyPnl, closedOnly } from "@/lib/stats/stats";
@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PnlText } from "@/components/shared/pnl-text";
 import { Donut } from "@/components/shared/donut";
 import { PageHeader } from "@/components/shared/page-header";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 /** A coloured dot + count, for the donut legend. */
 function LegendDot({ color, n, label }: { color: string; n: number; label: string }) {
@@ -237,45 +238,68 @@ export default function CalendarPage() {
         title="Calendar"
         description="Your P&L, day by day. Dots mark journaled days; the bar under a day shows a position was held across it."
       />
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" aria-label="Previous month" onClick={() => shift(-1)}>
-          <ChevronLeft />
-        </Button>
-        <div className="min-w-[160px] text-center text-sm font-semibold">
-          {new Date(year, month).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
-        </div>
-        <Button variant="outline" size="icon" aria-label="Next month" onClick={() => shift(1)}>
-          <ChevronRight />
-        </Button>
-        <div className="ml-auto text-sm">
-          Month: <PnlText value={monthTotal} className="font-semibold" />
-        </div>
-      </div>
+      <Tabs defaultValue="pnl" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="pnl">P&amp;L calendar</TabsTrigger>
+          <TabsTrigger value="expiries">Upcoming expiries</TabsTrigger>
+        </TabsList>
+        <TabsContent value="pnl" className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Previous month"
+              onClick={() => shift(-1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <div className="min-w-[160px] text-center text-sm font-semibold">
+              {new Date(year, month).toLocaleDateString("en-IN", {
+                month: "long",
+                year: "numeric",
+              })}
+            </div>
+            <Button variant="outline" size="icon" aria-label="Next month" onClick={() => shift(1)}>
+              <ChevronRight />
+            </Button>
+            <div className="ml-auto text-sm">
+              Month: <PnlText value={monthTotal} className="font-semibold" />
+            </div>
+          </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="pt-4">
-            <MonthHeatmap
-              year={year}
-              month={month}
-              dailyPnl={pnlMap}
-              journaledDates={new Set(journalDates)}
-              trades={trades}
-              selected={selected}
-              onSelect={setSelected}
-            />
-          </CardContent>
-        </Card>
-        {selected ? (
-          <DayPanel date={selected} />
-        ) : (
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardContent className="pt-4">
+                <MonthHeatmap
+                  year={year}
+                  month={month}
+                  dailyPnl={pnlMap}
+                  journaledDates={new Set(journalDates)}
+                  trades={trades}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </CardContent>
+            </Card>
+            {selected ? (
+              <DayPanel date={selected} />
+            ) : (
+              <Card>
+                <CardContent className="flex h-full min-h-40 items-center justify-center text-sm text-muted">
+                  Select a day to see trades & journal.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="expiries">
           <Card>
-            <CardContent className="flex h-full min-h-40 items-center justify-center text-sm text-muted">
-              Select a day to see trades & journal.
+            <CardContent className="pt-4">
+              <UpcomingExpiriesView />
             </CardContent>
           </Card>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
