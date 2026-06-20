@@ -187,6 +187,27 @@ await step("the MCX commodity trade saves", async () => {
   await page.getByText("Trade saved").waitFor({ timeout: 10000 });
 });
 
+// ─────────── alias + auto-seed: SILVERMINI resolves and auto-fills ──────────
+console.log("— SILVERMINI (colloquial) resolves to SILVERM (5) + auto-fills 1 lot —");
+await step(
+  "typing SILVERMINI recognises SILVERM and auto-fills qty = 5 (no manual lots)",
+  async () => {
+    await openAddTrade(page);
+    await page.getByPlaceholder("NIFTY / RELIANCE").fill("SILVERMINI");
+    await setSegment(page, "Commodity");
+    // The colloquial "SILVERMINI" must resolve to the real SILVERM contract (lot 5)…
+    await page.getByText(/SILVERM 5\/lot/).waitFor({ timeout: 10000 });
+    // …and auto-seed ONE lot so the qty fills WITHOUT typing a lot count.
+    await page.waitForFunction(
+      () =>
+        /=\s*5\s*qty/.test(document.querySelector('[data-testid="lot-units"]')?.textContent || ""),
+      { timeout: 5000 }
+    );
+    const lots = await page.getByLabel("Lots").inputValue();
+    if (lots !== "1") throw new Error(`expected auto-seeded Lots "1", saw "${lots}"`);
+  }
+);
+
 // ───────────────────── override an UNKNOWN symbol ──────────────────────────
 console.log("— Unknown symbol: manual lot-size override never blocks —");
 await step("an unknown symbol shows no default but accepts a manual lot size", async () => {
@@ -220,7 +241,7 @@ await step("the entry form fits 360px with zero overflow + a reachable Save foot
   await page.getByPlaceholder("NIFTY / RELIANCE").fill("BANKNIFTY");
   await setSegment(page, "Options");
   await page.getByText("Quantity — in lots").waitFor({ timeout: 10000 });
-  await page.getByText(/BANKNIFTY 35\/lot/).waitFor({ timeout: 5000 });
+  await page.getByText(/BANKNIFTY 30\/lot/).waitFor({ timeout: 5000 });
   // The sticky broker-ticket footer keeps Save visible without scrolling.
   await page.getByRole("button", { name: "Save trade" }).waitFor({ timeout: 5000 });
   await noOverflow(page);

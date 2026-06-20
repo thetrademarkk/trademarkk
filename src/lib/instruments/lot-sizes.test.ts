@@ -35,13 +35,15 @@ describe("lot-size reference data", () => {
     expect(LOT_SIZE_AS_OF).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
-  // The BT-02 / SEG-08 demo-seed lot sizes — must NOT diverge from this table.
-  it("matches the known index lots reused from the seed (NIFTY 65 / BANKNIFTY 35 / SENSEX 20)", () => {
+  // Index lots verified against the Groww live master (nearest upcoming expiry,
+  // 2026-06-21): the Oct-2025 SEBI revisions cut BANKNIFTY 35→30, FINNIFTY 65→60,
+  // MIDCPNIFTY 140→120. Must NOT diverge from this table.
+  it("matches the known index lots reused from the seed (NIFTY 65 / BANKNIFTY 30 / SENSEX 20)", () => {
     expect(defaultLotSize("NIFTY", "OPT")).toBe(65);
-    expect(defaultLotSize("BANKNIFTY", "OPT")).toBe(35);
+    expect(defaultLotSize("BANKNIFTY", "OPT")).toBe(30);
     expect(defaultLotSize("SENSEX", "OPT")).toBe(20);
-    expect(defaultLotSize("FINNIFTY", "OPT")).toBe(65);
-    expect(defaultLotSize("MIDCPNIFTY", "OPT")).toBe(140);
+    expect(defaultLotSize("FINNIFTY", "OPT")).toBe(60);
+    expect(defaultLotSize("MIDCPNIFTY", "OPT")).toBe(120);
     expect(defaultLotSize("BANKEX", "OPT")).toBe(30);
   });
 
@@ -126,6 +128,42 @@ describe("lookupLotSize segment behaviour", () => {
   });
 });
 
+describe("symbol aliases + whitespace/separator tolerance", () => {
+  it("resolves colloquial SILVERMINI to the SILVERM contract (lot 5)", () => {
+    expect(defaultLotSize("SILVERMINI", "COMM")).toBe(5);
+    expect(lookupLotSize("SILVERMINI", "COMM")?.symbol).toBe("SILVERM");
+    expect(lookupLotSize("silver mini", "COMM")?.symbol).toBe("SILVERM"); // case + space
+    expect(lookupLotSize("MCX:SILVERMINI", "COMM")?.symbol).toBe("SILVERM"); // prefix
+  });
+
+  it("resolves index + commodity aliases", () => {
+    expect(defaultLotSize("NIFTYBANK", "OPT")).toBe(30); // → BANKNIFTY
+    expect(defaultLotSize("NIFTY50", "OPT")).toBe(65); // → NIFTY
+    expect(defaultLotSize("GOLDMINI", "COMM")).toBe(10); // → GOLDM
+    expect(defaultLotSize("CRUDEOILMINI", "COMM")).toBe(10); // → CRUDEOILM
+  });
+
+  it("is whitespace + case insensitive for a plain symbol", () => {
+    expect(defaultLotSize("  reliance  ", "OPT")).toBe(500);
+    expect(defaultLotSize("Bank Nifty", "OPT")).toBe(30); // collapses to BANKNIFTY
+  });
+});
+
+describe("lot-size corrections verified against the Groww live master (2026-06-21)", () => {
+  it("index lots reflect the Oct-2025 SEBI contract-size revisions", () => {
+    expect(defaultLotSize("BANKNIFTY", "OPT")).toBe(30);
+    expect(defaultLotSize("FINNIFTY", "OPT")).toBe(60);
+    expect(defaultLotSize("MIDCPNIFTY", "OPT")).toBe(120);
+  });
+
+  it("corp-action-adjusted stock + commodity lots are current", () => {
+    expect(defaultLotSize("KOTAKBANK", "OPT")).toBe(2000); // split
+    expect(defaultLotSize("ADANIENT", "OPT")).toBe(309); // rights
+    expect(defaultLotSize("TATASTEEL", "OPT")).toBe(2750);
+    expect(defaultLotSize("GOLDGUINEA", "COMM")).toBe(1);
+  });
+});
+
 describe("segmentUsesLots", () => {
   it("every derivative uses lots; EQ does not", () => {
     expect(segmentUsesLots("EQ")).toBe(false);
@@ -141,7 +179,7 @@ describe("lots <-> units conversion", () => {
     expect(lotsToUnits(2, 75)).toBe(150);
     expect(lotsToUnits(1, 100)).toBe(100); // 1 lot CRUDEOIL
     expect(lotsToUnits(1, 1000)).toBe(1000); // 1 lot USDINR
-    expect(lotsToUnits(3, 35)).toBe(105); // 3 lots BANKNIFTY
+    expect(lotsToUnits(3, 30)).toBe(90); // 3 lots BANKNIFTY (lot 30)
   });
 
   it("lotsToUnits returns null for an unusable lot size", () => {
