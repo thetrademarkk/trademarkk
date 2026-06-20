@@ -2,21 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Code2,
-  FlaskConical,
-  Gauge,
-  GitCompareArrows,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Code2, Gauge, GitCompareArrows, ShieldCheck, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/shared/page-header";
 import { buildPayoffCurve, classifyStrategy, type PayoffLeg } from "@/lib/options/payoff";
 import type { PayoffSummary } from "@/features/backtest/builder/payoff-rail";
 import { PayoffChart } from "@/components/backtesting/builder/payoff-chart";
-import { CoverageSeam } from "@/components/backtesting/shared/coverage-seam";
-import { BtSection } from "@/components/backtesting/shared/bt-section";
 import { SAMPLE_RUN } from "./sample-run";
 import { SampleResultCard } from "./sample-result-card";
 
@@ -91,27 +83,6 @@ function readRecentRuns(): RecentRun[] {
   }
 }
 
-const TWO_WAYS = [
-  {
-    href: "/backtesting/build",
-    mode: "nocode",
-    icon: FlaskConical,
-    title: "No-code builder",
-    blurb:
-      "Pick an index, add legs, set risk — a guided wizard with a live payoff preview. Best for most traders.",
-    cta: "Build a strategy",
-  },
-  {
-    href: "/backtesting/code",
-    mode: "code",
-    icon: Code2,
-    title: "Bring your own code",
-    blurb:
-      "Write a JavaScript strategy and run it in a sandboxed VM in your browser, against the same data. Best if you want full control.",
-    cta: "Write code",
-  },
-] as const;
-
 const TRUST = [
   {
     icon: ShieldCheck,
@@ -153,57 +124,41 @@ export function BacktestHome() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-      {/* Hero — the LIVE INSTRUMENT: a loaded strategy (amber payoff on the ruled
-          grid) on the left, the pitch + CTAs on the right, sharing one baseline. */}
-      <section className="grid items-end gap-6 border-b pb-8 sm:grid-cols-2">
-        <div className="order-2 rounded-lg border bg-surface p-3 sm:order-1">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="micro-label">Loaded · NIFTY short straddle</p>
-            <span className="micro-label">Payoff at expiry</span>
-          </div>
-          <PayoffChart summary={HERO_PAYOFF} className="h-44 w-full" />
-          <CoverageSeam
-            segments={[
-              { kind: "real", frac: 0.72 },
-              { kind: "sub", frac: 0.18 },
-              { kind: "gap", frac: 0.1 },
-            ]}
-            className="mt-2"
-            label="Illustrative data coverage"
-          />
-        </div>
-        <div className="order-1 sm:order-2">
-          <h1 className="text-balance text-3xl font-bold sm:text-[32px]">
-            Backtest options strategies — free, honest, in your browser
-          </h1>
-          <p className="mt-3 text-pretty text-sm leading-6 text-muted sm:text-base">
-            Test a NIFTY, BANKNIFTY or SENSEX idea against real 1-minute history. Build with no code
-            or bring your own. See a beautiful result that&apos;s honest about exactly what data
-            existed — and sign in only when you want to keep it.
-          </p>
-          <div className="mt-6 flex flex-col gap-2 xs:flex-row">
-            <Button asChild size="lg" className="w-full xs:w-auto">
-              <Link href="/backtesting/build">Build a strategy — free, no signup</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="w-full xs:w-auto">
-              <Link href="/backtesting/explore">Explore strategies</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
+      <PageHeader
+        title="Backtesting"
+        description="Backtest NIFTY, BANKNIFTY & SENSEX option ideas free, honestly, in your browser."
+        actions={
+          <Button asChild size="sm">
+            <Link href="/backtesting/build">Build a strategy</Link>
+          </Button>
+        }
+      />
 
-      {/* Recent-runs rail — ALWAYS visible (never silently hides); a ruled strip
-          with a left amber tick, and a ghost "load your first" rung when empty. */}
-      <section className="mt-10" data-testid="bt-recent-rail">
-        <p className="micro-label">Recent runs</p>
-        <div className="mt-2 flex flex-wrap gap-2 border-l-2 border-accent pl-3">
+      {/* The loaded-instrument hero — one journal card, no CTA (the page's single
+          primary action lives in the header). */}
+      <Card>
+        <CardHeader>
+          <CardTitle>NIFTY short straddle — payoff at expiry</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PayoffChart summary={HERO_PAYOFF} className="h-44 w-full" />
+          <p className="mt-2 text-sm text-muted">
+            A worked example shape. Build your own to run it live on real 1-minute history.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Recent runs — a plain journal section; ALWAYS visible (ghost rung empty). */}
+      <section data-testid="bt-recent-rail" className="space-y-2">
+        <h2 className="text-sm font-semibold">Recent runs</h2>
+        <div className="flex flex-wrap gap-2">
           {returning && recent.length > 0 ? (
             recent.map((r) => (
               <Link
                 key={r.id}
                 href={`/backtesting/run/${r.id}`}
-                className="rounded border bg-surface px-3 py-2 text-xs hover:border-accent"
+                className="rounded-md border bg-surface px-3 py-2.5 text-sm hover:border-accent"
               >
                 <span className="font-medium">{r.label}</span>
                 <span className="ml-2 text-muted">{r.index}</span>
@@ -212,7 +167,7 @@ export function BacktestHome() {
           ) : (
             <Link
               href="/backtesting/build"
-              className="inline-flex items-center gap-1 rounded border border-dashed bg-surface-2 px-3 py-2 text-xs text-muted hover:border-accent hover:text-foreground"
+              className="inline-flex items-center gap-1 rounded-md border border-dashed bg-surface-2 px-3 py-2.5 text-sm text-muted hover:border-accent hover:text-foreground"
               data-testid="bt-recent-empty"
             >
               Load your first strategy <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -221,110 +176,114 @@ export function BacktestHome() {
         </div>
       </section>
 
-      {/* The pre-baked sample — the "Run this" on-ramp, instant + $0 */}
-      <BtSection
-        number="01"
-        eyebrow="Sample result"
-        className="mt-10"
-        action={
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/backtesting/build?template=short-straddle">Tweak this strategy →</Link>
-          </Button>
-        }
-      >
-        <p className="mb-3 text-xs text-muted">
-          A NIFTY 9:20 short straddle over 3 months — a worked sample so you can see the result
-          shape instantly. Build your own to run live in your browser.
-        </p>
-        <SampleResultCard run={SAMPLE_RUN} sample />
-        <div className="mt-3 text-center">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowFullSample((v) => !v)}
-            data-testid="bt-sample-full-toggle"
-            aria-expanded={showFullSample}
+      {/* The pre-baked sample — a journal card (instant, zero engine boot). */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Sample result</CardTitle>
+          <Link
+            href="/backtesting/build?template=short-straddle"
+            className="text-sm font-medium text-accent hover:underline"
           >
-            {showFullSample ? "Hide full sample report" : "Explore the full sample report"}
-          </Button>
-        </div>
-        {showFullSample && (
-          <div className="mt-5" data-testid="bt-sample-full-report">
-            <React.Suspense
-              fallback={<div className="h-40 animate-pulse rounded-lg bg-surface-2/60" />}
+            Tweak this →
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted">
+            A NIFTY 9:20 short straddle over 3 months — a worked sample so you can see the result
+            shape instantly.
+          </p>
+          <SampleResultCard run={SAMPLE_RUN} sample />
+          <div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowFullSample((v) => !v)}
+              data-testid="bt-sample-full-toggle"
+              aria-expanded={showFullSample}
             >
-              <RunResultReport result={SAMPLE_RUN} />
-            </React.Suspense>
+              {showFullSample ? "Hide full sample report" : "Explore the full sample report"}
+            </Button>
           </div>
-        )}
-      </BtSection>
+          {showFullSample && (
+            <div data-testid="bt-sample-full-report">
+              <React.Suspense
+                fallback={<div className="h-40 animate-pulse rounded-lg bg-surface-2/60" />}
+              >
+                <RunResultReport result={SAMPLE_RUN} />
+              </React.Suspense>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Two ways in */}
-      <section className="mt-12">
-        <h2 className="text-center text-lg font-semibold">Two ways to backtest</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {TWO_WAYS.map((w) => (
+      {/* Bring-your-own-code — the one genuinely distinct alternate path (Build is
+          already the header's primary CTA, so it isn't restated here). */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-4 xs:flex-row xs:items-start xs:gap-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15">
+            <Code2 className="h-5 w-5 text-accent" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold">Prefer code?</h3>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Write a JavaScript strategy and run it in a sandboxed VM in your browser, against the
+              same data.
+            </p>
             <Link
-              key={w.href}
-              href={w.href}
-              className="group rounded-lg border bg-surface p-5 transition-colors hover:border-accent"
+              href="/backtesting/code"
               onClick={() => {
                 try {
-                  localStorage.setItem(BT_KEYS.lastMode, w.mode);
+                  localStorage.setItem(BT_KEYS.lastMode, "code");
                 } catch {
                   /* ignore */
                 }
               }}
+              className="mt-2 inline-block text-sm font-medium text-accent hover:underline"
             >
-              <w.icon className="h-6 w-6 text-accent" aria-hidden />
-              <h3 className="mt-3 text-base font-semibold">{w.title}</h3>
-              <p className="mt-1.5 text-sm leading-6 text-muted">{w.blurb}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent group-hover:underline">
-                {w.cta}{" "}
-                <ArrowRight
-                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              </span>
+              Write a JS strategy →
             </Link>
-          ))}
-        </div>
-      </section>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Journal-compare entry (BT-12) — the journal-first killer */}
-      <section className="mt-12">
-        <Link
-          href="/backtesting/compare"
-          className="group flex flex-col gap-3 rounded-lg border bg-surface p-5 transition-colors hover:border-accent xs:flex-row xs:items-start xs:gap-4"
-          data-testid="bt-compare-entry"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15">
-            <GitCompareArrows className="h-5 w-5 text-accent" aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold">Did you trade your plan?</h3>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              Already journaling your trades? Overlay your <strong>real trades</strong> on a
-              mechanical backtest of the same idea and see, honestly, where your discretionary
-              trading diverged. Runs on your own journal — read-only, on this device.
-            </p>
-            <span className="mt-2 inline-block text-sm font-medium text-accent">
-              Compare with your journal →
+      <Card>
+        <CardContent className="pt-4">
+          <Link
+            href="/backtesting/compare"
+            className="group flex flex-col gap-3 xs:flex-row xs:items-start xs:gap-4"
+            data-testid="bt-compare-entry"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15">
+              <GitCompareArrows className="h-5 w-5 text-accent" aria-hidden />
             </span>
-          </div>
-        </Link>
-      </section>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold">Did you trade your plan?</h3>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                Overlay your <strong>real trades</strong> on a mechanical backtest of the same idea
+                and see, honestly, where your discretionary trading diverged. Read-only, on this
+                device.
+              </p>
+              <span className="mt-2 inline-block text-sm font-medium text-accent">
+                Compare with your journal →
+              </span>
+            </div>
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Trust row */}
-      <section className="mt-12 grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         {TRUST.map((t) => (
-          <div key={t.title} className="rounded-lg border bg-surface p-5">
-            <t.icon className="h-5 w-5 text-accent" aria-hidden />
-            <h3 className="mt-3 text-sm font-semibold">{t.title}</h3>
-            <p className="mt-1.5 text-sm leading-6 text-muted">{t.text}</p>
-          </div>
+          <Card key={t.title}>
+            <CardContent className="pt-4">
+              <t.icon className="h-5 w-5 text-accent" aria-hidden />
+              <h3 className="mt-3 text-sm font-semibold">{t.title}</h3>
+              <p className="mt-1.5 text-sm leading-6 text-muted">{t.text}</p>
+            </CardContent>
+          </Card>
         ))}
-      </section>
+      </div>
     </div>
   );
 }
