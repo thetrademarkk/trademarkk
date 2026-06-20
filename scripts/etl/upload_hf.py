@@ -76,16 +76,70 @@ def summarize_folder(folder: str) -> dict:
     return {"files": n_files, "bytes": n_bytes}
 
 
+def upload_single_file(args) -> int:
+    """Upload ONE local parquet to a specific path in the repo (the disk-safe
+    slice loop's uploader). Uses HfApi.upload_file (atomic single-file commit) so
+    only one (symbol, expiry) slice is ever in flight — no whole-folder peak.
+
+    Still OWNER-gated: needs a token + --confirm. --dry-run previews without one.
+    """
+    local = args.single_file
+    rel = args.path_in_repo
+    if not os.path.isfile(local):
+        print(f"ERROR: file not found: {local}", file=sys.stderr)
+        return 2
+    if not rel:
+        print("ERROR: --path-in-repo is required with --single-file.", file=sys.stderr)
+        return 2
+    size = os.path.getsize(local)
+    print(f"single-file: {local} ({size/1024/1024:.2f} MB) -> datasets/{args.repo}/{rel}")
+    if args.dry_run:
+        print("DRY RUN -- would upload this one file. No token used.")
+        return 0
+    token = env_token()
+    if not token:
+        print("\nREFUSING TO UPLOAD: no token in env (HF_TOKEN).", file=sys.stderr)
+        return 3
+    if not args.confirm:
+        print("\nREFUSING TO UPLOAD: pass --confirm to proceed.", file=sys.stderr)
+        return 3
+    from huggingface_hub import HfApi
+
+    api = HfApi(token=token)
+    # exist_ok create so the very first slice also provisions the repo
+    api.create_repo(repo_id=args.repo, repo_type="dataset",
+                    private=bool(args.private), exist_ok=True)
+    api.upload_file(
+        path_or_fileobj=local,
+        path_in_repo=rel,
+        repo_id=args.repo,
+        repo_type="dataset",
+        commit_message=f"etl: add {rel}",
+    )
+    print(f"DONE. https://huggingface.co/datasets/{args.repo}/blob/main/{rel}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Upload the HF-ready dataset (OWNER-gated).")
     ap.add_argument("--repo", required=True, help="e.g. thetrademarkk/india-index-options-1m")
-    ap.add_argument("--folder", required=True, help="The HF-ready staging tree.")
+    ap.add_argument("--folder", default=None, help="The HF-ready staging tree (whole-folder mode).")
+    ap.add_argument("--single-file", default=None,
+                    help="DISK-SAFE slice mode: upload ONE local parquet (with --path-in-repo).")
+    ap.add_argument("--path-in-repo", default=None,
+                    help="Destination path in the repo for --single-file (e.g. stocks_options/RELIANCE/2024-07-25.parquet).")
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--private", action="store_true", help="Create the repo private (default: public+ungated).")
     ap.add_argument("--dry-run", action="store_true", help="Preview only; never needs a token.")
     ap.add_argument("--confirm", action="store_true", help="REQUIRED to actually upload.")
     args = ap.parse_args(argv)
 
+    if args.single_file:
+        return upload_single_file(args)
+
+    if not args.folder:
+        print("ERROR: pass --folder (whole tree) or --single-file (one slice).", file=sys.stderr)
+        return 2
     if not os.path.isdir(args.folder):
         print(f"ERROR: folder not found: {args.folder}", file=sys.stderr)
         return 2

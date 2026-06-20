@@ -1,7 +1,8 @@
 """
 gap_detect.py — compute EXACTLY what is missing from the local 1m archive, and
-the option-chain strike band we HAVE vs the TARGET (+/-30..40% around ATM), per
-index. This is the planning input for gap_fill_groww.py.
+the option-chain strike band we HAVE vs the TARGET (+/-20% around ATM on BOTH
+sides; --strike-pct/--target-band-pct, default 0.20), per index. This is the
+planning input for gap_fill_groww.py.
 
 It is STRICTLY READ-ONLY over the archive (the archive is the user's data). It
 reads only the cheap signals:
@@ -27,7 +28,8 @@ the fetcher will touch (idempotent: existing + known-empty are never re-fetched)
 Because Groww's instruments master lists only LIVE/future expiries, historical
 strike grids cannot be enumerated from the API — they are SYNTHESIZED here from
 the index spot per day x strike step x target band, exactly as the original
-builder did (it used strike_buffer_pct 0.12..0.18; we widen to 0.30..0.40).
+builder did (it used strike_buffer_pct 0.12..0.18; the standardized band here is
++/-20% on both sides of ATM).
 
 Output: a single gap-plan JSON (default --out market-data/_etl_staging/gap-plan.json)
 shaped as:
@@ -55,8 +57,8 @@ shaped as:
   }
 
 The plan is consumed by gap_fill_groww.py --plan <path>. It is also a great
-human artifact: it tells you exactly how much the +/-30..40% expansion will cost
-in fetch units before you spend a single API call.
+human artifact: it tells you exactly how much the +/-20% band will cost in fetch
+units before you spend a single API call.
 
 Usage:
     python scripts/etl/gap_detect.py \
@@ -341,8 +343,10 @@ def main(argv=None) -> int:
     ap.add_argument("--archive", required=True)
     ap.add_argument("--out", required=True, help="Gap-plan JSON path (gitignored staging).")
     ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
-    ap.add_argument("--target-band-pct", type=float, default=0.35,
-                    help="Target half-width around ATM (0.35 = +/-35%).")
+    ap.add_argument("--target-band-pct", "--strike-pct", dest="target_band_pct",
+                    type=float, default=0.20,
+                    help="Target half-band around ATM as a fraction of spot "
+                         "(0.20 = +/-20%% on BOTH sides; the standardized band).")
     ap.add_argument("--lookback-days", type=int, default=DEFAULT_LOOKBACK_DAYS,
                     help="Calendar days before expiry the contract may have traded.")
     ap.add_argument("--max-expiries", type=int, default=0, help="Sample N/symbol (0 = all).")

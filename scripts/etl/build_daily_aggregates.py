@@ -32,12 +32,17 @@ import pyarrow.parquet as pq
 
 SYMBOLS = ("NIFTY", "BANKNIFTY", "SENSEX")
 EXPECTED_BARS_PER_DAY = 375
-_FNAME = re.compile(r"-(\d+)-(CE|PE)\.parquet$")
+# integer (index) OR fractional (single-stock: ITC 257.5) strikes
+_FNAME = re.compile(r"-(\d+(?:\.\d+)?)-(CE|PE)\.parquet$")
 
 
 def parse_contract(fname: str):
     m = _FNAME.search(fname)
-    return (int(m.group(1)), m.group(2)) if m else None
+    if not m:
+        return None
+    s = float(m.group(1))
+    s = int(s) if s == int(s) else s
+    return (s, m.group(2))
 
 
 def iso_day(ts) -> str:
@@ -92,10 +97,10 @@ def aggregate_contract(path: str, sym: str, expiry: str, strike: int, ot: str):
     return rows
 
 
-def daily_schema() -> pa.Schema:
+def daily_schema(strike_type=pa.int32()) -> pa.Schema:
     return pa.schema([
         ("symbol", pa.string()), ("expiry", pa.string()),
-        ("strike", pa.int32()), ("option_type", pa.string()),
+        ("strike", strike_type), ("option_type", pa.string()),
         ("trading_day", pa.string()),
         ("open", pa.float64()), ("high", pa.float64()),
         ("low", pa.float64()), ("close", pa.float64()),
@@ -104,8 +109,9 @@ def daily_schema() -> pa.Schema:
     ])
 
 
-def build_symbol(archive: str, sym: str, max_expiries: int, workers: int):
-    sroot = os.path.join(archive, "options", sym)
+def build_symbol(archive: str, sym: str, max_expiries: int, workers: int,
+                 options_root: str = "options"):
+    sroot = os.path.join(archive, options_root, sym)
     if not os.path.isdir(sroot):
         return []
     expiries = sorted(os.listdir(sroot))
@@ -136,8 +142,10 @@ def build_symbol(archive: str, sym: str, max_expiries: int, workers: int):
 
 def write_daily(rows, out_dir: str, sym: str) -> str:
     os.makedirs(out_dir, exist_ok=True)
-    rows.sort(key=lambda r: (r["trading_day"], r["strike"], r["option_type"]))
-    schema = daily_schema()
+    rows.sort(key=lambda r: (r["trading_day"], float(r["strike"]), r["option_type"]))
+    # fractional stock strikes -> float64 schema; index -> int32 (unchanged)
+    frac = any(isinstance(r["strike"], float) for r in rows)
+    schema = daily_schema(pa.float64() if frac else pa.int32())
     cols = {name: [r[name] for r in rows] for name in schema.names}
     tbl = pa.table(cols, schema=schema)
     out = os.path.join(out_dir, f"{sym}.parquet")
@@ -150,6 +158,8 @@ def main(argv=None) -> int:
     ap.add_argument("--archive", required=True)
     ap.add_argument("--out", required=True, help="GITIGNORED daily/ output dir.")
     ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
+    ap.add_argument("--options-root", default="options",
+                    help="Option subtree ('options' index, 'stocks_options' single-stock).")
     ap.add_argument("--max-expiries", type=int, default=0)
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args(argv)
@@ -158,9 +168,13 @@ def main(argv=None) -> int:
         print(f"ERROR: archive not found: {args.archive}", file=sys.stderr)
         return 2
 
-    print("=== DAILY AGGREGATES ===")
-    for sym in args.symbols:
-        rows = build_symbol(args.archive, sym, args.max_expiries, args.workers)
+    print(f"=== DAILY AGGREGATES ({args.options_root}) ===")
+    syms = args.symbols
+    if args.options_root != "options" and args.symbols == list(SYMBOLS):
+        base = os.path.join(args.archive, args.options_root)
+        syms = sorted(os.listdir(base)) if os.path.isdir(base) else []
+    for sym in syms:
+        rows = build_symbol(args.archive, sym, args.max_expiries, args.workers, args.options_root)
         if not rows:
             print(f"  {sym}: no data")
             continue
