@@ -40,6 +40,7 @@ describe("sitemap", () => {
       "/community/trending",
       "/backtesting",
       "/backtesting/explore",
+      "/expiry-calendar",
       "/pulse",
       "/privacy",
       "/terms",

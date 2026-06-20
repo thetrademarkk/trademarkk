@@ -23,6 +23,7 @@ const FOOTER_GROUPS: {
     title: "Resources",
     links: [
       { href: "/blog", label: "Blog" },
+      { href: "/expiry-calendar", label: "Expiry calendar" },
       { href: "/faq", label: "FAQ" },
       { href: "/privacy", label: "Privacy" },
       { href: "/terms", label: "Terms" },
