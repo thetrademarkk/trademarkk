@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  earlyCloseMin,
   expiryFor,
   isHoliday,
   isTradingDay,
@@ -14,9 +15,10 @@ import {
   weekdayOf,
   weeklyExpiryOnOrAfter,
 } from "./market-calendar";
+import { afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DATA_START, NSE_BSE_HOLIDAYS } from "./calendar.data";
+import { DATA_START, EARLY_CLOSE, NSE_BSE_HOLIDAYS } from "./calendar.data";
 import { EXPIRY_RULES, expiryRuleFor } from "./expiry-rules";
 
 describe("date helpers", () => {
@@ -244,6 +246,22 @@ describe("holiday table integrity", () => {
         expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       }
     }
+  });
+});
+
+describe("earlyCloseMin — half-day / abbreviated-session table", () => {
+  afterEach(() => {
+    delete EARLY_CLOSE["2024-07-24"];
+  });
+  it("returns null on a normal full session", () => {
+    expect(earlyCloseMin("2024-07-24")).toBeNull();
+  });
+  it("returns the table's close minute on an injected early-close day", () => {
+    EARLY_CLOSE["2024-07-24"] = 750; // 12:30 IST half-day close
+    expect(earlyCloseMin("2024-07-24")).toBe(750);
+  });
+  it("throws on a malformed day key", () => {
+    expect(() => earlyCloseMin("2024/07/24")).toThrow();
   });
 });
 

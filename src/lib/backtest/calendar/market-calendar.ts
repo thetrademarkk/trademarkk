@@ -16,7 +16,7 @@
  */
 
 import type { IndexSymbol } from "../../../features/backtest/shared/instruments";
-import { ALL_HOLIDAYS, DATA_START } from "./calendar.data";
+import { ALL_HOLIDAYS, DATA_START, EARLY_CLOSE } from "./calendar.data";
 import { expiryRuleFor, type Weekday } from "./expiry-rules";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,6 +49,17 @@ export function isWeekend(day: string): boolean {
 export function isHoliday(day: string): boolean {
   assertDayKey(day);
   return ALL_HOLIDAYS.has(day);
+}
+
+/**
+ * The CLOSE minute-of-day for an early-close (half-day) session, or null on a
+ * normal full session. The engine caps every exit/square-off at (this − 1) and
+ * stops the bar loop there, so it never trades or marks a phantom bar past an
+ * abbreviated session's real close (rather than relying on the data's absence).
+ */
+export function earlyCloseMin(day: string): number | null {
+  assertDayKey(day);
+  return Object.prototype.hasOwnProperty.call(EARLY_CLOSE, day) ? EARLY_CLOSE[day]! : null;
 }
 
 /**

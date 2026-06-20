@@ -47,6 +47,19 @@ export interface TradeForCharges {
    * STT/CTT.
    */
   isOption?: boolean;
+  /**
+   * EXERCISE settlement of a net-long ITM option at expiry (the "STT trap").
+   * Only relevant when segment === 'OPT'. When set, the leg was NOT sold back in
+   * the market — it was exercised/settled at intrinsic value — so the ordinary
+   * 0.15% premium-SELL STT does NOT apply; instead the buyer pays the exercise
+   * STT (0.125%) on the INTRINSIC settlement notional carried here. `exitPrice`
+   * is the intrinsic settlement price (so gross P&L is correct); the premium-sell
+   * exchange/stamp lines still bill on the leg's own turnover as before.
+   */
+  exercise?: {
+    /** |strike − settlementSpot| × qty — the intrinsic settlement value exercised. */
+    intrinsicNotional: number;
+  };
 }
 
 export interface ChargeBreakdown {
@@ -62,6 +75,12 @@ export interface ChargeBreakdown {
   stampDuty: number;
   /** Depository (DP) charge — flat ₹ on an equity delivery (CNC) sell, else 0. */
   dpCharge: number;
+  /**
+   * EXERCISE STT (the "STT trap") — 0.125% of the intrinsic settlement value of a
+   * net-long ITM option exercised at expiry. 0 for every non-exercise trade (the
+   * default), so existing breakdowns are byte-identical.
+   */
+  exerciseStt: number;
   total: number;
 }
 
@@ -164,11 +183,21 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
   let exchange = 0;
   let stampDuty = 0;
   let dpCharge = 0;
+  let exerciseStt = 0;
   // SEBI is ₹1/crore for agri commodities, ₹10/crore otherwise.
   let sebiPerCrore = profile.sebiPerCrore;
 
   if (t.segment === "OPT") {
-    stt = sellTurnover * profile.sttOptionSellPct;
+    if (t.exercise) {
+      // EXERCISE settlement (the "STT trap"): the long ITM leg was settled at
+      // intrinsic, not sold back in the market, so there is NO premium-sell STT.
+      // The buyer pays exercise STT (0.125%) on the intrinsic settlement notional
+      // instead. Exchange + stamp still bill on the leg's own premium turnover.
+      stt = 0;
+      exerciseStt = t.exercise.intrinsicNotional * profile.sttOptionExercisePct;
+    } else {
+      stt = sellTurnover * profile.sttOptionSellPct;
+    }
     exchange = totalTurnover * txn.option;
     stampDuty = buyTurnover * profile.stampOptionBuyPct;
   } else if (t.segment === "FUT") {
@@ -221,8 +250,9 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
 
   const sebi = (totalTurnover / 1_00_00_000) * sebiPerCrore;
   // DP charge already includes GST; GST applies to brokerage + exchange + SEBI.
+  // Exercise STT, like ordinary STT/stamp, is statutory and carries no GST.
   const gst = (brokerage + exchange + sebi) * profile.gstPct;
-  const total = brokerage + stt + exchange + sebi + gst + stampDuty + dpCharge;
+  const total = brokerage + stt + exchange + sebi + gst + stampDuty + dpCharge + exerciseStt;
 
   return {
     brokerage: r2(brokerage),
@@ -232,6 +262,7 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
     gst: r2(gst),
     stampDuty: r2(stampDuty),
     dpCharge: r2(dpCharge),
+    exerciseStt: r2(exerciseStt),
     total: r2(total),
   };
 }

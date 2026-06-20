@@ -49,7 +49,12 @@ import type {
   LegDef,
   StrategyDef,
 } from "../../../features/backtest/shared/strategy-def";
-import { expiryFor, tradingDays, tradingDaysToExpiry } from "../calendar/market-calendar";
+import {
+  earlyCloseMin,
+  expiryFor,
+  tradingDays,
+  tradingDaysToExpiry,
+} from "../calendar/market-calendar";
 import { mulberry32 } from "../../montecarlo/simulate";
 import { computeMetrics, type DailyReturn } from "../metrics";
 import type { DataSource, DayData } from "./data-source";
@@ -88,6 +93,8 @@ function hhmmToMin(hhmm: string): number {
 }
 
 type RunFlag = "COVERAGE" | "LOW_LIQUIDITY" | "MISSING_LEG";
+/** Blotter-row flags = the run flags plus the per-day EXERCISED marker. */
+type BlotterFlag = RunFlag | "EXERCISED";
 
 /** Normalize a BT-02 StrikeSelector → the engine's StrikeIntent vocabulary. */
 function toIntent(leg: LegDef): StrikeIntent {
@@ -154,6 +161,25 @@ interface OpenLeg {
   lastExitTs: number;
   /** True once this cycle is booked AND eligible to re-enter on a later bar. */
   pendingReentry: boolean;
+  /** Minute-of-day this leg actually opened (entryMin + leg.entryOffsetMin). */
+  enteredAt: number;
+  /** Per-leg forced square-off cap (effectiveExitMin − leg.exitOffsetMin). */
+  legExitMin: number;
+}
+
+/**
+ * A leg whose entryOffsetMin defers it past the strategy entry bar — it is
+ * resolved + opened at its OWN later entry minute (legged entry), not the shared
+ * entry bar. Holds only what's needed to open it when its minute is reached.
+ */
+interface PendingLeg {
+  leg: LegDef;
+  direction: Direction;
+  qty: number;
+  /** First minute-of-day this leg may open: entryMin + (leg.entryOffsetMin ?? 0). */
+  entryMinute: number;
+  /** Per-leg forced square-off cap (effectiveExitMin − leg.exitOffsetMin). */
+  legExitMin: number;
 }
 
 interface DayState {
@@ -266,7 +292,9 @@ export function runBacktest(
     blotter.push(row);
     if (row.substituted) substitutions++;
     if (row.flags.includes("LOW_LIQUIDITY")) illiquidDays++;
-    for (const f of row.flags) flags.add(f);
+    // EXERCISED is a per-day blotter marker, not a run-level honesty flag — keep
+    // it off the top-level flags set (which is the 3-value coverage enum).
+    for (const f of row.flags) if (f !== "EXERCISED") flags.add(f as RunFlag);
 
     daily.push({
       day,
@@ -470,87 +498,68 @@ function replayDay(
     }
   }
   if (entryBar === null) return null; // entry minute never reached → no trade
-  // Spot for resolution = the entry bar's open (time entry, §8.2).
-  const spot = entryBar.o;
   const entryMinute = minuteOfDayIST(entryBar.ts);
 
-  // Resolve + open every enabled leg at the entry bar.
+  // EARLY-CLOSE (half-day) cap (BT fix #4): never trade or mark a bar past an
+  // abbreviated session's real close. effectiveExitMin = min(exitMin, close−1).
+  const earlyClose = earlyCloseMin(dd.day);
+  const effectiveExitMin =
+    earlyClose !== null ? Math.min(ctx.exitMin, earlyClose - 1) : ctx.exitMin;
+
+  // Expiry-day flag (BT fix #1): the resolved contract expiry IS this trade day,
+  // so a still-open LONG ITM leg is settled at intrinsic via exercise (the "STT
+  // trap"), not carried at a stale LTP, when forced off at the day's EOD.
+  const isExpiryDay = expiry === dd.day;
+  // v1 settlement reference = the day's LAST index close (upgrade to last-30-min
+  // spot VWAP behind this helper later). Used for intrinsic at exercise.
+  const settlementSpot = settlementSpotOf(dd.index);
+
+  // ── Per-leg staggered entry (BT fix #3) ───────────────────────────────────
+  // Each leg opens at its OWN minute = entryMin + (leg.entryOffsetMin ?? 0),
+  // resolved against THAT bar's spot, and is force-squared no later than its own
+  // legExitMin = min(effectiveExitMin, exitMin − (leg.exitOffsetMin ?? 0)).
+  // Legs with offset 0 open immediately at the entry bar (the common case →
+  // byte-identical to before).
   const open: OpenLeg[] = [];
+  const pending: PendingLeg[] = [];
   let substituted = false;
   let dayLowLiquidity = false;
   let turnover = 0;
+  let excluded = false;
 
   for (const leg of enabledLegs) {
     const direction = toDirection(leg.side);
     const qty = leg.lots * LOT_SIZE[index];
-    const intent = toIntent(leg);
-
-    let resolution: StrikeResolution | null;
-    if (intent.kind === "premium") {
-      // Premium needs entry-bar option prices across the chain.
-      const prices = new Map<number, number>();
-      for (const c of dd.chain) {
-        if (c.optionType !== leg.optionType) continue;
-        const s = dd.option(c.strike, leg.optionType);
-        const bar = s.find((b) => minuteOfDayIST(b.ts) === entryMinute) ?? s[0];
-        if (bar) prices.set(c.strike, bar.o);
-      }
-      resolution = resolvePremiumStrike(
+    const legEntryMin = entryMinute + (leg.entryOffsetMin ?? 0);
+    const legExitMin = Math.min(effectiveExitMin, ctx.exitMin - (leg.exitOffsetMin ?? 0));
+    if (legEntryMin <= entryMinute) {
+      // Immediate leg — resolve + open at the entry bar's open spot.
+      const res = openLegAt(
+        leg,
+        direction,
+        qty,
         index,
-        dd.chain,
-        leg.optionType,
-        intent.target,
-        intent.band,
-        prices,
-        spot
+        dd,
+        entryBar.o,
+        entryMinute,
+        legExitMin,
+        ctx
       );
+      if (res.excluded) {
+        excluded = true;
+        break;
+      }
+      if (res.substituted) substituted = true;
+      if (res.lowLiquidity) dayLowLiquidity = true;
+      turnover = r2(turnover + res.ol!.entryFill * qty);
+      open.push(res.ol!);
     } else {
-      resolution = resolveStrike(index, dd.chain, leg.optionType, intent, spot);
+      pending.push({ leg, direction, qty, entryMinute: legEntryMin, legExitMin });
     }
+  }
 
-    if (resolution === null) {
-      // A required leg cannot resolve → the whole day is excluded (MISSING_LEG).
-      return { excluded: true, row: emptyRow(dd.day), inPositionMinutes: 0, turnover: 0 };
-    }
-    if (resolution.served !== resolution.requested) substituted = true;
-
-    const legBars = indexByMinute(dd.option(resolution.served, leg.optionType));
-    // A leg with ZERO real prints all day cannot trade → MISSING_LEG (§7.4).
-    if (legBars.size === 0) {
-      return { excluded: true, row: emptyRow(dd.day), inPositionMinutes: 0, turnover: 0 };
-    }
-
-    // Entry fill = entry bar's open (time entry, §3.1), slipped adversely.
-    const entryOptBar = legBars.get(entryMinute);
-    const cleanEntry = entryOptBar ? entryOptBar.o : nearestPriorMark(legBars, entryMinute);
-    const entryVol = entryOptBar ? entryOptBar.v : 0;
-    const { fill: entryFill, illiquid } = applySlippage(cleanEntry, ctx.slip, {
-      side: direction === "long" ? "buy" : "sell",
-      coverage: resolution.coverage,
-      barVolume: entryVol,
-    });
-    if (illiquid) dayLowLiquidity = true;
-    turnover = r2(turnover + entryFill * qty);
-
-    open.push({
-      leg,
-      direction,
-      optionType: leg.optionType,
-      qty,
-      strike: resolution.served,
-      resolution,
-      entryFill,
-      lastMark: cleanEntry,
-      staleMarks: 0,
-      slLevel: computeRiskLevel(leg.stopLoss, direction, "sl", entryFill),
-      targetLevel: computeRiskLevel(leg.target, direction, "target", entryFill),
-      trailAnchor: leg.trailingStop ? entryFill : null,
-      bars: legBars,
-      reentries: 0,
-      booked: [],
-      lastExitTs: -1,
-      pendingReentry: false,
-    });
+  if (excluded) {
+    return { excluded: true, row: emptyRow(dd.day), inPositionMinutes: 0, turnover: 0 };
   }
 
   // ── Bar-by-bar replay from entry to square-off (native 1-min) ─────────────
@@ -568,14 +577,34 @@ function replayDay(
   };
 
   const overall = config.risk;
-  const squareOffMode = enabledLegs[0]!.squareOff; // partial vs complete (leg-level)
 
   for (const b of dd.index) {
     const mod = minuteOfDayIST(b.ts);
     if (mod < entryMinute) continue;
+    // Never process a bar past the early-close cap (BT fix #4): force off + stop.
+    if (mod > effectiveExitMin) break;
 
-    // Stop only when no legs are open AND no leg has re-entry budget left.
-    if (state.legs.length === 0 && !hasReentryBudget(state)) break;
+    // Open any deferred leg whose own entry minute has arrived (BT fix #3),
+    // resolved against this bar's open spot. A deferred required leg that cannot
+    // resolve excludes the whole day (atomic entry).
+    if (pending.length > 0) {
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const p = pending[i]!;
+        if (mod < p.entryMinute) continue;
+        const res = openLegAt(p.leg, p.direction, p.qty, index, dd, b.o, mod, p.legExitMin, ctx);
+        pending.splice(i, 1);
+        if (res.excluded) {
+          return { excluded: true, row: emptyRow(dd.day), inPositionMinutes: 0, turnover: 0 };
+        }
+        if (res.substituted) substituted = true;
+        if (res.lowLiquidity) dayLowLiquidity = true;
+        state.turnover = r2(state.turnover + res.ol!.entryFill * p.qty);
+        state.legs.push(res.ol!);
+      }
+    }
+
+    // Stop only when no legs are open AND no pending entry AND no re-entry budget.
+    if (state.legs.length === 0 && pending.length === 0 && !hasReentryBudget(state)) break;
 
     if (state.legs.length > 0) {
       state.inPositionMinutes += 1;
@@ -586,15 +615,22 @@ function replayDay(
     // carry-forward for holes.
     markLegs(state.legs, mod);
 
-    // Forced square-off at exit minute or 15:29 (§7.1) — supersedes risk.
-    if (mod >= ctx.exitMin) {
-      forceSquareOff(state, ctx, mod, "time");
+    // Per-leg forced square-off at each leg's own exit cap (BT fix #3/#4): a leg
+    // whose legExitMin is reached squares now (exercise-settled only if held to
+    // the expiry-day EOD), independent of the strategy-wide exit. Survivors continue.
+    forceSquareOffDueLegs(state, ctx, mod, effectiveExitMin, isExpiryDay, settlementSpot);
+
+    // Strategy-wide forced square-off at effectiveExitMin (§7.1) — supersedes
+    // risk. All remaining legs settle here (exercise-aware on expiry day).
+    if (mod >= effectiveExitMin) {
+      forceSquareOff(state, ctx, mod, "time", isExpiryDay, settlementSpot);
       break;
     }
 
     // FIXED within-bar order (§5.3), pinned by tests:
-    // (1) Per-leg SL / target (intrabar, SL-first tie-break §5.1).
-    applyPerLegRisk(state, ctx, b, mod, squareOffMode);
+    // (1) Per-leg SL / target (intrabar, SL-first tie-break §5.1). The
+    //     partial-vs-complete decision is made PER HITTING LEG (BT fix #2).
+    applyPerLegRisk(state, ctx, b, mod);
 
     // (2) Overall MTM SL / target (§5.2). Skipped once everything is closed.
     if (state.legs.length > 0) {
@@ -614,10 +650,18 @@ function replayDay(
     maybeReenter(state, ctx, b, mod);
   }
 
+  // A deferred leg that never reached its entry minute before the day's
+  // effective close (entryOffsetMin pushed it past exit, or no bar arrived)
+  // breaks atomic entry — exclude the whole day rather than book a partial
+  // structure the user never asked for.
+  if (pending.length > 0) {
+    return { excluded: true, row: emptyRow(dd.day), inPositionMinutes: 0, turnover: 0 };
+  }
+
   // Any leg still open at end (e.g. exit bar reached via break above already
-  // squared; this catches the all-bars-consumed case) → settle at last mark.
+  // squared; this catches the all-bars-consumed case) → settle (exercise-aware).
   if (state.legs.length > 0) {
-    forceSquareOff(state, ctx, EOD_SQUAREOFF_MIN, "eod");
+    forceSquareOff(state, ctx, effectiveExitMin, "eod", isExpiryDay, settlementSpot);
   }
 
   // ── Book the day ──────────────────────────────────────────────────────────
@@ -628,11 +672,13 @@ function replayDay(
   const charges = r2(allBooked.reduce((s, bl) => s + bl.charges, 0));
   const net = r2(allBooked.reduce((s, bl) => s + bl.net, 0));
 
-  const rowFlags: RunFlag[] = [];
+  const rowFlags: BlotterFlag[] = [];
   if (substituted) rowFlags.push("COVERAGE");
   if (dayLowLiquidity || allBooked.some((bl) => bl.resolution.confidence === "low")) {
     rowFlags.push("LOW_LIQUIDITY");
   }
+  // EXERCISED marker (BT fix #1): any leg settled at intrinsic via exercise.
+  if (allBooked.some((bl) => bl.settlement === "exercise")) rowFlags.push("EXERCISED");
 
   const row: BlotterRow = {
     day: dd.day,
@@ -652,6 +698,188 @@ function replayDay(
     inPositionMinutes: state.inPositionMinutes,
     turnover: state.turnover,
   };
+}
+
+/**
+ * The settlement spot reference for expiry-day intrinsic settlement (BT fix #1).
+ * v1 = the day's LAST index close (the carried-forward close of the final bar).
+ * Upgrade to the last-30-min spot VWAP behind this helper later; the call sites
+ * never change. Returns null when the index has no bars (no settlement possible).
+ */
+function settlementSpotOf(index: Series): number | null {
+  if (index.length === 0) return null;
+  return index[index.length - 1]!.c;
+}
+
+/**
+ * Intrinsic value (per contract, in option-price units) of an option at a spot.
+ * CE = max(0, spot − strike); PE = max(0, strike − spot). Cash-settled index
+ * options settle at exactly this on expiry.
+ */
+function intrinsicAt(optionType: OptionType, strike: number, spot: number): number {
+  const v = optionType === "CE" ? spot - strike : strike - spot;
+  return v > 0 ? v : 0;
+}
+
+/**
+ * True when a still-open leg held to its expiry-day EOD must be EXERCISE-settled
+ * at intrinsic (the "STT trap"): a LONG (buy) leg that is ITM at the settlement
+ * spot. SHORT legs are assigned (their premium-sell STT already covers them) and
+ * OTM legs (intrinsic 0) stay on the ordinary LTP path — settling them at 0
+ * intrinsic equals their worthless expiry anyway, but only the LONG-ITM case
+ * carries the distinct exercise-STT cost, so that is the case we branch on.
+ */
+function isExerciseSettled(
+  ol: OpenLeg,
+  isExpiryDay: boolean,
+  settlementSpot: number | null
+): boolean {
+  if (!isExpiryDay || settlementSpot === null) return false;
+  if (ol.direction !== "long") return false;
+  return intrinsicAt(ol.optionType, ol.strike, settlementSpot) > EPS;
+}
+
+/** Result of opening a single leg at a given bar/spot. */
+interface OpenLegResult {
+  ol: OpenLeg | null;
+  excluded: boolean;
+  substituted: boolean;
+  lowLiquidity: boolean;
+}
+
+/**
+ * Resolve + open ONE leg at `mod` against `spot` (the bar's open). Pure factory
+ * shared by the immediate-entry, deferred-entry (offset) and bar paths so every
+ * entry resolves identically. Returns excluded=true when the leg cannot resolve
+ * or has no prints (atomic-entry → whole day excluded by the caller).
+ */
+function openLegAt(
+  leg: LegDef,
+  direction: Direction,
+  qty: number,
+  index: IndexSymbol,
+  dd: DayData,
+  spot: number,
+  mod: number,
+  legExitMin: number,
+  ctx: ReplayCtx
+): OpenLegResult {
+  const intent = toIntent(leg);
+  let resolution: StrikeResolution | null;
+  if (intent.kind === "premium") {
+    const prices = new Map<number, number>();
+    for (const c of dd.chain) {
+      if (c.optionType !== leg.optionType) continue;
+      const s = dd.option(c.strike, leg.optionType);
+      const b = s.find((bb) => minuteOfDayIST(bb.ts) === mod) ?? s[0];
+      if (b) prices.set(c.strike, b.o);
+    }
+    resolution = resolvePremiumStrike(
+      index,
+      dd.chain,
+      leg.optionType,
+      intent.target,
+      intent.band,
+      prices,
+      spot
+    );
+  } else {
+    resolution = resolveStrike(index, dd.chain, leg.optionType, intent, spot);
+  }
+  if (resolution === null) {
+    return { ol: null, excluded: true, substituted: false, lowLiquidity: false };
+  }
+  const substituted = resolution.served !== resolution.requested;
+
+  const legBars = indexByMinute(dd.option(resolution.served, leg.optionType));
+  if (legBars.size === 0) {
+    return { ol: null, excluded: true, substituted, lowLiquidity: false };
+  }
+
+  const entryOptBar = legBars.get(mod);
+  const cleanEntry = entryOptBar ? entryOptBar.o : nearestPriorMark(legBars, mod);
+  const entryVol = entryOptBar ? entryOptBar.v : 0;
+  const { fill: entryFill, illiquid } = applySlippage(cleanEntry, ctx.slip, {
+    side: direction === "long" ? "buy" : "sell",
+    coverage: resolution.coverage,
+    barVolume: entryVol,
+  });
+
+  const ol: OpenLeg = {
+    leg,
+    direction,
+    optionType: leg.optionType,
+    qty,
+    strike: resolution.served,
+    resolution,
+    entryFill,
+    lastMark: cleanEntry,
+    staleMarks: 0,
+    slLevel: computeRiskLevel(leg.stopLoss, direction, "sl", entryFill),
+    targetLevel: computeRiskLevel(leg.target, direction, "target", entryFill),
+    trailAnchor: leg.trailingStop ? entryFill : null,
+    bars: legBars,
+    reentries: 0,
+    booked: [],
+    lastExitTs: -1,
+    pendingReentry: false,
+    enteredAt: mod,
+    legExitMin,
+  };
+  return { ol, excluded: false, substituted, lowLiquidity: illiquid };
+}
+
+/**
+ * Force-square any open leg whose per-leg exit cap (legExitMin) is reached at
+ * `mod` (BT fix #3/#4). A leg is EXERCISE-settled (BT fix #1) ONLY when it is
+ * held to the expiry-day EOD — i.e. `mod >= effectiveExitMin`. A leg squared
+ * EARLY by its own exitOffsetMin (legExitMin < effectiveExitMin) is a market
+ * exit and settles at LTP even on expiry day. Survivors stay open.
+ */
+function forceSquareOffDueLegs(
+  state: DayState,
+  ctx: ReplayCtx,
+  mod: number,
+  effectiveExitMin: number,
+  isExpiryDay: boolean,
+  settlementSpot: number | null
+): void {
+  if (state.legs.length === 0) return;
+  const atEod = mod >= effectiveExitMin;
+  const survivors: OpenLeg[] = [];
+  for (const ol of state.legs) {
+    if (mod >= ol.legExitMin) {
+      // Exercise only at the true EOD; an early per-leg exit is an LTP market exit.
+      settleLegAt(state, ctx, ol, mod, "time", isExpiryDay && atEod, settlementSpot);
+    } else {
+      survivors.push(ol);
+    }
+  }
+  state.legs = survivors;
+}
+
+/**
+ * Settle ONE leg at `mod`: exercise-at-intrinsic for an expiry-day ITM long (the
+ * "STT trap"), else at the last traded price (LTP, invariant 4). Routes to
+ * bookExit with the right settlement flag.
+ */
+function settleLegAt(
+  state: DayState,
+  ctx: ReplayCtx,
+  ol: OpenLeg,
+  mod: number,
+  reason: string,
+  isExpiryDay: boolean,
+  settlementSpot: number | null
+): void {
+  if (isExerciseSettled(ol, isExpiryDay, settlementSpot)) {
+    const intrinsic = intrinsicAt(ol.optionType, ol.strike, settlementSpot!);
+    bookExit(state, ctx, ol, intrinsic, lastTs(ol, mod), mod, reason, "exercise");
+  } else {
+    const bar = ol.bars.get(mod);
+    const clean = bar ? bar.c : ol.lastMark;
+    bookExit(state, ctx, ol, clean, lastTs(ol, mod), mod, reason, "ltp");
+  }
 }
 
 /** Compute an SL/target premium level (option-price space) from a leg trigger. */
@@ -707,16 +935,17 @@ function nearestPriorMark(bars: Map<number, Bar>, mod: number): number {
   return earliest ? earliest.o : EPS;
 }
 
-/** Apply per-leg SL/target at minute `mod`, SL-first tie-break (§5.1). */
-function applyPerLegRisk(
-  state: DayState,
-  ctx: ReplayCtx,
-  b: Bar,
-  mod: number,
-  squareOffMode: "partial" | "complete"
-): void {
+/**
+ * Apply per-leg SL/target at minute `mod`, SL-first tie-break (§5.1). The
+ * partial-vs-complete square-off is decided PER HITTING LEG (BT fix #2): a leg
+ * whose OWN `squareOff === 'complete'` triggers squares EVERY survivor; a
+ * `'partial'` leg squares only itself. The strategy-wide enabledLegs[0] mode is
+ * gone — each leg's own setting is honoured. If any leg that hit this bar is
+ * `complete`, all survivors are squared at the bar's close.
+ */
+function applyPerLegRisk(state: DayState, ctx: ReplayCtx, b: Bar, mod: number): void {
   const survivors: OpenLeg[] = [];
-  let anyHit = false;
+  let completeHit = false;
   for (const ol of state.legs) {
     const bar = ol.bars.get(mod);
     if (!bar) {
@@ -738,23 +967,23 @@ function applyPerLegRisk(
       // SL FIRST — even if target also inside the bar (§5.1, invariant 5).
       // Gap-aware fill (invariant 9): can't fill better than the bar's open.
       const fillClean = gapAwareLevelFill(bar, ol.slLevel!, ol.direction, "sl");
-      bookExit(state, ctx, ol, fillClean, b.ts, mod, "leg-sl");
-      anyHit = true;
+      bookExit(state, ctx, ol, fillClean, b.ts, mod, "leg-sl", "ltp");
+      if (ol.leg.squareOff === "complete") completeHit = true;
       continue;
     }
     if (tgtHit) {
       const fillClean = gapAwareLevelFill(bar, ol.targetLevel!, ol.direction, "target");
-      bookExit(state, ctx, ol, fillClean, b.ts, mod, "leg-target");
-      anyHit = true;
+      bookExit(state, ctx, ol, fillClean, b.ts, mod, "leg-target", "ltp");
+      if (ol.leg.squareOff === "complete") completeHit = true;
       continue;
     }
     survivors.push(ol);
   }
 
-  if (anyHit && squareOffMode === "complete" && survivors.length > 0) {
-    // Any per-leg trigger squares the whole strategy at the current bar's close.
+  if (completeHit && survivors.length > 0) {
+    // A `complete` hitting leg squares the whole strategy at the bar's close.
     for (const ol of survivors) {
-      bookExit(state, ctx, ol, ol.lastMark, b.ts, mod, "leg-sl");
+      bookExit(state, ctx, ol, ol.lastMark, b.ts, mod, "leg-sl", "ltp");
     }
     state.legs = [];
   } else {
@@ -850,9 +1079,10 @@ function applyOverallMtmRisk(
 
   if (breach) {
     // Square off ALL open legs at the current bar close (conservative; threshold
-    // crossed intrabar so we don't wait for next-bar open here).
+    // crossed intrabar so we don't wait for next-bar open here). An overall-MTM
+    // breach is an intraday market exit → LTP settlement, never exercise.
     for (const ol of [...state.legs]) {
-      bookExit(state, ctx, ol, ol.lastMark, b.ts, mod, breach);
+      bookExit(state, ctx, ol, ol.lastMark, b.ts, mod, breach, "ltp");
     }
     state.legs = [];
     state.exitReason = breach;
@@ -975,6 +1205,8 @@ function maybeReenter(state: DayState, ctx: ReplayCtx, b: Bar, mod: number): voi
       booked: [], // its own booking record; the prior round-trip stays in `closed`
       lastExitTs: -1,
       pendingReentry: false,
+      enteredAt: mod,
+      legExitMin: ol.legExitMin, // re-entry inherits the parent leg's exit cap
     });
     // Consume the prior cycle's re-entry; it stays in `closed` so its booked
     // round-trip is collected at EOD.
@@ -982,14 +1214,22 @@ function maybeReenter(state: DayState, ctx: ReplayCtx, b: Bar, mod: number): voi
   }
 }
 
-/** Force-square every open leg at `mod` from its last mark (expiry/EOD settles at LTP §2). */
-function forceSquareOff(state: DayState, ctx: ReplayCtx, mod: number, reason: string): void {
+/**
+ * Force-square every open leg at `mod` (§7.1). NON-expiry / OTM legs settle at
+ * the LAST TRADED price (invariant 4); an expiry-day ITM LONG is EXERCISE-settled
+ * at intrinsic and carries the exercise STT (BT fix #1). The settlement decision
+ * is per-leg via settleLegAt.
+ */
+function forceSquareOff(
+  state: DayState,
+  ctx: ReplayCtx,
+  mod: number,
+  reason: string,
+  isExpiryDay: boolean,
+  settlementSpot: number | null
+): void {
   for (const ol of [...state.legs]) {
-    // Settle at the LAST TRADED price (the square-off bar close / lastMark),
-    // NOT intrinsic value (invariant 4).
-    const bar = ol.bars.get(mod);
-    const clean = bar ? bar.c : ol.lastMark;
-    bookExit(state, ctx, ol, clean, lastTs(ol, mod), mod, reason);
+    settleLegAt(state, ctx, ol, mod, reason, isExpiryDay, settlementSpot);
   }
   state.legs = [];
   if (state.exitReason === "time" && reason !== "time") state.exitReason = reason;
@@ -1002,8 +1242,15 @@ function lastTs(ol: OpenLeg, mod: number): number {
 
 /**
  * Book a leg exit: apply adverse exit slippage, compute gross via computeGrossPnl,
- * charge ONE computeCharges round-trip (OPT premium-sell branch), and push a
- * BookedLeg. Moves the leg into state.closed.
+ * charge ONE computeCharges round-trip, and push a BookedLeg. Moves the leg into
+ * state.closed.
+ *
+ * `settlement` selects the charge basis (BT fix #1): "ltp" is the ordinary OPT
+ * premium round-trip (sell-side STT); "exercise" is an expiry-day intrinsic
+ * settlement of a net-long ITM option — NO slippage on the settlement (it is a
+ * mechanical settle, not a market trade), the 0.125% exercise STT replaces the
+ * premium-sell STT, and exitPrice is the intrinsic settlement value so gross P&L
+ * is correct.
  */
 function bookExit(
   state: DayState,
@@ -1012,16 +1259,24 @@ function bookExit(
   cleanExit: number,
   exitTs: number,
   mod: number,
-  reason: string
+  reason: string,
+  settlement: "ltp" | "exercise"
 ): void {
   void reason;
-  void mod;
-  const exitBar = ol.bars.get(mod);
-  const { fill: exitFill } = applySlippage(cleanExit, ctx.slip, {
-    side: fillExitSide(ol.direction),
-    coverage: ol.resolution.coverage,
-    barVolume: exitBar ? exitBar.v : 0,
-  });
+  const isExercise = settlement === "exercise";
+  // Exercise settlement is mechanical (no market fill) → no exit slippage. A
+  // normal market square-off slips adversely.
+  let exitFill: number;
+  if (isExercise) {
+    exitFill = r2(cleanExit);
+  } else {
+    const exitBar = ol.bars.get(mod);
+    exitFill = applySlippage(cleanExit, ctx.slip, {
+      side: fillExitSide(ol.direction),
+      coverage: ol.resolution.coverage,
+      barVolume: exitBar ? exitBar.v : 0,
+    }).fill;
+  }
   state.turnover = r2(state.turnover + exitFill * ol.qty);
 
   const gross = computeGrossPnl({
@@ -1038,6 +1293,8 @@ function bookExit(
     entryPrice: ol.entryFill,
     exitPrice: exitFill,
     qty: ol.qty,
+    // Exercise STT (the "STT trap"): 0.125% of the intrinsic settlement notional.
+    ...(isExercise ? { exercise: { intrinsicNotional: exitFill * ol.qty } } : {}),
   }).total;
   const net = r2(gross - charges);
 
@@ -1053,6 +1310,7 @@ function bookExit(
     charges,
     net,
     reentries: ol.reentries,
+    settlement,
   };
   ol.booked.push(booked);
   ol.lastExitTs = exitTs;

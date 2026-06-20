@@ -107,6 +107,17 @@ export const bookedLegSchema = z.object({
   charges: z.number(),
   net: z.number(),
   reentries: z.number().int().min(0),
+  /**
+   * How the leg was closed:
+   *  - "ltp"      — squared at the last traded price (every intraday exit, every
+   *                 OTM/non-expiry square-off). The implicit default.
+   *  - "exercise" — a net-long ITM option settled at INTRINSIC value on its
+   *                 expiry-day EOD (the "STT trap"): exitPrice is intrinsic and
+   *                 the charges include the 0.125% exercise STT.
+   * Optional for back-compat: legacy runs (and hand-built fixtures) omit it and
+   * are read as "ltp". The engine ALWAYS sets it on a real booking.
+   */
+  settlement: z.enum(["ltp", "exercise"]).optional(),
 });
 export type BookedLeg = z.infer<typeof bookedLegSchema>;
 
@@ -124,7 +135,12 @@ export const blotterRowSchema = z.object({
   net: z.number(),
   /** True if any leg was substituted to a nearer strike this day. */
   substituted: z.boolean(),
-  flags: z.array(z.enum(["COVERAGE", "LOW_LIQUIDITY", "MISSING_LEG"])),
+  /**
+   * Per-day correctness markers. EXERCISED is set when a leg on this day was
+   * settled at intrinsic via exercise (long ITM at expiry-day EOD) — it carries
+   * the exercise-STT cost and a distinct settlement, so the blotter surfaces it.
+   */
+  flags: z.array(z.enum(["COVERAGE", "LOW_LIQUIDITY", "MISSING_LEG", "EXERCISED"])),
 });
 export type BlotterRow = z.infer<typeof blotterRowSchema>;
 

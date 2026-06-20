@@ -64,6 +64,13 @@ export interface ChargeProfile {
   brokerageFutMaxPct: number;
   /** STT: options — on premium, SELL side. */
   sttOptionSellPct: number;
+  /**
+   * STT: options EXERCISED at expiry (the "STT trap") — on the INTRINSIC
+   * settlement value of a net-long ITM option that is exercised/settled, charged
+   * to the buyer. 0.125% (vs the 0.0625% effective sell-side premium STT). This
+   * line only fires on an expiry-day intrinsic settlement of a long ITM leg.
+   */
+  sttOptionExercisePct: number;
   /** STT: futures — on turnover, SELL side. */
   sttFutureSellPct: number;
   /** STT: equity intraday — SELL side. */
@@ -164,6 +171,7 @@ const exchangeTxn: Record<Exchange, ExchangeTxnRates> = {
 // Statutory charges are identical across brokers (set by govt/exchanges).
 const statutory = {
   sttOptionSellPct: 0.0015, // 0.15% on premium (sell) — Budget 2026
+  sttOptionExercisePct: 0.00125, // 0.125% on intrinsic settlement value — exercised ITM long
   sttFutureSellPct: 0.0005, // 0.05% (sell) — Budget 2026
   sttEquityIntradaySellPct: 0.00025, // 0.025% (sell)
   sttEquityDeliveryPct: 0.001, // 0.1% on BOTH buy + sell turnover (delivery)
@@ -280,6 +288,7 @@ export const CHARGE_PROFILES: ChargeProfile[] = [
     brokerageFutMaxPct: 0,
     ...statutory,
     sttOptionSellPct: 0,
+    sttOptionExercisePct: 0,
     sttFutureSellPct: 0,
     sttEquityIntradaySellPct: 0,
     sttEquityDeliveryPct: 0,
