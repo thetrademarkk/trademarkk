@@ -30,42 +30,64 @@ export function ReturnsTab({ run }: { run: RunResult }) {
 
   return (
     <TooltipProvider delayDuration={120}>
-      <div className="space-y-3" data-testid="bt-returns-tab">
-        <h3 className="text-sm font-semibold">Monthly returns</h3>
+      <div className="space-y-3 bt-boot bt-boot-1" data-testid="bt-returns-tab">
+        <h3 className="bt-display text-sm font-semibold">Monthly returns</h3>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] border-separate border-spacing-1 text-center text-xs">
             <thead>
               <tr>
-                <th className="w-10 text-left font-normal text-muted">Yr</th>
+                <th className="bt-label w-10 text-left">Yr</th>
                 {MONTH_LABELS.map((m) => (
-                  <th key={m} className="font-normal text-muted">
+                  <th key={m} className="bt-label">
                     {m[0]}
                   </th>
                 ))}
-                <th className="pl-2 text-right font-normal text-muted">cov</th>
+                <th className="bt-label pl-2 text-right">cov</th>
               </tr>
             </thead>
             <tbody>
               {grid.rows.map((row) => (
                 <tr key={row.year}>
-                  <td className="text-left text-muted">{row.year}</td>
+                  <td className="bt-num text-left text-muted">{row.year}</td>
                   {row.cells.map((cell) => (
                     <td key={cell.month} className="p-0">
                       <HeatCell cell={cell} maxAbs={grid.maxAbs} />
                     </td>
                   ))}
-                  <td className="pl-2 text-right tabular-nums text-muted">{row.covered}/12</td>
+                  <td className="pl-2 text-right">
+                    <span className="inline-flex items-center justify-end gap-1.5">
+                      <CoverageMeter covered={row.covered} total={12} />
+                      <span className="font-money tabular-nums text-muted">{row.covered}/12</span>
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="flex items-center gap-2 text-[11px] text-muted">
+        <p className="bt-label flex items-center gap-2 normal-case tracking-normal">
           <span className="inline-block h-3 w-3 rounded-sm bt-hatch" aria-hidden /> Hatched = no
-          data for that month (never shown as ₹0).
+          data for that month (never shown as <span className="font-money">₹0</span>).
         </p>
       </div>
     </TooltipProvider>
+  );
+}
+
+/**
+ * The 5-segment coverage honesty bar. Lights `on` segments proportional to the
+ * covered fraction; partial coverage tints amber (warn), none tints red (bad).
+ */
+function CoverageMeter({ covered, total }: { covered: number; total: number }) {
+  const frac = total > 0 ? covered / total : 0;
+  const lit = Math.round(frac * 5);
+  const tone = frac >= 0.999 ? "1" : frac > 0 ? "warn" : "bad";
+  return (
+    <span className="bt-meter" aria-hidden>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} className="bt-meter-seg" data-on={i < lit ? tone : undefined} />
+      ))}
+    </span>
   );
 }
 
@@ -91,7 +113,7 @@ function HeatCell({ cell, maxAbs }: { cell: MonthCell; maxAbs: number }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className="flex h-7 w-full items-center justify-center rounded-sm text-[10px] font-medium tabular-nums"
+          className="flex h-7 w-full items-center justify-center rounded-sm font-money text-[10px] font-medium tabular-nums"
           style={{ background: `color-mix(in srgb, ${token} ${pctMix}%, var(--surface))` }}
           aria-label={`${cell.month}: ${formatINR(cell.pnl, { signed: true })}`}
         >

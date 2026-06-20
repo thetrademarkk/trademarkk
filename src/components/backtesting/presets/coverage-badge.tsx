@@ -33,6 +33,31 @@ const TONE_CLASS: Record<CoverageBucketInfo["tone"], string> = {
   muted: "bg-surface-2 text-muted border",
 };
 
+/** Terminal "signal bar" data-on value for a coverage tone (profit→on, warning, loss→bad). */
+const SEG_ON: Record<CoverageBucketInfo["tone"], string> = {
+  profit: "1",
+  warning: "warn",
+  loss: "bad",
+  muted: "0",
+};
+
+/**
+ * The 5-segment honesty signal bar (Terminal `bt-meter`). Lights `ceil(pct/20)`
+ * segments in the bucket's tone; an unknown/null coverage lights none. Purely
+ * presentational — aria copy still lives on the pill, so this is `aria-hidden`.
+ */
+function CoverageMeter({ info }: { info: CoverageBucketInfo }) {
+  const lit = info.percent == null ? 0 : Math.max(1, Math.ceil(info.percent / 20));
+  const on = SEG_ON[info.tone];
+  return (
+    <span className="bt-meter" aria-hidden>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span key={i} className="bt-meter-seg" data-on={i < lit ? on : "0"} />
+      ))}
+    </span>
+  );
+}
+
 export interface CoverageBadgeProps {
   /** Coverage as a fraction 0..1, or null/undefined for the honest unknown state. */
   fraction: number | null | undefined;
@@ -67,7 +92,7 @@ export function CoverageBadge({
             data-coverage-bucket={info.bucket}
             data-coverage-percent={pct ?? ""}
             className={cn(
-              "inline-flex cursor-help items-center gap-1 rounded-md font-medium",
+              "inline-flex cursor-help items-center gap-1.5 rounded-md font-mono font-medium",
               size === "sm" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-xs",
               TONE_CLASS[info.tone],
               className
@@ -79,6 +104,7 @@ export function CoverageBadge({
             ) : (
               <Database className="h-3 w-3 shrink-0" aria-hidden />
             )}
+            <CoverageMeter info={info} />
             <span>
               {info.label}
               {pct != null ? ` · ${pct}%` : ""}

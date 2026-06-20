@@ -58,11 +58,11 @@ function Stat({
   tone?: "profit" | "loss" | "default";
 }) {
   return (
-    <div className="rounded-lg border bg-surface px-3 py-2">
-      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+    <div className="bt-panel px-3 py-2">
+      <div className="bt-label">{label}</div>
       <div
         className={cn(
-          "mt-0.5 text-sm font-semibold tabular-nums",
+          "bt-num mt-1 text-sm font-semibold tabular-nums",
           tone === "profit" && "text-profit",
           tone === "loss" && "text-loss"
         )}
@@ -83,18 +83,18 @@ function Stat({
 export function SampleResultCard({ run, sample = false }: { run: RunResult; sample?: boolean }) {
   const s = run.stats;
   return (
-    <div className="rounded-2xl border bg-surface-2 p-4 shadow-sm sm:p-5">
+    <div className="bt-panel bt-ticks p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent" aria-hidden />
-          <span className="text-sm font-semibold">{run.config.name}</span>
+          <span className="bt-display text-sm font-semibold">{run.config.name}</span>
           {sample && (
             <Badge variant="secondary" className="uppercase tracking-wide">
               Sample
             </Badge>
           )}
         </div>
-        <span className="text-[11px] text-muted">
+        <span className="bt-label">
           {run.config.market.symbol} · {run.config.market.dateRange.start} →{" "}
           {run.config.market.dateRange.end}
         </span>
@@ -123,8 +123,8 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
         <Stat label="Sharpe" value={s.sharpe.toFixed(2)} />
       </div>
 
-      <div className="mt-4 rounded-lg border bg-surface p-3">
-        <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted">
+      <div className="bt-panel mt-4 p-3">
+        <div className="bt-label mb-1.5 flex items-center gap-1.5">
           {s.netPnl >= 0 ? (
             <TrendingUp className="h-3.5 w-3.5 text-profit" aria-hidden />
           ) : (

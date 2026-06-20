@@ -97,7 +97,7 @@ export function CompareClient() {
           so it needs your journal. Open the journal once on this device — try the demo, your own
           browser-local journal, or sign in — then come back.
         </p>
-        <Button asChild size="sm" className="mt-3">
+        <Button asChild size="sm" className="mt-3 font-mono uppercase tracking-wide">
           <Link href="/app">Open the journal</Link>
         </Button>
       </StateCard>
@@ -108,7 +108,12 @@ export function CompareClient() {
     return (
       <StateCard icon={Lock} title="Your journal is locked">
         Unlock your encrypted journal in the app first, then return to run a comparison.
-        <Button asChild size="sm" variant="outline" className="mt-3">
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          className="mt-3 font-mono uppercase tracking-wide"
+        >
           <Link href="/app">Unlock the journal</Link>
         </Button>
       </StateCard>
@@ -154,13 +159,16 @@ function CompareReady() {
   return (
     <div className="space-y-5">
       {/* Opt-in control — nothing is computed until the user asks. */}
-      <section className="rounded-2xl border bg-surface p-4 sm:p-5">
+      <section className="bt-panel bt-ticks p-4 sm:p-5 bt-boot bt-boot-1">
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/40 bg-[var(--bt-amber-dim)]">
             <GitCompareArrows className="h-5 w-5 text-accent" aria-hidden />
           </span>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold">Did you trade your plan?</h2>
+            <p className="bt-label text-accent">
+              <span className="bt-prompt">journal compare</span>
+            </p>
+            <h2 className="bt-display mt-1 text-base font-semibold">Did you trade your plan?</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
               Overlay your real NIFTY journal trades on a mechanical baseline of the same idea — a
               9:20 short straddle squared off at close — and see exactly where your discretionary
@@ -173,6 +181,7 @@ function CompareReady() {
                 onClick={runComparison}
                 disabled={loading || running || tradeCount === 0}
                 data-testid="bt-compare-run"
+                className="font-mono uppercase tracking-wide"
               >
                 {running ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -181,12 +190,13 @@ function CompareReady() {
                 )}
                 Run comparison
               </Button>
-              <span className="text-xs text-muted">
+              <span className="bt-label">
                 {loading
                   ? "Loading your trades…"
                   : `${tradeCount} trade${tradeCount === 1 ? "" : "s"} in your journal`}
               </span>
             </div>
+            {running && <div className="bt-scanline mt-3 h-0.5 rounded bg-border" aria-hidden />}
           </div>
         </div>
       </section>
@@ -256,14 +266,14 @@ function StateCard({
 }) {
   return (
     <div
-      className="rounded-2xl border bg-surface p-6 text-center"
+      className="bt-panel bt-boot bt-boot-1 p-6 text-center"
       data-testid={testId ?? "bt-compare-state"}
     >
       <Icon
         className={`mx-auto mb-3 h-8 w-8 text-muted${spin ? " animate-spin" : ""}`}
         aria-hidden
       />
-      <h2 className="text-base font-semibold">{title}</h2>
+      <h2 className="bt-display text-base font-semibold">{title}</h2>
       <div className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-muted">{children}</div>
     </div>
   );

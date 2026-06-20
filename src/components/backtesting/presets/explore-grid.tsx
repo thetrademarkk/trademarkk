@@ -76,10 +76,7 @@ export function ExploreGrid({
   return (
     <div>
       {/* Filter bar */}
-      <div
-        className="space-y-3 rounded-2xl border bg-surface/50 p-3 sm:p-4"
-        data-testid="explore-filters"
-      >
+      <div className="space-y-3 bt-panel p-3 sm:p-4" data-testid="explore-filters">
         {/* Row 1 — search + results count */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-xs">
@@ -98,8 +95,8 @@ export function ExploreGrid({
             />
           </div>
           <p className="text-xs text-muted sm:shrink-0">
-            Showing <span className="font-medium text-foreground">{visible.length}</span> of{" "}
-            {cards.length} strategies
+            Showing <span className="bt-num text-foreground">{visible.length}</span> of{" "}
+            <span className="bt-num text-muted">{cards.length}</span> strategies
           </p>
         </div>
 
@@ -164,7 +161,8 @@ export function ExploreGrid({
         {active && (
           <div className="flex items-center justify-between border-t pt-3">
             <span className="text-xs text-muted">
-              {visible.length} of {cards.length} match your filters
+              <span className="bt-num text-foreground">{visible.length}</span> of{" "}
+              <span className="bt-num text-muted">{cards.length}</span> match your filters
             </span>
             <button
               type="button"
@@ -187,7 +185,7 @@ export function ExploreGrid({
           ))}
         </div>
       ) : (
-        <p className="mt-8 rounded-xl border bg-surface/50 p-6 text-center text-sm text-muted">
+        <p className="mt-8 bt-panel p-6 text-center text-sm text-muted">
           No educational examples match those filters yet.
         </p>
       )}
@@ -210,9 +208,7 @@ function Segmented({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <span className="w-20 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted">
-        {label}
-      </span>
+      <span className="bt-label w-20 shrink-0">{label}</span>
       <div
         role="group"
         aria-label={label}
@@ -303,11 +299,7 @@ function TagsPopover({
             />
           </div>
         </div>
-        <div
-          role="listbox"
-          aria-label="Tags"
-          className="max-h-56 overflow-y-auto p-1"
-        >
+        <div role="listbox" aria-label="Tags" className="max-h-56 overflow-y-auto p-1">
           {shown.length === 0 ? (
             <p className="px-2 py-3 text-center text-xs text-muted">No tags match.</p>
           ) : (

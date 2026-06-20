@@ -35,9 +35,14 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
 
   return (
     <div className="space-y-5" data-testid="bt-step-legs">
-      <header className="flex items-center justify-between gap-2">
+      <header className="flex items-center justify-between gap-2 bt-boot bt-boot-1">
         <div>
-          <h2 className="text-lg font-semibold">Build your legs</h2>
+          <p className="bt-label text-accent">
+            <span className="bt-prompt">legs</span>
+          </p>
+          <h2 className="bt-display mt-1 text-lg font-semibold">
+            Build your <span className="bt-glow-text">legs</span>
+          </h2>
           <p className="mt-1 text-sm text-muted">
             {draft.legs.length} leg{draft.legs.length === 1 ? "" : "s"} · start from a template or
             add legs by hand.
@@ -49,18 +54,17 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
           size="sm"
           onClick={() => setShowTemplates((v) => !v)}
           data-testid="bt-toggle-templates"
+          className="font-mono uppercase tracking-wide"
         >
           {showTemplates ? "Hide templates" : "Templates"}
         </Button>
       </header>
 
       {showTemplates && (
-        <div className="rounded-xl border bg-surface/40 p-3" data-testid="bt-template-gallery">
+        <div className="bt-panel p-3 bt-boot bt-boot-2" data-testid="bt-template-gallery">
           {TEMPLATE_OUTLOOKS.map((outlook) => (
             <div key={outlook} className="mb-3 last:mb-0">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                {outlook}
-              </div>
+              <div className="bt-label">{outlook}</div>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {templatesByOutlook(outlook).map((t) => (
                   <button
@@ -72,10 +76,10 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
                     }}
                     data-template={t.id}
                     title={t.blurb}
-                    className="rounded-lg border bg-surface px-3 py-2 text-left text-xs transition-colors hover:border-accent hover:bg-surface-2"
+                    className="bt-panel bt-ticks px-3 py-2 text-left text-xs transition-colors hover:border-accent hover:bg-surface-2"
                   >
                     <div className="font-medium">{t.name}</div>
-                    <div className="mt-0.5 text-[11px] text-muted">{t.legs().length} legs</div>
+                    <div className="bt-label mt-0.5">{t.legs().length} legs</div>
                   </button>
                 ))}
               </div>
@@ -84,7 +88,7 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 bt-boot bt-boot-3">
         {draft.legs.map((leg, i) => (
           <LegCard
             key={leg.id}
@@ -103,11 +107,12 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
         onClick={addLeg}
         disabled={draft.legs.length >= 8}
         data-testid="bt-add-leg"
+        className="font-mono uppercase tracking-wide"
       >
         <Plus aria-hidden /> Add leg
       </Button>
       {TEMPLATES.length > 0 && draft.legs.length >= 8 && (
-        <p className="text-[11px] text-muted">Maximum 8 legs.</p>
+        <p className="bt-label">Maximum 8 legs.</p>
       )}
     </div>
   );
@@ -146,16 +151,13 @@ function LegCard({
 
   return (
     <div
-      className={cn(
-        "rounded-xl border-l-4 bg-surface p-3.5",
-        sell ? "border-l-loss/60" : "border-l-profit/60"
-      )}
+      className={cn("bt-panel border-l-4 p-3.5", sell ? "border-l-loss/60" : "border-l-profit/60")}
       data-testid={`bt-leg-${leg.id}`}
       data-leg-side={leg.side}
       data-leg-type={leg.optionType}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-muted">Leg {ordinal}</span>
+        <span className="bt-label">Leg {ordinal}</span>
 
         {/* Buy/Sell */}
         <Segmented
@@ -190,7 +192,7 @@ function LegCard({
           >
             <Minus aria-hidden />
           </Button>
-          <span className="w-6 text-center text-sm tabular-nums" data-testid={`bt-lots-${leg.id}`}>
+          <span className="bt-num w-6 text-center text-sm" data-testid={`bt-lots-${leg.id}`}>
             {leg.lots}
           </span>
           <Button
@@ -203,7 +205,9 @@ function LegCard({
           >
             <Plus aria-hidden />
           </Button>
-          <span className="ml-1 text-[11px] text-muted">= {qty} qty</span>
+          <span className="bt-label ml-1">
+            = <span className="font-money normal-case tracking-normal text-muted">{qty}</span> qty
+          </span>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
@@ -244,10 +248,14 @@ function LegCard({
 
       {served && (
         <div className="mt-2 text-[11px] text-muted" data-testid={`bt-served-${leg.id}`}>
-          Served: {formatNumber(served.strike, 0)} {leg.optionType} · est{" "}
-          {formatINR(served.premium, { decimals: true })}
+          <span className="bt-label">Served</span>{" "}
+          <span className="font-money text-foreground">{formatNumber(served.strike, 0)}</span>{" "}
+          {leg.optionType} · est{" "}
+          <span className="font-money">{formatINR(served.premium, { decimals: true })}</span>
           {requested !== null && requested !== served.strike && (
-            <span className="ml-1 text-warning">(requested {formatNumber(requested, 0)})</span>
+            <span className="ml-1 text-loss">
+              (requested <span className="font-money">{formatNumber(requested, 0)}</span>)
+            </span>
           )}
         </div>
       )}
@@ -277,8 +285,10 @@ function Segmented({
           data-value={o.value}
           data-active={value === o.value || undefined}
           className={cn(
-            "rounded-md px-2.5 py-0.5 text-xs transition-colors",
-            value === o.value ? "bg-surface font-medium shadow" : "text-muted hover:text-foreground"
+            "rounded-md px-2.5 py-0.5 font-mono text-xs uppercase tracking-wide transition-colors",
+            value === o.value
+              ? "bg-surface font-medium text-accent shadow"
+              : "text-muted hover:text-foreground"
           )}
         >
           {o.label}

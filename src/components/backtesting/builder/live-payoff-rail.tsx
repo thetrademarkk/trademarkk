@@ -25,13 +25,13 @@ function MaxValue({
 }) {
   if (unbounded) {
     return (
-      <span className={cn("font-money", tone === "profit" ? "text-profit" : "text-loss")}>
+      <span className={cn("bt-num text-sm", tone === "profit" ? "text-profit" : "text-loss")}>
         Unlimited
       </span>
     );
   }
   return (
-    <span className={cn("font-money", tone === "profit" ? "text-profit" : "text-loss")}>
+    <span className={cn("bt-num text-sm", tone === "profit" ? "text-profit" : "text-loss")}>
       {formatINR(value, { signed: true })}
     </span>
   );
@@ -52,11 +52,13 @@ export function LivePayoffRail({ summary, guides, className }: LivePayoffRailPro
 
   return (
     <div
-      className={cn("rounded-2xl border bg-surface/60 p-4", className)}
+      className={cn("bt-panel bt-ticks bg-surface/60 p-4", className)}
       data-testid="bt-live-rail"
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Live payoff</h2>
+        <h2 className="bt-label text-accent">
+          <span className="bt-prompt">live payoff</span>
+        </h2>
         <Badge variant="outline" data-testid="bt-strategy-label" data-strategy={label}>
           {label}
         </Badge>
@@ -71,31 +73,29 @@ export function LivePayoffRail({ summary, guides, className }: LivePayoffRailPro
           className="mt-2 inline-flex items-center gap-1.5 rounded-md border bg-surface px-2 py-1 text-[11px]"
           data-testid="bt-net-credit"
         >
-          <span className="text-muted">{credit ? "Net credit" : "Net debit"}</span>
-          <span className={cn("font-money", credit ? "text-profit" : "text-loss")}>
+          <span className="bt-label">{credit ? "Net credit" : "Net debit"}</span>
+          <span className={cn("bt-num text-sm", credit ? "text-profit" : "text-loss")}>
             {formatINR(Math.abs(netCredit))}
           </span>
         </div>
       )}
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-        <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">Max profit</div>
-          <div className="mt-0.5">
+        <div className="bt-panel px-2 py-1.5">
+          <div className="bt-label">Max profit</div>
+          <div className="mt-1">
             <MaxValue unbounded={curve.profitUnbounded} value={curve.maxProfit} tone="profit" />
           </div>
         </div>
-        <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">Max loss</div>
-          <div className="mt-0.5">
+        <div className="bt-panel px-2 py-1.5">
+          <div className="bt-label">Max loss</div>
+          <div className="mt-1">
             <MaxValue unbounded={curve.lossUnbounded} value={curve.maxLoss} tone="loss" />
           </div>
         </div>
-        <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">
-            Breakeven{curve.breakevens.length === 1 ? "" : "s"}
-          </div>
-          <div className="mt-0.5 font-money" data-testid="bt-breakevens">
+        <div className="bt-panel px-2 py-1.5">
+          <div className="bt-label">Breakeven{curve.breakevens.length === 1 ? "" : "s"}</div>
+          <div className="bt-num mt-1 text-sm text-foreground" data-testid="bt-breakevens">
             {curve.breakevens.length === 0
               ? "—"
               : curve.breakevens.map((b) => formatNumber(b, 0)).join(" · ")}

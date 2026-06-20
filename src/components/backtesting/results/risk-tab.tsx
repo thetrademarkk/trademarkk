@@ -22,8 +22,8 @@ export function RiskTab({ run }: { run: RunResult }) {
 
   return (
     <div className="space-y-5" data-testid="bt-risk-tab">
-      <section>
-        <h3 className="mb-2 text-sm font-semibold">Worst drawdown periods</h3>
+      <section className="bt-boot bt-boot-1">
+        <h3 className="bt-display mb-2 text-sm font-semibold">Worst drawdown periods</h3>
         {episodes.length === 0 ? (
           <p className="text-sm text-muted">
             No drawdown — equity never dipped below a prior peak.
@@ -32,22 +32,22 @@ export function RiskTab({ run }: { run: RunResult }) {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[320px] text-sm">
               <thead>
-                <tr className="border-b text-left text-xs text-muted">
-                  <th className="py-1.5 font-normal">#</th>
-                  <th className="py-1.5 font-normal">Depth</th>
-                  <th className="py-1.5 font-normal">Length</th>
-                  <th className="py-1.5 font-normal">Started</th>
+                <tr className="border-b text-left">
+                  <th className="bt-label py-1.5">#</th>
+                  <th className="bt-label py-1.5">Depth</th>
+                  <th className="bt-label py-1.5">Length</th>
+                  <th className="bt-label py-1.5">Started</th>
                 </tr>
               </thead>
               <tbody>
                 {episodes.map((e, i) => (
                   <tr key={i} className="border-b last:border-0">
-                    <td className="py-1.5 text-muted">{i + 1}</td>
-                    <td className="py-1.5 font-money text-loss">
+                    <td className="py-1.5 font-money tabular-nums text-muted">{i + 1}</td>
+                    <td className="py-1.5 font-money tabular-nums text-loss">
                       {formatINR(e.depth, { decimals: true })}
                     </td>
-                    <td className="py-1.5 tabular-nums">{e.durationDays}d</td>
-                    <td className="py-1.5 text-xs text-muted">
+                    <td className="py-1.5 font-money tabular-nums">{e.durationDays}d</td>
+                    <td className="py-1.5 font-money text-xs tabular-nums text-muted">
                       {new Date(e.startTs + 5.5 * 3600_000).toISOString().slice(0, 10)}
                     </td>
                   </tr>
@@ -58,8 +58,8 @@ export function RiskTab({ run }: { run: RunResult }) {
         )}
       </section>
 
-      <section>
-        <h3 className="mb-1 text-sm font-semibold">Monte-Carlo cone</h3>
+      <section className="bt-boot bt-boot-2">
+        <h3 className="bt-display mb-1 text-sm font-semibold">Monte-Carlo cone</h3>
         {cone ? (
           <>
             <p className="mb-2 text-xs text-muted">

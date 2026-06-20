@@ -27,11 +27,16 @@ export default function ExplorePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-      <header className="max-w-2xl">
+      <header className="max-w-2xl bt-boot bt-boot-1">
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/15">
           <Telescope className="h-5 w-5 text-accent" aria-hidden />
         </span>
-        <h1 className="mt-4 text-2xl font-bold sm:text-3xl">Explore strategies</h1>
+        <p className="mt-4 bt-label text-accent">
+          <span className="bt-prompt">strategy library</span>
+        </p>
+        <h1 className="bt-display mt-2 text-2xl font-bold sm:text-3xl">
+          Explore <span className="bt-glow-text">strategies</span>
+        </h1>
         <p className="mt-2 text-sm leading-6 text-muted">
           A library of worked options strategies across NIFTY, BANK NIFTY and SENSEX. Open any one
           in the no-code builder to tweak it, or run it to see the result shape — every card shows
@@ -41,7 +46,7 @@ export default function ExplorePage() {
 
       {/* Honest framing banner — required */}
       <div
-        className="mt-5 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs leading-5 text-muted"
+        className="mt-5 flex items-start gap-2 bt-panel p-3 text-xs leading-5 text-muted bt-boot bt-boot-2"
         data-testid="explore-disclaimer"
       >
         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
@@ -54,7 +59,7 @@ export default function ExplorePage() {
         </p>
       </div>
 
-      <div className="mt-7">
+      <div className="mt-7 bt-boot bt-boot-3">
         <ExploreGrid cards={cards} indices={PRESET_INDICES} tags={tags} />
       </div>
     </div>

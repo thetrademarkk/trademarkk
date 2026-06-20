@@ -58,70 +58,111 @@ export function ReviewStep({
 
   return (
     <div className="space-y-5" data-testid="bt-step-review">
-      <header>
-        <h2 className="text-lg font-semibold">Review your backtest</h2>
+      <header className="bt-boot bt-boot-1">
+        <p className="bt-label text-accent">
+          <span className="bt-prompt">review &amp; run</span>
+        </p>
+        <h2 className="bt-display mt-1 text-lg font-semibold">
+          Review your <span className="bt-glow-text">backtest</span>
+        </h2>
         <p className="mt-1 text-sm text-muted">A final recap, then run it in your browser.</p>
       </header>
 
-      <dl className="divide-y rounded-xl border bg-surface/40 text-sm">
+      {/* Terminal "ticket summary" — the whole strategy on one bracketed panel. */}
+      <dl className="bt-panel bt-ticks divide-y text-sm bt-boot bt-boot-2">
         <Row label="Strategy" onEdit={() => onEdit("legs")}>
           <span className="font-medium">{draft.name}</span> · {meta.label}
         </Row>
         <Row label="Range" onEdit={() => onEdit("setup")}>
-          {draft.market.dateRange.start} → {draft.market.dateRange.end} · {draft.market.interval}
+          <span className="font-money">{draft.market.dateRange.start}</span> →{" "}
+          <span className="font-money">{draft.market.dateRange.end}</span> · {draft.market.interval}
         </Row>
         <Row label="Legs" onEdit={() => onEdit("legs")}>
           <ul className="space-y-0.5">
             {draft.legs.map((l) => (
               <li key={l.id}>
-                {l.side === "sell" ? "Sell" : "Buy"} {l.lots}× {l.optionType} ·{" "}
-                {strikeLabel(l.strike)}
+                {l.side === "sell" ? "Sell" : "Buy"} <span className="font-money">{l.lots}×</span>{" "}
+                {l.optionType} · {strikeLabel(l.strike)}
               </li>
             ))}
           </ul>
         </Row>
         <Row label="Timing" onEdit={() => onEdit("timing")}>
-          {draft.timing.entryTime} → {draft.timing.exitTime} IST
+          <span className="font-money">{draft.timing.entryTime}</span> →{" "}
+          <span className="font-money">{draft.timing.exitTime}</span> IST
         </Row>
         <Row label="Risk" onEdit={() => onEdit("risk")}>
           {riskLabel(draft)}
         </Row>
       </dl>
 
-      <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning">
+      <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning bt-boot bt-boot-3">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         Backtests can over-fit. Past results never guarantee future returns. This educational run
         executes your legs against live 1-minute market data, with honest coverage shown on every
         result.
       </p>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" size="lg" onClick={onRun} disabled={active} data-testid="bt-run">
-          {active ? (
-            <>
-              <Loader2 className="animate-spin" aria-hidden /> Running…
-            </>
-          ) : (
-            <>
-              <Play aria-hidden /> Run backtest
-            </>
-          )}
-        </Button>
-        {active && (
-          <Button type="button" variant="outline" onClick={cancel} data-testid="bt-cancel">
-            <Square aria-hidden /> Cancel
+      <div className="bt-boot bt-boot-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            size="lg"
+            onClick={onRun}
+            disabled={active}
+            data-testid="bt-run"
+            className="font-mono uppercase tracking-wide"
+          >
+            {active ? (
+              <>
+                <Loader2 className="animate-spin" aria-hidden /> Running…
+              </>
+            ) : (
+              <>
+                <Play aria-hidden /> Run backtest
+              </>
+            )}
           </Button>
+          {active && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancel}
+              data-testid="bt-cancel"
+              className="font-mono uppercase tracking-wide"
+            >
+              <Square aria-hidden /> Cancel
+            </Button>
+          )}
+          <span
+            className="text-sm text-muted"
+            data-testid="bt-status"
+            data-status={status}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="bt-label">{STATUS_LABEL[status]}</span>
+            {active && progress ? (
+              <span className="bt-num ml-1.5 text-accent">
+                {Math.round(progress.fraction * 100)}%
+              </span>
+            ) : (
+              ""
+            )}
+          </span>
+        </div>
+        {/* Progress rail — amber scanline sweep while the run is in flight. */}
+        {active && (
+          <div
+            className="bt-scanline mt-3 h-0.5 overflow-hidden rounded-full bg-surface-2"
+            aria-hidden
+          >
+            <div
+              className="h-full bg-accent transition-[width] duration-300"
+              style={{ width: `${Math.round((progress?.fraction ?? 0) * 100)}%` }}
+            />
+          </div>
         )}
-        <span
-          className="text-sm tabular-nums text-muted"
-          data-testid="bt-status"
-          data-status={status}
-          role="status"
-          aria-live="polite"
-        >
-          {STATUS_LABEL[status]}
-          {active && progress ? ` · ${Math.round(progress.fraction * 100)}%` : ""}
-        </span>
       </div>
 
       {/* The full BT-07 results UI (verdict → evidence → drill-down) renders once
@@ -160,13 +201,13 @@ function Row({
   return (
     <div className="flex items-start justify-between gap-3 px-3.5 py-2.5">
       <div className="flex-1">
-        <dt className="text-[11px] uppercase tracking-wide text-muted">{label}</dt>
+        <dt className="bt-label">{label}</dt>
         <dd className="mt-0.5">{children}</dd>
       </div>
       <button
         type="button"
         onClick={onEdit}
-        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+        className="bt-bracket inline-flex items-center gap-1 text-xs"
         aria-label={`Edit ${label}`}
       >
         <Pencil className="h-3 w-3" aria-hidden />

@@ -46,8 +46,8 @@ export function Stepper({ current, reachable, onJump }: StepperProps) {
                 data-step={step}
                 data-state={done ? "done" : isCurrent ? "current" : "future"}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  isCurrent && "bg-accent/15 text-accent ring-2 ring-accent",
+                  "bt-label inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors",
+                  isCurrent && "bg-accent/15 text-accent ring-1 ring-accent",
                   done && "text-foreground hover:bg-surface-2",
                   !done && !isCurrent && "text-muted",
                   !canJump && "cursor-not-allowed opacity-60"
@@ -55,11 +55,11 @@ export function Stepper({ current, reachable, onJump }: StepperProps) {
               >
                 <span
                   className={cn(
-                    "flex h-4 w-4 items-center justify-center rounded-full text-[10px]",
+                    "bt-num flex h-4 w-4 items-center justify-center text-[10px]",
                     done
                       ? "bg-accent-solid text-accent-fg"
                       : isCurrent
-                        ? "border-2 border-accent"
+                        ? "border border-accent text-accent"
                         : "border border-border"
                   )}
                 >
@@ -81,8 +81,12 @@ export function Stepper({ current, reachable, onJump }: StepperProps) {
       {/* Mobile: crumb + thin progress bar. */}
       <div className="sm:hidden">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-medium" data-testid="bt-stepper-mobile">
-            {curIdx + 1} / {total} · {STEP_LABEL[current]}
+          <span className="bt-label flex items-center gap-1.5" data-testid="bt-stepper-mobile">
+            <span className="bt-num text-foreground">
+              {curIdx + 1}
+              <span className="text-muted"> / {total}</span>
+            </span>
+            <span className="text-accent">{STEP_LABEL[current]}</span>
           </span>
         </div>
         <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-2">

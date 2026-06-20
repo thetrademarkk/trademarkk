@@ -40,17 +40,20 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
 
   return (
     <div className="space-y-6" data-testid="bt-step-risk">
-      <header>
-        <h2 className="text-lg font-semibold">Manage risk</h2>
+      <header className="bt-boot bt-boot-1">
+        <p className="bt-label text-accent">
+          <span className="bt-prompt">risk</span>
+        </p>
+        <h2 className="bt-display mt-1 text-lg font-semibold">
+          Manage <span className="bt-glow-text">risk</span>
+        </h2>
         <p className="mt-1 text-sm text-muted">
           Overall stop and target on the whole strategy; per-leg rules are optional.
         </p>
       </header>
 
-      <section className="rounded-xl border bg-surface/40 p-3.5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Overall (whole-strategy MTM)
-        </div>
+      <section className="bt-panel p-3.5 bt-boot bt-boot-2">
+        <div className="bt-label">Overall (whole-strategy MTM)</div>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <RupeePctField
             label="Stop loss"
@@ -75,7 +78,7 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
         <button
           type="button"
           onClick={() => setAdvanced((v) => !v)}
-          className="mt-3 text-xs font-medium text-accent"
+          className="mt-3 font-mono text-xs font-medium uppercase tracking-wide text-accent"
           aria-expanded={advanced}
         >
           {advanced ? "− Hide advanced" : "+ Advanced (trailing, hard max loss)"}
@@ -91,7 +94,7 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
                 onChange={(e) =>
                   setRisk({ maxLossRupees: e.target.value ? Number(e.target.value) : undefined })
                 }
-                className="h-8 w-32"
+                className="h-8 w-32 font-money"
                 data-testid="bt-max-loss"
               />
             </label>
@@ -99,10 +102,8 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
         )}
       </section>
 
-      <section>
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Per-leg rules (optional)
-        </div>
+      <section className="bt-boot bt-boot-3">
+        <div className="bt-label">Per-leg rules (optional)</div>
         <div className="mt-2 space-y-2">
           {draft.legs.map((leg, i) => (
             <PerLegRules key={leg.id} leg={leg} ordinal={i + 1} onUpdate={updateLeg} />
@@ -110,7 +111,7 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
         </div>
       </section>
 
-      <p className="text-[11px] text-muted">
+      <p className="text-[11px] text-muted bt-boot bt-boot-4">
         The overall stop and target appear as guide-lines on the live payoff. Nothing blocks running
         — we only nudge unhedged-short risk.
       </p>
@@ -137,9 +138,7 @@ function RupeePctField({
 }) {
   return (
     <div>
-      <div className={cn("text-xs font-medium", tone === "loss" ? "text-loss" : "text-profit")}>
-        {label}
-      </div>
+      <div className={cn("bt-label", tone === "loss" ? "text-loss" : "text-profit")}>{label}</div>
       <div className="mt-1 flex items-center gap-1.5">
         <Input
           type="number"
@@ -147,7 +146,7 @@ function RupeePctField({
           value={value ?? ""}
           placeholder={unit === "pct" ? "% of margin" : "₹"}
           onChange={(e) => onValue(e.target.value ? Number(e.target.value) : null)}
-          className="h-8 w-32"
+          className="h-8 w-32 font-money"
           data-testid={testid}
         />
         <div className="inline-flex rounded-lg border bg-surface-2 p-0.5">
@@ -158,8 +157,8 @@ function RupeePctField({
               onClick={() => onUnit(u)}
               aria-pressed={unit === u}
               className={cn(
-                "rounded-md px-2 py-0.5 text-xs transition-colors",
-                unit === u ? "bg-surface font-medium shadow" : "text-muted"
+                "rounded-md px-2 py-0.5 font-mono text-xs transition-colors",
+                unit === u ? "bg-surface font-medium text-accent shadow" : "text-muted"
               )}
             >
               {u === "rupees" ? "₹" : "%"}
@@ -184,22 +183,24 @@ function PerLegRules({
   const reMode = leg.reEntry?.mode ?? "NONE";
 
   return (
-    <div className="rounded-lg border bg-surface" data-testid={`bt-perleg-${leg.id}`}>
+    <div className="bt-panel" data-testid={`bt-perleg-${leg.id}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-3 py-2 text-sm"
         aria-expanded={open}
       >
-        <span>
+        <span className="font-mono uppercase tracking-wide">
           Leg {ordinal} · {leg.side === "sell" ? "Sell" : "Buy"} {leg.optionType}
         </span>
-        <span className="text-muted">{open ? "−" : "+ Add rules"}</span>
+        <span className="font-mono text-xs uppercase tracking-wide text-accent">
+          {open ? "−" : "+ Add rules"}
+        </span>
       </button>
       {open && (
         <div className="space-y-2 border-t px-3 py-2.5 text-sm">
           <label className="flex items-center gap-2">
-            <span className="w-20 text-muted">Stop loss</span>
+            <span className="bt-label w-20">Stop loss</span>
             <Input
               type="number"
               min={0}
@@ -217,13 +218,13 @@ function PerLegRules({
                     : undefined,
                 })
               }
-              className="h-8 w-28"
+              className="h-8 w-28 font-money"
               data-testid={`bt-leg-sl-${leg.id}`}
             />
-            <span className="text-[11px] text-muted">% of premium</span>
+            <span className="bt-label">% of premium</span>
           </label>
           <label className="flex items-center gap-2">
-            <span className="w-20 text-muted">Target</span>
+            <span className="bt-label w-20">Target</span>
             <Input
               type="number"
               min={0}
@@ -241,12 +242,12 @@ function PerLegRules({
                     : undefined,
                 })
               }
-              className="h-8 w-28"
+              className="h-8 w-28 font-money"
             />
-            <span className="text-[11px] text-muted">% of premium</span>
+            <span className="bt-label">% of premium</span>
           </label>
           <label className="flex items-center gap-2">
-            <span className="w-20 text-muted">Re-entry</span>
+            <span className="bt-label w-20">Re-entry</span>
             <select
               value={reMode}
               onChange={(e) => {
@@ -264,7 +265,7 @@ function PerLegRules({
                         },
                 });
               }}
-              className="h-8 rounded-lg border bg-surface-2 px-2 text-xs"
+              className="h-8 rounded-lg border bg-surface-2 px-2 font-mono text-xs"
               data-testid={`bt-leg-reentry-${leg.id}`}
             >
               {RE_ENTRY_OPTIONS.map((o) => (

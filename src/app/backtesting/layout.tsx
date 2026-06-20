@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { IBM_Plex_Mono } from "next/font/google";
 import { FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { QueryProvider } from "@/providers/query-provider";
 import { BacktestRunnerProvider } from "@/components/backtesting/backtest-runner-provider";
+import "@/styles/bt-terminal.css";
+
+/** Signature display/numeral font for the Terminal aesthetic — IBM Plex Mono's
+ *  CRT-terminal heritage + slashed zero. Scoped via --font-bt-mono to the
+ *  `.bt-terminal` universe only (never the journal/community). */
+const btMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-bt-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Backtesting", template: `%s · TradeMarkk Backtesting` },
@@ -26,7 +38,7 @@ export default function BacktestingLayout({ children }: { children: React.ReactN
       {/* The runner lives at the LAYOUT level so an in-flight worker run survives
           navigation between /build and the (future) results view. */}
       <BacktestRunnerProvider>
-        <div className="flex min-h-dvh flex-col">
+        <div className={`${btMono.variable} bt-terminal flex min-h-dvh flex-col`}>
           <SiteHeader
             cta={
               <Button

@@ -47,6 +47,10 @@ export function QualityChipRow({
 }) {
   const hasProblem = chips.some((c) => c.level !== "good");
   const barPct = Math.round(filledBarFraction * 100);
+  // 5-segment coverage honesty meter — one seg per 20% of bars filled. Tone
+  // tracks the same thresholds as the filled-bar badge (≥90 good, ≥60 warn).
+  const filledSegs = Math.round(filledBarFraction * 5);
+  const meterTone: "1" | "warn" | "bad" = barPct >= 90 ? "1" : barPct >= 60 ? "warn" : "bad";
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -86,9 +90,21 @@ export function QualityChipRow({
         {/* Filled-bar fraction — the rawest honesty signal. */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <button type="button" className="focus:outline-none rounded-md">
+            <button
+              type="button"
+              className="focus:outline-none rounded-md inline-flex items-center gap-1.5"
+            >
+              <span className="bt-meter" aria-hidden>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="bt-meter-seg"
+                    data-on={i < filledSegs ? meterTone : undefined}
+                  />
+                ))}
+              </span>
               <Badge variant={barPct >= 90 ? "profit" : barPct >= 60 ? "warning" : "loss"}>
-                {barPct}% bars filled
+                <span className="bt-num">{barPct}</span>% bars filled
                 <Info className="h-3 w-3 opacity-60" aria-hidden />
               </Badge>
             </button>

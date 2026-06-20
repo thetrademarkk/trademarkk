@@ -34,17 +34,14 @@ const MODE_TABS: { value: Mode; label: string }[] = [
   // Delta DEFERRED (D7) — no IV/Greeks data — so there is intentionally no delta tab.
 ];
 
-/** Coverage pip: a 5-segment honesty bar (semantic tokens only). */
+/** Coverage pip: the terminal segmented honesty bar (5 segs, data-on tones). */
 function CoveragePip({ coverage }: { coverage: number }) {
   const filled = Math.round(coverage * 5);
-  const tone = coverage >= 0.7 ? "bg-profit" : coverage >= 0.4 ? "bg-warning" : "bg-loss";
+  const on = coverage >= 0.7 ? "1" : coverage >= 0.4 ? "warn" : "bad";
   return (
-    <span className="inline-flex items-center gap-px" aria-hidden>
+    <span className="bt-meter" aria-hidden>
       {Array.from({ length: 5 }, (_, i) => (
-        <span
-          key={i}
-          className={cn("h-1 w-1.5 rounded-[1px]", i < filled ? tone : "bg-surface-2")}
-        />
+        <span key={i} className="bt-meter-seg" data-on={i < filled ? on : undefined} />
       ))}
     </span>
   );
@@ -122,7 +119,11 @@ export function StrikeLadder({
       >
         <TabsList className="h-8">
           {MODE_TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="px-2.5 py-0.5 text-xs">
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className="px-2.5 py-0.5 font-mono text-xs uppercase tracking-wide data-[state=active]:text-accent"
+            >
               {t.label}
             </TabsTrigger>
           ))}
@@ -136,7 +137,7 @@ export function StrikeLadder({
           aria-orientation="horizontal"
           tabIndex={0}
           onKeyDown={onKeyDown}
-          className="flex gap-1 overflow-x-auto rounded-lg border bg-surface/40 p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="bt-panel flex gap-1 overflow-x-auto p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
           data-testid={`bt-ladder-${idBase}`}
         >
           {rungs.map((r) => (
@@ -175,7 +176,7 @@ export function StrikeLadder({
         />
       )}
 
-      <p className="text-[11px] text-muted">
+      <p className="bt-label">
         Premiums &amp; coverage are estimates for selection. {index} strikes resolve to real prices
         at run time.
       </p>
@@ -206,16 +207,16 @@ function Rung({
       data-thin={rung.thin || undefined}
       data-selected={selected || undefined}
       className={cn(
-        "flex min-w-[58px] shrink-0 flex-col items-center gap-0.5 rounded-md border px-1.5 py-1.5 text-center transition-colors",
+        "bt-panel flex min-w-[58px] shrink-0 flex-col items-center gap-0.5 px-1.5 py-1.5 text-center transition-colors",
         rung.isAtm && "border-accent",
-        selected && "bg-accent/15 ring-2 ring-accent",
+        selected && "bt-panel-active",
         rung.thin
           ? "cursor-not-allowed border-dashed opacity-45"
           : "hover:border-accent hover:bg-surface-2"
       )}
     >
-      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
-      <span className="text-xs font-semibold tabular-nums">{formatNumber(rung.strike, 0)}</span>
+      <span className="bt-label">{label}</span>
+      <span className="bt-num text-xs font-semibold">{formatNumber(rung.strike, 0)}</span>
       <span className="font-money text-[11px]">{formatINR(rung.premium, { decimals: true })}</span>
       <CoveragePip coverage={rung.coverage} />
     </button>
@@ -248,9 +249,9 @@ function PercentSelector({
     served != null ? estimateCoverage(chain.index, Math.round((served - chain.atm) / step)) : null;
 
   return (
-    <div className="space-y-2 rounded-lg border bg-surface/40 p-2.5">
+    <div className="bt-panel space-y-2 p-2.5">
       <label className="flex items-center gap-2 text-xs">
-        <span className="text-muted">Offset from spot</span>
+        <span className="bt-label">Offset from spot</span>
         <span className="inline-flex items-center">
           <Input
             type="number"
@@ -262,7 +263,7 @@ function PercentSelector({
               const v = Number(e.target.value);
               onChange(Math.max(-15, Math.min(15, Number.isFinite(v) ? v : 0)));
             }}
-            className="h-8 w-24 rounded-r-none"
+            className="h-8 w-24 rounded-r-none font-money"
             data-testid="bt-percent-offset"
           />
           <span className="rounded-r-md border border-l-0 bg-surface-2 px-2 py-1 text-xs text-muted">
@@ -273,9 +274,19 @@ function PercentSelector({
       {served != null && (
         <p className="text-[11px] text-muted">
           {pct === 0 ? "At spot" : pct > 0 ? `${pct}% above spot` : `${Math.abs(pct)}% below spot`}{" "}
-          ≈ <span className="font-medium text-foreground">{formatNumber(served, 0)}</span>
-          {premium != null && <> @ est {formatINR(premium, { decimals: true })}</>}
-          {coverage != null && <> · coverage {Math.round(coverage * 100)}%</>}
+          ≈ <span className="font-money text-foreground">{formatNumber(served, 0)}</span>
+          {premium != null && (
+            <>
+              {" "}
+              @ est <span className="font-money">{formatINR(premium, { decimals: true })}</span>
+            </>
+          )}
+          {coverage != null && (
+            <>
+              {" "}
+              · coverage <span className="font-money">{Math.round(coverage * 100)}%</span>
+            </>
+          )}
         </p>
       )}
     </div>
@@ -311,9 +322,9 @@ function PremiumSelector({
   }, [rungs, target]);
 
   return (
-    <div className="space-y-2 rounded-lg border bg-surface/40 p-2.5">
+    <div className="bt-panel space-y-2 p-2.5">
       <label className="flex items-center gap-2 text-xs">
-        <span className="text-muted">Target premium</span>
+        <span className="bt-label">Target premium</span>
         <span className="inline-flex items-center">
           <span className="rounded-l-md border border-r-0 bg-surface-2 px-2 py-1 text-xs text-muted">
             ₹
@@ -324,7 +335,7 @@ function PremiumSelector({
             step={1}
             value={Number.isFinite(target) ? target : ""}
             onChange={(e) => onChange(Math.max(0.05, Number(e.target.value) || 0.05))}
-            className="h-8 w-24 rounded-l-none"
+            className="h-8 w-24 rounded-l-none font-money"
             data-testid="bt-premium-target"
           />
         </span>
@@ -332,9 +343,9 @@ function PremiumSelector({
       {served && (
         <p className="text-[11px] text-muted">
           Closest available:{" "}
-          <span className="font-medium text-foreground">{formatNumber(served.strike, 0)}</span> @
-          est {formatINR(served.premium, { decimals: true })} · coverage{" "}
-          {Math.round(served.coverage * 100)}%
+          <span className="font-money text-foreground">{formatNumber(served.strike, 0)}</span> @ est{" "}
+          <span className="font-money">{formatINR(served.premium, { decimals: true })}</span> ·
+          coverage <span className="font-money">{Math.round(served.coverage * 100)}%</span>
         </p>
       )}
     </div>
@@ -351,19 +362,25 @@ function ExactSelector({
   onChange: (strike: number) => void;
 }) {
   return (
-    <div className="space-y-1.5 rounded-lg border bg-surface/40 p-2.5">
+    <div className="bt-panel space-y-1.5 p-2.5">
       <label className="flex items-center gap-2 text-xs">
-        <span className="text-muted">Exact strike</span>
+        <span className="bt-label">Exact strike</span>
         <Input
           type="number"
           step={1}
           value={Number.isFinite(strike) ? strike : ""}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
-          className="h-8 w-28"
+          className="h-8 w-28 font-money"
           data-testid="bt-exact-strike"
         />
       </label>
-      <p className="text-[11px] text-muted">ATM is {formatNumber(chain.atm, 0)}.</p>
+      <p className="bt-label">
+        ATM is{" "}
+        <span className="font-money normal-case tracking-normal text-muted">
+          {formatNumber(chain.atm, 0)}
+        </span>
+        .
+      </p>
     </div>
   );
 }

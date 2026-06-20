@@ -24,6 +24,16 @@ const QUICK_RANGES: { label: string; months: number | "max" }[] = [
 ];
 
 /**
+ * Honest 5-segment coverage signal for the data-confidence panel (presentational
+ * only — the live data layer is BT-08). SENSEX is the sparsest, so it reads as a
+ * partial/warn bar; the others as near-complete.
+ */
+const COVERAGE: Record<"full" | "sparse", (string | 0)[]> = {
+  full: ["1", "1", "1", "1", "warn"],
+  sparse: ["1", "1", "warn", "warn", "bad"],
+};
+
+/**
  * Step 1 — Setup. Index (radio cards with lot size + honest coverage hint),
  * candle interval, date range with quick chips. Smart defaults so the very
  * first run is well-covered and never empty. SENSEX is honestly tinted (data
@@ -54,14 +64,19 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
 
   return (
     <div className="space-y-6" data-testid="bt-step-setup">
-      <header>
-        <h2 className="text-lg font-semibold">Set up your backtest</h2>
+      <header className="bt-boot bt-boot-1">
+        <p className="bt-label text-accent">
+          <span className="bt-prompt">step 01 — setup</span>
+        </p>
+        <h2 className="bt-display mt-1.5 text-lg font-semibold">
+          Set up your <span className="bt-glow-text">backtest</span>
+        </h2>
         <p className="mt-1 text-sm text-muted">Pick a market, candle size and date range.</p>
       </header>
 
       {/* Index */}
-      <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Index</legend>
+      <fieldset className="bt-boot bt-boot-2">
+        <legend className="bt-label">Index</legend>
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {INDEX_SYMBOLS.map((sym) => {
             const meta = INDEX_META[sym];
@@ -76,17 +91,21 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
                 data-index={sym}
                 data-active={active || undefined}
                 className={cn(
-                  "rounded-xl border p-3 text-left transition-colors",
-                  active ? "border-accent bg-accent/10" : "hover:border-accent hover:bg-surface-2",
+                  "bt-panel bt-ticks p-3 text-left transition-colors",
+                  active
+                    ? "bt-panel-active"
+                    : "hover:border-accent hover:[box-shadow:0_0_28px_-14px_var(--bt-glow)]",
                   sensex && !active && "bg-warning/5"
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">{meta.label}</span>
+                  <span className="bt-display text-sm font-semibold">{meta.label}</span>
                   {active && <span className="h-2 w-2 rounded-full bg-accent-solid" aria-hidden />}
                 </div>
-                <div className="mt-1 text-[11px] text-muted">lot {meta.lotSize}</div>
-                <div className={cn("text-[11px]", sensex ? "text-warning" : "text-muted")}>
+                <div className="bt-label mt-1.5">
+                  lot <span className="bt-num text-foreground">{meta.lotSize}</span>
+                </div>
+                <div className={cn("mt-1 text-[11px]", sensex ? "text-warning" : "text-muted")}>
                   {meta.dataStart.slice(0, 4)}–now {sensex ? "" : "✓"}
                 </div>
               </button>
@@ -96,10 +115,8 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
       </fieldset>
 
       {/* Interval */}
-      <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Candle interval
-        </legend>
+      <fieldset className="bt-boot bt-boot-3">
+        <legend className="bt-label">Candle interval</legend>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border bg-surface-2 p-0.5">
             {INTERVALS.map((iv) => (
@@ -136,13 +153,11 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
       </fieldset>
 
       {/* Date range */}
-      <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Date range
-        </legend>
+      <fieldset className="bt-boot bt-boot-4">
+        <legend className="bt-label">Date range</legend>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <label className="text-xs">
-            <span className="text-muted">From</span>
+            <span className="bt-label">From</span>
             <Input
               type="date"
               value={dateRange.start}
@@ -154,7 +169,7 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
             />
           </label>
           <label className="text-xs">
-            <span className="text-muted">To</span>
+            <span className="bt-label">To</span>
             <Input
               type="date"
               value={dateRange.end}
@@ -171,7 +186,7 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
               key={q.label}
               type="button"
               onClick={() => applyQuick(q.months)}
-              className="rounded-md border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-foreground"
+              className="bt-bracket px-1.5 py-1 text-xs"
             >
               {q.label}
             </button>
@@ -180,18 +195,32 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
       </fieldset>
 
       {/* Honest coverage hint (estimate-based — the live data layer is BT-08). */}
-      <div className="rounded-xl border bg-surface/50 p-3 text-xs">
-        <div className="font-medium">Data confidence</div>
-        <p className="mt-1 leading-5 text-muted">
+      <div className="bt-panel bg-surface/50 p-3 text-xs bt-boot bt-boot-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="bt-label text-accent">
+            <span className="bt-prompt">data confidence</span>
+          </div>
+          <span
+            className="bt-meter"
+            role="img"
+            aria-label={symbol === "SENSEX" ? "Coverage: partial" : "Coverage: high"}
+          >
+            {COVERAGE[symbol === "SENSEX" ? "sparse" : "full"].map((on, i) => (
+              <span key={i} className="bt-meter-seg" data-on={on || undefined} />
+            ))}
+          </span>
+        </div>
+        <p className="mt-2 leading-5 text-muted">
           {symbol === "SENSEX"
             ? "SENSEX has the sparsest option coverage and starts in 2022 — the honesty layer matters most here. Far strikes may snap to the nearest liquid one."
             : "Index spot is complete; most ATM±5 strikes are present. Thin far strikes snap to the nearest liquid strike, flagged in the result."}
         </p>
       </div>
 
-      <p className="text-[11px] text-muted">
+      <p className="text-[11px] text-muted bt-boot bt-boot-6">
         Defaults to the last 3 months of {INDEX_META[symbol].label}, clamped to{" "}
-        {defaultRange(symbol).start} so the first run is well-covered.
+        <span className="font-money text-foreground">{defaultRange(symbol).start}</span> so the
+        first run is well-covered.
       </p>
     </div>
   );

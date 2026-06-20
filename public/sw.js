@@ -10,7 +10,7 @@
  * a byte-different worker, forcing install + old-cache purge. The literal token
  * is itself a valid (if static) cache key, so the worker is safe even unbuilt.
  */
-const VERSION = "__TM_SW_VERSION__";
+const VERSION = "tm-JiZ1l4M7GZUWK00gV3q00";
 
 // Precached on install: the offline notice, the LOCAL app shell entry point, the
 // brand icons and the sql.js wasm + glue so LOCAL DB init works on first load

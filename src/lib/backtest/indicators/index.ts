@@ -20,6 +20,7 @@ import { maExtIndicators } from "./ma_ext";
 import { oscillatorsExtIndicators } from "./oscillators_ext";
 import { bandsVolExtIndicators } from "./bands_vol_ext";
 import { volumeExtIndicators } from "./volume_ext";
+import { ext2Indicators } from "./indicators_ext2";
 
 // Public surface.
 export * from "./types";
@@ -45,6 +46,7 @@ export function registerIndicators(): number {
     ...oscillatorsExtIndicators,
     ...bandsVolExtIndicators,
     ...volumeExtIndicators,
+    ...ext2Indicators,
   ]);
   return (
     trendIndicators.length +
@@ -56,6 +58,7 @@ export function registerIndicators(): number {
     maExtIndicators.length +
     oscillatorsExtIndicators.length +
     bandsVolExtIndicators.length +
-    volumeExtIndicators.length
+    volumeExtIndicators.length +
+    ext2Indicators.length
   );
 }

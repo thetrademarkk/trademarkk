@@ -56,16 +56,20 @@ export function RunResultReport({
       data-partial={isPartial ? "true" : "false"}
     >
       {/* Tier 1 — verdict band */}
-      <section className="animate-slide-up space-y-3 rounded-2xl border bg-surface p-4 sm:p-5">
+      <section className="bt-panel bt-ticks bt-boot bt-boot-1 animate-slide-up space-y-3 p-4 sm:p-5">
         {isPartial && (
           <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-2.5 text-xs leading-5 text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
-            partial, indicative result, not a verdict.
+            Low data coverage (
+            <span className="bt-num">{Math.round(result.coverage.overall * 100)}</span>%) — read
+            this as a partial, indicative result, not a verdict.
           </div>
         )}
+        <p className="bt-label text-accent">
+          <span className="bt-prompt">verdict</span>
+        </p>
         <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
-        <p className="text-sm leading-6" data-testid="bt-verdict-headline">
+        <p className="bt-display text-sm leading-6" data-testid="bt-verdict-headline">
           {headline}
         </p>
         {caveat && <p className="text-xs text-muted">{caveat}</p>}
@@ -74,18 +78,22 @@ export function RunResultReport({
       </section>
 
       {/* Tier 2 — evidence */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Evidence</h2>
+      <section className="bt-boot bt-boot-2">
+        <h2 className="bt-label mb-2 text-accent">
+          <span className="bt-prompt">evidence</span>
+        </h2>
         <EvidenceTabs run={result} />
       </section>
 
       {/* Tier 3 — drill-down */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Trade-by-trade</h2>
+      <section className="bt-boot bt-boot-3">
+        <h2 className="bt-label mb-2 text-accent">
+          <span className="bt-prompt">trade-by-trade</span>
+        </h2>
         <TradeBlotter run={result} />
       </section>
 
-      <p className="rounded-lg border bg-surface-2/40 p-3 text-[11px] leading-5 text-muted">
+      <p className="bt-panel bt-boot bt-boot-4 bg-surface-2/40 p-3 text-[11px] leading-5 text-muted">
         Backtests are hypothetical, use historical data with patchy options coverage, and exclude
         liquidity/impact beyond modelled slippage. Past performance is not indicative of future
         results.

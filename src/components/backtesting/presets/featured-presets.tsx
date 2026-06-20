@@ -17,10 +17,15 @@ export function FeaturedPresets() {
   return (
     <section className="mt-12" data-testid="featured-presets">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Start from a strategy</h2>
+        <div>
+          <p className="bt-label text-accent">
+            <span className="bt-prompt">preset library</span>
+          </p>
+          <h2 className="bt-display mt-1 text-lg font-semibold">Start from a strategy</h2>
+        </div>
         <Link
           href="/backtesting/explore"
-          className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+          className="bt-bracket inline-flex items-center gap-1 text-xs"
           data-testid="explore-link"
         >
           Explore all <ArrowRight className="h-3.5 w-3.5" aria-hidden />

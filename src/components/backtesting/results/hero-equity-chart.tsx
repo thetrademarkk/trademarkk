@@ -43,11 +43,11 @@ export function HeroEquityChart({
   const color = last >= 0 ? "var(--profit)" : "var(--loss)";
 
   return (
-    <Card data-testid="bt-hero-equity">
+    <Card className="bt-panel bt-ticks" data-testid="bt-hero-equity">
       <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>Equity curve · cumulative net P&L</CardTitle>
+        <CardTitle className="bt-display">Equity curve · cumulative net P&L</CardTitle>
         {benchmark && benchmark.length > 0 && (
-          <label className="flex items-center gap-2 text-xs text-muted">
+          <label className="bt-label flex items-center gap-2 normal-case text-muted">
             NIFTY buy &amp; hold
             <Switch
               checked={showBenchmark}

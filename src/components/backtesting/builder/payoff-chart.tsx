@@ -34,10 +34,10 @@ export function PayoffChart({ summary, guides, className, height = H }: PayoffCh
   if (points.length < 2) {
     return (
       <div
-        className="flex h-40 items-center justify-center rounded-lg border border-dashed bg-surface/40 text-center text-xs text-muted"
+        className="bt-panel flex h-40 items-center justify-center border-dashed bg-surface/40 px-4 text-center text-xs text-muted"
         data-testid="bt-payoff-empty"
       >
-        Add a leg with a strike to see the live payoff.
+        <span className="bt-label">Add a leg with a strike to see the live payoff</span>
       </div>
     );
   }

@@ -37,10 +37,10 @@ export function MobilePayoff({
           <PayoffChart summary={summary} guides={guides} height={40} className="h-10 w-full" />
         </div>
         <div className="min-w-0 flex-1 text-xs">
-          <div className="truncate font-medium">{label}</div>
+          <div className="bt-display truncate font-medium">{label}</div>
           <div className="flex gap-2 text-[11px]">
-            <span className="text-profit">{maxP}</span>
-            <span className="text-loss">{maxL}</span>
+            <span className="bt-num text-profit">{maxP}</span>
+            <span className="bt-num text-loss">{maxL}</span>
           </div>
         </div>
         <Sheet>
@@ -48,7 +48,7 @@ export function MobilePayoff({
             <button
               type="button"
               className={cn(
-                "inline-flex shrink-0 items-center gap-1 rounded-lg border bg-surface px-3 py-1.5 text-xs font-medium"
+                "bt-bracket inline-flex shrink-0 items-center gap-1 rounded-lg border bg-surface px-3 py-1.5 text-xs"
               )}
               data-testid="bt-mobile-preview-open"
             >

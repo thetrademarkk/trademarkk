@@ -35,15 +35,17 @@ export function RobustnessTab({ run }: { run: RunResult }) {
   return (
     <div className="space-y-6" data-testid="bt-robustness-tab">
       {/* ── Walk-forward IS/OOS ─────────────────────────────────────────── */}
-      <section data-testid="bt-wf-section">
-        <h3 className="mb-1 text-sm font-semibold">Walk-forward (in-sample vs out-of-sample)</h3>
+      <section data-testid="bt-wf-section" className="bt-boot bt-boot-1">
+        <h3 className="bt-display mb-1 text-sm font-semibold">
+          Walk-forward (in-sample vs out-of-sample)
+        </h3>
         {wfCurve.length > 0 ? (
           <>
             <p className="mb-2 text-xs leading-5 text-muted" data-testid="bt-wf-summary">
               {wf.summary}
             </p>
             <WalkForwardCurve curve={wfCurve} />
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
+            <div className="bt-label mt-2 flex flex-wrap gap-x-4 gap-y-1 normal-case tracking-normal">
               <span className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2.5 w-4 rounded-sm"
@@ -66,18 +68,18 @@ export function RobustnessTab({ run }: { run: RunResult }) {
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-[420px] text-sm" data-testid="bt-wf-table">
                 <thead>
-                  <tr className="border-b text-left text-xs text-muted">
-                    <th className="py-1.5 font-normal">Fold</th>
-                    <th className="py-1.5 font-normal">IS net</th>
-                    <th className="py-1.5 font-normal">OOS net</th>
-                    <th className="py-1.5 font-normal">OOS ÷ IS</th>
-                    <th className="py-1.5 font-normal">OOS Sharpe</th>
+                  <tr className="border-b text-left">
+                    <th className="bt-label py-1.5">Fold</th>
+                    <th className="bt-label py-1.5">IS net</th>
+                    <th className="bt-label py-1.5">OOS net</th>
+                    <th className="bt-label py-1.5">OOS ÷ IS</th>
+                    <th className="bt-label py-1.5">OOS Sharpe</th>
                   </tr>
                 </thead>
                 <tbody>
                   {wf.windows.map((w) => (
                     <tr key={w.index} className="border-b last:border-0" data-wf-fold={w.index}>
-                      <td className="py-1.5 text-muted">
+                      <td className="py-1.5 font-money tabular-nums text-muted">
                         {w.index}
                         {w.lowCoverage && (
                           <span className="ml-1 text-[10px] text-warning">low-coverage</span>
@@ -114,8 +116,8 @@ export function RobustnessTab({ run }: { run: RunResult }) {
       </section>
 
       {/* ── Monte-Carlo robustness ──────────────────────────────────────── */}
-      <section data-testid="bt-mc-section">
-        <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+      <section data-testid="bt-mc-section" className="bt-boot bt-boot-2">
+        <h3 className="bt-display mb-1 flex items-center gap-1.5 text-sm font-semibold">
           <TrendingDown className="h-4 w-4 text-muted" aria-hidden />
           How much could be luck? (Monte-Carlo)
         </h3>
@@ -172,8 +174,8 @@ export function RobustnessTab({ run }: { run: RunResult }) {
       </section>
 
       {/* ── Overfitting coach (deflated Sharpe) ─────────────────────────── */}
-      <section data-testid="bt-coach-section">
-        <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+      <section data-testid="bt-coach-section" className="bt-boot bt-boot-3">
+        <h3 className="bt-display mb-1 flex items-center gap-1.5 text-sm font-semibold">
           <ShieldQuestion className="h-4 w-4 text-muted" aria-hidden />
           Overfitting check (deflated Sharpe)
         </h3>
@@ -188,7 +190,7 @@ export function RobustnessTab({ run }: { run: RunResult }) {
         >
           <p>{coach.message}</p>
           {coach.dsr !== null && (
-            <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
+            <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-money tabular-nums">
               <span>
                 <dt className="inline text-muted">Sharpe:</dt>{" "}
                 <dd className="inline font-medium">{formatNumber(coach.annualizedSharpe, 2)}</dd>
@@ -227,9 +229,11 @@ function OutcomeTile({
   tone: "profit" | "loss";
 }) {
   return (
-    <div className="rounded-lg border bg-surface-2/40 p-2">
-      <dt className="text-[10px] uppercase tracking-wide text-muted">{label}</dt>
-      <dd className={`font-money tabular-nums ${tone === "profit" ? "text-profit" : "text-loss"}`}>
+    <div className="bt-panel p-2">
+      <dt className="bt-label">{label}</dt>
+      <dd
+        className={`bt-num mt-1 text-base tabular-nums ${tone === "profit" ? "text-profit" : "text-loss"}`}
+      >
         {value}
       </dd>
     </div>

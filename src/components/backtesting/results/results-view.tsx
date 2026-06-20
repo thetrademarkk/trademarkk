@@ -91,15 +91,15 @@ export function ResultsView({
 function EmptyState() {
   return (
     <div
-      className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 text-center"
+      className="bt-panel bt-ticks flex flex-col items-center justify-center border-dashed py-16 text-center"
       data-testid="bt-results-empty"
     >
       <FlaskConical className="mb-3 h-8 w-8 text-muted" aria-hidden />
-      <h2 className="text-base font-semibold">No backtest run yet</h2>
+      <h2 className="bt-display text-base font-semibold">No backtest run yet</h2>
       <p className="mt-1 max-w-sm text-sm text-muted">
         Build a strategy and press Run — the verdict, evidence and trade-by-trade log appear here.
       </p>
-      <Button asChild className="mt-4" size="sm">
+      <Button asChild className="mt-4 font-mono uppercase tracking-wide" size="sm">
         <a href="/backtesting/build">Build a strategy</a>
       </Button>
     </div>
@@ -116,15 +116,21 @@ function RunningState({
 }) {
   const pct = progress ? Math.round(progress.fraction * 100) : 0;
   return (
-    <div className="rounded-2xl border bg-surface p-6" data-testid="bt-results-running">
+    <div className="bt-panel bt-ticks p-6" data-testid="bt-results-running">
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
         <Loader2 className="h-4 w-4 animate-spin text-accent" aria-hidden />
-        {STATUS_LABEL[status]}
+        <span className="bt-label text-accent">
+          <span className="bt-prompt">{STATUS_LABEL[status]}</span>
+        </span>
       </div>
-      <Progress value={pct} aria-label="Backtest progress" />
+      <div className="bt-scanline overflow-hidden rounded">
+        <Progress value={pct} aria-label="Backtest progress" />
+      </div>
       {progress && progress.daysTotal > 0 && (
         <p className="mt-2 text-xs tabular-nums text-muted">
-          {progress.daysDone} / {progress.daysTotal} trading days · {pct}%
+          <span className="bt-num">{progress.daysDone}</span> /{" "}
+          <span className="bt-num">{progress.daysTotal}</span> trading days ·{" "}
+          <span className="bt-num">{pct}</span>%
         </p>
       )}
       {/* Skeleton of the results layout so the handoff reads as an arrival. */}
@@ -142,16 +148,21 @@ function RunningState({
 function ErrorState({ message, onReRun }: { message: string | null; onReRun?: () => void }) {
   return (
     <div
-      className="rounded-2xl border border-loss/40 bg-loss/5 p-6 text-center"
+      className="bt-panel border-loss/40 bg-loss/5 p-6 text-center"
       data-testid="bt-results-error"
     >
       <AlertTriangle className="mx-auto mb-2 h-7 w-7 text-loss" aria-hidden />
-      <h2 className="text-base font-semibold text-loss">The backtest hit an error</h2>
+      <h2 className="bt-display text-base font-semibold text-loss">The backtest hit an error</h2>
       <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
         {message ?? "Something went wrong while running. Try again."}
       </p>
       {onReRun && (
-        <Button variant="outline" size="sm" className="mt-4" onClick={onReRun}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4 font-mono uppercase tracking-wide"
+          onClick={onReRun}
+        >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Retry
         </Button>
       )}
@@ -163,16 +174,21 @@ function ErrorState({ message, onReRun }: { message: string | null; onReRun?: ()
 function NoTradesState({ reason, onEdit }: { reason: string | null; onEdit?: () => void }) {
   return (
     <div
-      className="rounded-2xl border border-warning/40 bg-warning/5 p-6 text-center"
+      className="bt-panel border-warning/40 bg-warning/5 p-6 text-center"
       data-testid="bt-results-notrades"
     >
       <TriangleAlert className="mx-auto mb-2 h-7 w-7 text-warning" aria-hidden />
-      <h2 className="text-base font-semibold">No tradeable days</h2>
+      <h2 className="bt-display text-base font-semibold">No tradeable days</h2>
       <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
         {reason ?? "This strategy never found a tradeable entry in the range — it's not an error."}
       </p>
       {onEdit && (
-        <Button variant="outline" size="sm" className="mt-4" onClick={onEdit}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4 font-mono uppercase tracking-wide"
+          onClick={onEdit}
+        >
           <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit strikes
         </Button>
       )}
@@ -200,21 +216,34 @@ function DoneState({
   return (
     <div className="space-y-6">
       {/* Iteration toolbar */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="bt-boot bt-boot-1 flex flex-wrap items-center justify-end gap-4 text-xs">
         {onEdit && (
-          <Button variant="outline" size="sm" onClick={onEdit} data-testid="bt-change-one-thing">
+          <button
+            type="button"
+            onClick={onEdit}
+            data-testid="bt-change-one-thing"
+            className="bt-bracket inline-flex items-center gap-1.5"
+          >
             <Pencil className="h-3.5 w-3.5" aria-hidden /> Change one thing
-          </Button>
+          </button>
         )}
         {onReRun && (
-          <Button variant="ghost" size="sm" onClick={onReRun}>
+          <button
+            type="button"
+            onClick={onReRun}
+            className="bt-bracket inline-flex items-center gap-1.5"
+          >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Re-run
-          </Button>
+          </button>
         )}
       </div>
 
       {/* Save / Share / Notify — login is nudged ONLY here, never to build/run. */}
-      {strategy && <SaveShareBar result={result} strategy={strategy} />}
+      {strategy && (
+        <div className="bt-boot bt-boot-2">
+          <SaveShareBar result={result} strategy={strategy} />
+        </div>
+      )}
 
       {/* The full read-only report (coverage-honesty layer → verdict → evidence
           → blotter). Shared verbatim with the public /backtesting/r/[shareId]. */}

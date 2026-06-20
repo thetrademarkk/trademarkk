@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { GraduationCap, Lock, PencilRuler, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PRESET_CATEGORY_LABEL } from "@/features/backtest/presets/catalogue";
@@ -44,12 +43,14 @@ export function PresetCard({ card }: { card: PresetCardData }) {
       data-testid="preset-card"
       data-preset-id={meta.id}
       data-runnable={runnableNow ? "1" : "0"}
-      className="flex h-full flex-col rounded-2xl border bg-surface p-4 transition-colors hover:border-accent"
+      className="flex h-full flex-col bt-panel bt-ticks p-4 transition-colors hover:border-accent hover:[box-shadow:0_0_28px_-14px_var(--bt-glow)]"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="secondary">{indexLabel}</Badge>
-          <Badge variant="outline">{PRESET_CATEGORY_LABEL[meta.category]}</Badge>
+          <span className="bt-chip" data-tone="accent">
+            {indexLabel}
+          </span>
+          <span className="bt-chip">{PRESET_CATEGORY_LABEL[meta.category]}</span>
         </div>
         <CoverageBadge
           fraction={coverage.fraction}
@@ -60,7 +61,7 @@ export function PresetCard({ card }: { card: PresetCardData }) {
         />
       </div>
 
-      <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug">
+      <h3 className="bt-display mt-3 line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug">
         {meta.title}
       </h3>
       <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{meta.thesis}</p>
@@ -68,7 +69,7 @@ export function PresetCard({ card }: { card: PresetCardData }) {
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-2/50 p-2.5">
         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <p className="line-clamp-3 text-xs leading-5 text-muted">
-          <span className="font-medium text-foreground">What it teaches: </span>
+          <span className="bt-label">What it teaches </span>
           {meta.teaches}
         </p>
       </div>
@@ -81,14 +82,19 @@ export function PresetCard({ card }: { card: PresetCardData }) {
         ))}
       </div>
 
-      <p className="mt-2 text-[11px] text-muted">
+      <p className="mt-2 bt-label">
         {meta.periodLabel} · {DIFFICULTY_LABEL[meta.difficulty] ?? meta.difficulty}
       </p>
 
       {/* mt-auto pins the action row to the card bottom so every card's buttons
           align on a row, regardless of how much thesis/teaches text sits above. */}
       <div className="mt-auto flex items-center gap-2 pt-4">
-        <Button asChild size="sm" variant="outline" className="flex-1">
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          className="flex-1 font-mono uppercase tracking-wide"
+        >
           <Link
             href={`/backtesting/build?preset=${encodeURIComponent(meta.id)}`}
             data-testid="preset-open-builder"
@@ -98,7 +104,12 @@ export function PresetCard({ card }: { card: PresetCardData }) {
           </Link>
         </Button>
         {runnableNow ? (
-          <Button asChild size="sm" className="flex-1" data-testid="preset-run">
+          <Button
+            asChild
+            size="sm"
+            className="flex-1 font-mono uppercase tracking-wide"
+            data-testid="preset-run"
+          >
             <Link href={`/backtesting/build?preset=${encodeURIComponent(meta.id)}&run=1`}>
               <Play className="h-3.5 w-3.5" aria-hidden />
               Run
@@ -112,7 +123,7 @@ export function PresetCard({ card }: { card: PresetCardData }) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className={cn("w-full text-muted")}
+                    className={cn("w-full font-mono uppercase tracking-wide text-muted")}
                     aria-disabled="true"
                     data-testid="preset-run-locked"
                     onClick={(e) => e.preventDefault()}

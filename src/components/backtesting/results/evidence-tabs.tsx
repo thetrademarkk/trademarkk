@@ -29,18 +29,38 @@ function TabFallback() {
  */
 export function EvidenceTabs({ run }: { run: RunResult }) {
   return (
-    <Tabs defaultValue="returns" className="w-full" data-testid="bt-evidence-tabs">
+    <Tabs
+      defaultValue="returns"
+      className="w-full bt-boot bt-boot-1"
+      data-testid="bt-evidence-tabs"
+    >
       <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
-        <TabsTrigger value="returns" data-testid="bt-tab-returns">
+        <TabsTrigger
+          value="returns"
+          data-testid="bt-tab-returns"
+          className="font-mono uppercase tracking-wide"
+        >
           Returns
         </TabsTrigger>
-        <TabsTrigger value="risk" data-testid="bt-tab-risk">
+        <TabsTrigger
+          value="risk"
+          data-testid="bt-tab-risk"
+          className="font-mono uppercase tracking-wide"
+        >
           Risk
         </TabsTrigger>
-        <TabsTrigger value="calendar" data-testid="bt-tab-calendar">
+        <TabsTrigger
+          value="calendar"
+          data-testid="bt-tab-calendar"
+          className="font-mono uppercase tracking-wide"
+        >
           Calendar
         </TabsTrigger>
-        <TabsTrigger value="robustness" data-testid="bt-tab-robustness">
+        <TabsTrigger
+          value="robustness"
+          data-testid="bt-tab-robustness"
+          className="font-mono uppercase tracking-wide"
+        >
           Robustness
         </TabsTrigger>
       </TabsList>

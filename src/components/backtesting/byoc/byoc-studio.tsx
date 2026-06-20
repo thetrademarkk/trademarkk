@@ -49,14 +49,20 @@ export function ByocStudio() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="flex items-center justify-between gap-3">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <div className="bt-boot bt-boot-1 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Bring your own code</h1>
+          <p className="bt-label text-accent">
+            <span className="bt-prompt">bring your own code</span>
+          </p>
+          <h1 className="bt-display mt-2 text-2xl font-bold">
+            Write a <span className="bt-glow-text">JavaScript</span> strategy
+          </h1>
           <p className="mt-1 text-sm text-muted">
-            Write a JavaScript strategy and run it in your browser against real 1-minute data.
+            Run it in your browser against real 1-minute data.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" className="font-mono uppercase tracking-wide">
           <Link href="/backtesting">
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back
@@ -64,7 +70,7 @@ export function ByocStudio() {
         </Button>
       </div>
 
-      <p className="mt-4 flex items-start gap-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-xs leading-5 text-muted">
+      <p className="mt-4 flex items-start gap-2 bt-panel border-accent/30 bg-accent/5 p-3 text-xs leading-5 text-muted bt-boot bt-boot-2">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <span>
           Your code runs inside a sandboxed JavaScript VM (QuickJS-WASM) — it has{" "}
@@ -74,88 +80,122 @@ export function ByocStudio() {
         </span>
       </p>
 
-      {/* Controls */}
-      <div className="mt-5 flex flex-wrap items-end gap-3">
-        <label className="text-xs">
-          <span className="text-muted">Underlying</span>
-          <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value as Sym)}
-            className="mt-1 block h-9 rounded-md border bg-surface px-2 text-sm"
-            data-testid="byoc-symbol"
-          >
-            {SYMBOLS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs">
-          <span className="text-muted">From</span>
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="mt-1 w-40"
-          />
-        </label>
-        <label className="text-xs">
-          <span className="text-muted">To</span>
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="mt-1 w-40"
-          />
-        </label>
-        <label className="text-xs">
-          <span className="text-muted">Interval</span>
-          <Input
-            type="text"
-            value={interval}
-            onChange={(e) => setInterval(e.target.value)}
-            placeholder="5m"
-            className="mt-1 w-20"
-            data-testid="byoc-interval"
-          />
-        </label>
-        <Button type="button" onClick={onRun} disabled={busy} data-testid="byoc-run">
-          {busy ? (
-            <>
-              <Loader2 className="animate-spin" aria-hidden />
-              {status === "loading-data" ? "Loading data…" : "Running…"}
-            </>
-          ) : (
-            <>
-              <Play aria-hidden /> Run
-            </>
-          )}
-        </Button>
-      </div>
+      {/* ── Studio: a framed terminal window ────────────────────────── */}
+      <section className="mt-5 bt-boot bt-boot-3">
+        <div className="bt-panel bt-ticks overflow-hidden">
+          {/* Titlebar */}
+          <div className="flex items-center justify-between border-b border-border px-4 py-2">
+            <span className="flex items-center gap-2.5">
+              <span className="flex gap-1" aria-hidden>
+                <span className="h-2 w-2 rounded-full bg-loss/70" />
+                <span className="h-2 w-2 rounded-full bg-warning/70" />
+                <span className="h-2 w-2 rounded-full bg-profit/70" />
+              </span>
+              <span className="bt-label">tmk://byoc</span>
+            </span>
+            <span className="bt-label flex items-center gap-1.5 text-accent">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+              quickjs · sandboxed
+            </span>
+          </div>
 
-      {/* Editor */}
-      <textarea
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-        spellCheck={false}
-        rows={18}
-        data-testid="byoc-code"
-        className="mt-4 w-full rounded-xl border bg-surface/60 p-3 font-mono text-[12.5px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      />
+          {/* Controls */}
+          <div className="flex flex-wrap items-end gap-3 px-4 py-3.5">
+            <label className="text-xs">
+              <span className="bt-label">Underlying</span>
+              <select
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value as Sym)}
+                className="mt-1.5 block h-9 rounded-md border bg-surface px-2 text-sm"
+                data-testid="byoc-symbol"
+              >
+                {SYMBOLS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs">
+              <span className="bt-label">From</span>
+              <Input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="mt-1.5 w-40"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="bt-label">To</span>
+              <Input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="mt-1.5 w-40"
+              />
+            </label>
+            <label className="text-xs">
+              <span className="bt-label">Interval</span>
+              <Input
+                type="text"
+                value={interval}
+                onChange={(e) => setInterval(e.target.value)}
+                placeholder="5m"
+                className="mt-1.5 w-20"
+                data-testid="byoc-interval"
+              />
+            </label>
+            <Button
+              type="button"
+              onClick={onRun}
+              disabled={busy}
+              data-testid="byoc-run"
+              className="font-mono uppercase tracking-wide"
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="animate-spin" aria-hidden />
+                  {status === "loading-data" ? "Loading data…" : "Running…"}
+                </>
+              ) : (
+                <>
+                  <Play aria-hidden /> Run
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Editor */}
+          <div className="border-t border-border px-4 pb-4 pt-3">
+            <p className="bt-label mb-2">
+              <span className="bt-prompt">strategy.js</span>
+            </p>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              spellCheck={false}
+              rows={18}
+              data-testid="byoc-code"
+              className="w-full rounded-xl border bg-surface/60 p-3 font-mono text-[12.5px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            />
+            {/* Run rail — scans amber while a run is in flight */}
+            <div className={cn("mt-2 h-px bg-border", busy && "bt-scanline")} aria-hidden />
+          </div>
+        </div>
+      </section>
 
       {/* Status / results */}
-      <div className="mt-4" data-testid="byoc-result" data-status={status}>
+      <div className="mt-4 bt-boot bt-boot-4" data-testid="byoc-result" data-status={status}>
         {status === "error" && (
-          <div className="flex items-start gap-2 rounded-lg border border-loss/40 bg-loss/5 p-3 text-sm text-loss">
+          <div className="flex items-start gap-2 bt-panel border-loss/40 bg-loss/5 p-3 text-sm text-loss">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>{error}</span>
           </div>
         )}
         {status === "done" && result?.ok && <ByocResultView result={result} barCount={barCount} />}
         {result && result.logs.length > 0 && (
-          <details className="mt-3 rounded-lg border bg-surface/40 p-2 text-xs">
-            <summary className="cursor-pointer text-muted">
+          <details className="mt-3 bt-panel p-2 text-xs">
+            <summary className="bt-label cursor-pointer">
               console.log ({result.logs.length})
             </summary>
             <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
@@ -180,6 +220,9 @@ function ByocResultView({
   const tone = (x: number) => (x > 0 ? "text-profit" : x < 0 ? "text-loss" : "text-foreground");
   return (
     <div className="space-y-4" data-testid="byoc-done">
+      <h2 className="bt-label text-accent">
+        <span className="bt-prompt">result readout</span>
+      </h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Total return" value={pct(s.totalReturn)} className={tone(s.totalReturn)} />
         <Stat label="Win rate" value={pct(s.winRate)} />
@@ -190,7 +233,8 @@ function ByocResultView({
       </div>
       <EquityCurve equity={s.equity} />
       <p className="text-[11px] text-muted">
-        Ran over {formatNumber(barCount, 0)} candles in {result.elapsedMs}ms.
+        Ran over <span className="font-money text-foreground">{formatNumber(barCount, 0)}</span>{" "}
+        candles in <span className="font-money text-foreground">{result.elapsedMs}ms</span>.
       </p>
     </div>
   );
@@ -198,11 +242,9 @@ function ByocResultView({
 
 function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="rounded-lg border bg-surface/40 p-2.5">
-      <div className="text-[10px] uppercase tracking-wide text-muted">{label}</div>
-      <div className={cn("mt-0.5 font-money text-sm font-semibold tabular-nums", className)}>
-        {value}
-      </div>
+    <div className="bt-panel p-2.5">
+      <div className="bt-label">{label}</div>
+      <div className={cn("bt-num mt-1 text-sm font-semibold", className)}>{value}</div>
     </div>
   );
 }
@@ -226,10 +268,8 @@ function EquityCurve({ equity }: { equity: number[] }) {
     .join(" ");
   const up = equity[equity.length - 1]! >= 1;
   return (
-    <div className="rounded-lg border bg-surface/40 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-muted">
-        Equity (×, starts at 1)
-      </div>
+    <div className="bt-panel p-2">
+      <div className="bt-label mb-1.5">Equity (×, starts at 1)</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-24 w-full" preserveAspectRatio="none" aria-hidden>
         <polyline
           points={pts}

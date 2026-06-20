@@ -93,9 +93,11 @@ export function BuilderShell({
       {/* Sticky header: title + saved tick + stepper. */}
       <div className="sticky top-14 z-20 border-b bg-bg/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5">
-          <h1 className="text-sm font-semibold">Build a strategy</h1>
+          <h1 className="bt-display text-sm font-semibold">
+            <span className="bt-prompt text-accent">build a strategy</span>
+          </h1>
           <span
-            className="inline-flex items-center gap-1 text-[11px] text-muted"
+            className="bt-label inline-flex items-center gap-1 text-profit"
             data-testid="bt-saved"
             key={savedAt}
           >
@@ -126,7 +128,7 @@ export function BuilderShell({
           {/* Inline validation feedback. */}
           {showErrors && validation.errors.length > 0 && (
             <ul
-              className="mt-4 space-y-1 rounded-lg border border-loss/40 bg-loss/5 p-3 text-sm text-loss"
+              className="bt-panel mt-4 space-y-1 border-loss/40 bg-loss/5 p-3 text-sm text-loss"
               data-testid="bt-errors"
             >
               {validation.errors.map((e, i) => (
@@ -136,7 +138,7 @@ export function BuilderShell({
           )}
           {validation.warnings.length > 0 && (
             <ul
-              className="mt-4 space-y-1 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-warning"
+              className="bt-panel mt-4 space-y-1 border-warning/40 bg-warning/5 p-3 text-sm text-warning"
               data-testid="bt-warnings"
             >
               {validation.warnings.map((w, i) => (
@@ -154,6 +156,7 @@ export function BuilderShell({
                 onClick={onBack}
                 disabled={step === "setup"}
                 data-testid="bt-back"
+                className="font-mono uppercase tracking-wide"
               >
                 <ArrowLeft aria-hidden /> Back
               </Button>
@@ -161,7 +164,7 @@ export function BuilderShell({
                 type="button"
                 onClick={onContinue}
                 aria-disabled={!validation.ok}
-                className={cn(!validation.ok && "opacity-60")}
+                className={cn("font-mono uppercase tracking-wide", !validation.ok && "opacity-60")}
                 data-testid="bt-continue"
               >
                 {step === "risk" ? "Review & run" : "Continue"} <ArrowRight aria-hidden />
@@ -170,7 +173,13 @@ export function BuilderShell({
           )}
           {isReview && (
             <div className="mt-6">
-              <Button type="button" variant="ghost" onClick={onBack} data-testid="bt-back">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onBack}
+                data-testid="bt-back"
+                className="font-mono uppercase tracking-wide"
+              >
                 <ArrowLeft aria-hidden /> Back
               </Button>
             </div>

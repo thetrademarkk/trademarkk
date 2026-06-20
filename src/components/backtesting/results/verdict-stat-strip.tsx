@@ -88,7 +88,7 @@ function StatTile({
   const inner = (
     <>
       <div className="flex items-center justify-between gap-1">
-        <span className="micro-label">{card.label}</span>
+        <span className="bt-label">{card.label}</span>
         {card.derivable && (
           <ChevronDown
             className={cn("h-3.5 w-3.5 text-muted transition-transform", expanded && "rotate-180")}
@@ -96,9 +96,7 @@ function StatTile({
           />
         )}
       </div>
-      <div
-        className={cn("mt-1.5 text-lg font-semibold font-money md:text-xl", toneClass(card.tone))}
-      >
+      <div className={cn("bt-num mt-1.5 text-lg md:text-xl", toneClass(card.tone))}>
         {card.value}
       </div>
       <div className="mt-1 flex min-h-4 items-center gap-1.5 text-xs">
@@ -134,13 +132,16 @@ function StatTile({
 
   if (!card.derivable) {
     return (
-      <Card className="min-w-0 p-3" data-stat-key={card.key}>
+      <Card className="bt-panel min-w-0 p-3" data-stat-key={card.key}>
         {inner}
       </Card>
     );
   }
   return (
-    <Card className="min-w-0 p-0" data-stat-key={card.key}>
+    <Card
+      className={cn("bt-panel min-w-0 p-0", expanded && "bt-panel-active")}
+      data-stat-key={card.key}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -165,15 +166,15 @@ function ChargesWaterfallPanel({
   const lines = waterfallLines(waterfall);
   return (
     <div
-      className="mt-3 rounded-xl border bg-surface-2/60 p-4 animate-slide-up"
+      className="bt-panel mt-3 bg-surface-2/60 p-4 animate-slide-up"
       data-testid="bt-charges-waterfall"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">How Net P&L is derived</h3>
+        <h3 className="bt-display text-sm font-semibold">How Net P&L is derived</h3>
         <button
           type="button"
           onClick={onClose}
-          className="text-xs text-accent hover:underline"
+          className="bt-bracket text-xs"
           aria-label="Close derivation"
         >
           Hide

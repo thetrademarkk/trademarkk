@@ -139,6 +139,10 @@ def write_month(path, rows, sym):
         return 0
     ts, o, h, l, c, v, oi, td = [], [], [], [], [], [], [], []
     for r in rows:
+        # Groww occasionally returns a bar with null OHLC (a data gap). A bar with
+        # no price is meaningless for backtesting — skip it rather than crash.
+        if r[1] is None or r[2] is None or r[3] is None or r[4] is None:
+            continue
         ts.append(str(r[0]))
         o.append(float(r[1])); h.append(float(r[2])); l.append(float(r[3])); c.append(float(r[4]))
         v.append(int(r[5]) if r[5] is not None else 0)
@@ -170,9 +174,14 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     env = load_env()
-    from growwapi import GrowwAPI
+    from growwapi import GrowwAPI  # noqa: F401  (used elsewhere in this module)
 
-    g = GrowwAPI(GrowwAPI.get_access_token(api_key=env["GROWW_API_KEY"], secret=env["GROWW_API_SECRET"]))
+    # Use the shared cached-token helper (secret flow is rate-limited to ~one mint;
+    # the TOTP flow mints reliably and the daily token is reused from cache).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from groww_auth import get_token
+
+    g = GrowwAPI(get_token(env))
     spot = resolve_spot_symbols(g)
     syms = args.symbols or NIFTY50
     out_root = os.path.join(args.archive, "stocks_spot")

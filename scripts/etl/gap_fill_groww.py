@@ -376,14 +376,17 @@ def main(argv=None) -> int:
         return 0
 
     env = load_env(args.env)
-    if not env.get("GROWW_API_KEY") or not env.get("GROWW_API_SECRET"):
-        print("ERROR: GROWW_API_KEY / GROWW_API_SECRET missing in env file.", file=sys.stderr)
+    if not env.get("GROWW_TOTP_TOKEN") and not env.get("GROWW_API_KEY"):
+        print("ERROR: GROWW_TOTP_TOKEN / GROWW_API_KEY missing in env file.", file=sys.stderr)
         return 3
+    # Use the shared cached-token helper: the approval/secret flow is rate-limited
+    # to ~one mint then cools down; the TOTP flow mints reliably and tokens are
+    # valid for the trading day, so we mint ONCE and reuse the cache across runs.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from groww_auth import get_token
     from growwapi import GrowwAPI
-    tok = GrowwAPI.get_access_token(api_key=env["GROWW_API_KEY"], secret=env["GROWW_API_SECRET"])
-    tok = tok.get("token") if isinstance(tok, dict) else tok
-    g = GrowwAPI(tok)
-    print("Groww auth OK (secret flow).")
+    g = GrowwAPI(get_token(env))
+    print("Groww auth OK (cached TOTP token).")
 
     thr = Throttle(args.min_interval)
     n_real = n_empty = n_fail = n_skip = n_done = 0

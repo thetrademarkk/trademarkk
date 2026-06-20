@@ -56,7 +56,7 @@ export function JournalCompareView({ compare }: { compare: JournalCompare }) {
   return (
     <div className="space-y-5" data-testid="bt-compare-result">
       {/* Honest framing — always first, never optional. */}
-      <div className="flex items-start gap-2 rounded-lg border bg-surface-2/40 p-3 text-xs leading-5 text-muted">
+      <div className="bt-panel bt-boot bt-boot-1 flex items-start gap-2 p-3 text-xs leading-5 text-muted">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <span>
           This is a <strong className="font-medium text-foreground">mirror for self-review</strong>,
@@ -70,7 +70,7 @@ export function JournalCompareView({ compare }: { compare: JournalCompare }) {
       {/* Coverage / sample caveats. */}
       {(compare.lowSample || compare.outOfRangeTrades > 0) && (
         <div
-          className="flex flex-col gap-1.5 rounded-lg border border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning"
+          className="bt-panel bt-boot bt-boot-2 flex flex-col gap-1.5 border-warning/40 bg-warning/5 p-3 text-xs leading-5 text-warning"
           data-testid="bt-compare-caveats"
         >
           {compare.lowSample && (
@@ -91,10 +91,12 @@ export function JournalCompareView({ compare }: { compare: JournalCompare }) {
       )}
 
       {/* Equity overlay. */}
-      <section className="rounded-2xl border bg-surface p-4">
+      <section className="bt-panel bt-boot bt-boot-3 p-4">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">Cumulative P&amp;L — you vs the baseline</h3>
-          <span className="text-xs text-muted">
+          <h3 className="bt-display text-sm font-semibold">
+            Cumulative P&amp;L — you vs the baseline
+          </h3>
+          <span className="bt-label">
             {compare.period.from} → {compare.period.to}
           </span>
         </div>
@@ -115,16 +117,18 @@ export function JournalCompareView({ compare }: { compare: JournalCompare }) {
       </section>
 
       {/* Discipline / edge metrics. */}
-      <section className="rounded-2xl border bg-surface p-4" data-testid="bt-compare-metrics">
-        <h3 className="mb-3 text-sm font-semibold">Where your trading and the baseline differ</h3>
+      <section className="bt-panel bt-boot bt-boot-4 p-4" data-testid="bt-compare-metrics">
+        <h3 className="bt-display mb-3 text-sm font-semibold">
+          Where your trading and the baseline differ
+        </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase tracking-wide text-muted">
-                <th className="py-2 pr-3 font-medium">Metric</th>
-                <th className="py-2 pr-3 text-right font-medium">You</th>
-                <th className="py-2 pr-3 text-right font-medium">Baseline</th>
-                <th className="py-2 text-right font-medium">Difference</th>
+              <tr className="border-b text-left">
+                <th className="bt-label py-2 pr-3">Metric</th>
+                <th className="bt-label py-2 pr-3 text-right">You</th>
+                <th className="bt-label py-2 pr-3 text-right">Baseline</th>
+                <th className="bt-label py-2 text-right">Difference</th>
               </tr>
             </thead>
             <tbody>
@@ -170,8 +174,8 @@ function DivergencesSection({ compare }: { compare: JournalCompare }) {
   const hasAny = d.discretionaryDays > 0 || d.skippedSignalDays > 0;
 
   return (
-    <section className="rounded-2xl border bg-surface p-4" data-testid="bt-compare-divergences">
-      <h3 className="mb-1 text-sm font-semibold">
+    <section className="bt-panel bt-boot bt-boot-5 p-4" data-testid="bt-compare-divergences">
+      <h3 className="bt-display mb-1 text-sm font-semibold">
         Divergences — days you and the baseline differed
       </h3>
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -192,10 +196,10 @@ function DivergencesSection({ compare }: { compare: JournalCompare }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs uppercase tracking-wide text-muted">
-                <th className="py-2 pr-3 font-medium">Day</th>
-                <th className="py-2 pr-3 font-medium">What happened</th>
-                <th className="py-2 text-right font-medium">Net</th>
+              <tr className="border-b text-left">
+                <th className="bt-label py-2 pr-3">Day</th>
+                <th className="bt-label py-2 pr-3">What happened</th>
+                <th className="bt-label py-2 text-right">Net</th>
               </tr>
             </thead>
             <tbody>
@@ -217,9 +221,9 @@ function DivergencesSection({ compare }: { compare: JournalCompare }) {
 
 function DivStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border bg-surface-2/40 p-2.5">
-      <div className="text-lg font-semibold tabular-nums">{value}</div>
-      <div className="text-[11px] leading-4 text-muted">{label}</div>
+    <div className="bt-panel p-2.5">
+      <div className="bt-num text-lg font-semibold tabular-nums">{value}</div>
+      <div className="bt-label mt-1 leading-4">{label}</div>
       {sub && <div className="mt-0.5 text-[11px] font-money tabular-nums text-muted">{sub}</div>}
     </div>
   );

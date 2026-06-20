@@ -1,0 +1,374 @@
+/* ============================================================================
+   BACKTESTING "TERMINAL" THEME  ·  instrument-grade dark surface
+   ----------------------------------------------------------------------------
+   Scoped entirely under `.bt-terminal` (set on the /backtesting layout) so it
+   NEVER leaks into the journal / community surfaces. It overrides the app's
+   semantic CSS variables, so every existing component (bg-surface, text-muted,
+   text-profit, border…) is re-skinned to the Terminal palette for free; the
+   classes below add the distinctive treatments — phosphor-amber accent, hairline
+   graph-paper grid, scanline veil, mono numerals as the hero, bracketed panels.
+   Numbers are the UI. Restraint over decoration.
+   ========================================================================== */
+
+.bt-terminal {
+  /* ── Canvas: near-black, faintly warm (CRT, not pure void) ── */
+  --bg: #08090a;
+  --surface: #0d0e11;
+  --surface-2: #14161a;
+  --border: #1e2026;
+  --text: #e9eaec;
+  --text-muted: #767a83;
+
+  /* P&L stays green / red — deliberately DISTINCT from the amber accent so a
+     gain can never read as "the brand colour". */
+  --profit: #29d17e;
+  --loss: #ff5b5b;
+  --warning: #f5b13c;
+
+  /* Phosphor amber — the interactive / brand accent (Bloomberg-amber heritage). */
+  --accent: #ffb000;
+  --accent-solid: #ffb000;
+  --accent-fg: #0b0a06;
+
+  /* Terminal-only tokens. */
+  --bt-hair: #1e2026;
+  --bt-hair-bright: #2c2f37;
+  --bt-grid: rgba(255, 255, 255, 0.021);
+  --bt-glow: rgba(255, 176, 0, 0.5);
+  --bt-amber-dim: rgba(255, 176, 0, 0.14);
+  --bt-scan: rgba(255, 255, 255, 0.014);
+
+  --font-bt-display: var(--font-bt-mono), var(--font-geist-mono), ui-monospace, monospace;
+
+  background-color: var(--bg);
+  color: var(--text);
+  position: relative;
+  isolation: isolate;
+}
+
+/* ── Atmosphere: graph-paper grid + scanline veil + top vignette ──
+   A single fixed, pointer-inert layer behind all content. GPU-cheap (paint
+   only), and respected by reduced-motion (it never animates). */
+.bt-terminal::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--bt-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bt-grid) 1px, transparent 1px),
+    repeating-linear-gradient(
+      0deg,
+      var(--bt-scan) 0px,
+      var(--bt-scan) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    radial-gradient(120% 80% at 50% -10%, var(--bt-amber-dim), transparent 55%);
+  background-size:
+    32px 32px,
+    32px 32px,
+    100% 3px,
+    100% 100%;
+}
+
+/* ============================================================================
+   TYPOGRAPHY
+   ========================================================================== */
+.bt-terminal {
+  letter-spacing: 0.01em;
+}
+
+/* Big mono display number — the hero of every panel. */
+.bt-num {
+  font-family: var(--font-bt-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss01", "zero";
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* Section / display heading — mono, tight, uppercase-friendly. */
+.bt-display {
+  font-family: var(--font-bt-display);
+  letter-spacing: -0.01em;
+  font-feature-settings: "ss01";
+}
+
+/* Micro label — the tracked uppercase caption used above every field. */
+.bt-label {
+  font-family: var(--font-bt-display);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* A muted "command prompt" prefix (▸ / ›) rendered in amber. */
+.bt-prompt::before {
+  content: "›";
+  color: var(--accent);
+  margin-right: 0.5ch;
+  opacity: 0.9;
+}
+
+/* ============================================================================
+   PANELS  ·  hairline frames with optional corner ticks
+   ========================================================================== */
+.bt-panel {
+  position: relative;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--bt-hair);
+  border-radius: 4px;
+  backdrop-filter: blur(2px);
+}
+
+/* Register-mark corner ticks (┌ ┐ └ ┘) — the signature terminal frame. */
+.bt-ticks::before,
+.bt-ticks::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.bt-ticks::before {
+  top: -1px;
+  left: -1px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.bt-ticks::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* Elevated/active panel — brighter hairline + faint amber inner glow. */
+.bt-panel-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--bt-hair));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent),
+    0 0 24px -12px var(--bt-glow);
+}
+
+/* Tighten the app's soft radii inside the terminal so the whole universe reads
+   sharp/instrument-like without touching each component's markup. */
+.bt-terminal .rounded-3xl {
+  border-radius: 10px;
+}
+.bt-terminal .rounded-2xl {
+  border-radius: 7px;
+}
+.bt-terminal .rounded-xl {
+  border-radius: 5px;
+}
+.bt-terminal .rounded-lg {
+  border-radius: 4px;
+}
+
+/* ============================================================================
+   COVERAGE METER  ·  the honesty primitive, segmented like a signal bar
+   ========================================================================== */
+.bt-meter {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+.bt-meter-seg {
+  width: 9px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--bt-hair);
+}
+.bt-meter-seg[data-on="1"] {
+  background: var(--profit);
+  box-shadow: none;
+}
+.bt-meter-seg[data-on="warn"] {
+  background: var(--warning);
+  box-shadow: none;
+}
+.bt-meter-seg[data-on="bad"] {
+  background: var(--loss);
+  box-shadow: none;
+}
+
+/* ============================================================================
+   CHIPS / BRACKETED BUTTONS
+   ========================================================================== */
+.bt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4ch;
+  font-family: var(--font-bt-display);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--bt-hair);
+  border-radius: 3px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+.bt-chip[data-tone="accent"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--bt-amber-dim);
+}
+.bt-chip[data-tone="profit"] {
+  color: var(--profit);
+  border-color: color-mix(in srgb, var(--profit) 35%, transparent);
+}
+.bt-chip[data-tone="loss"] {
+  color: var(--loss);
+  border-color: color-mix(in srgb, var(--loss) 35%, transparent);
+}
+
+/* Bracketed terminal action — [ LABEL ] that lights amber on hover/focus. */
+.bt-bracket {
+  position: relative;
+  font-family: var(--font-bt-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+  transition:
+    color 0.18s ease,
+    text-shadow 0.18s ease;
+}
+.bt-bracket::before {
+  content: "[ ";
+  color: var(--accent);
+}
+.bt-bracket::after {
+  content: " ]";
+  color: var(--accent);
+}
+.bt-bracket:hover,
+.bt-bracket:focus-visible {
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--bt-glow);
+}
+
+/* ============================================================================
+   ACCENTS  ·  blinking caret, glow text, hairline rule
+   ========================================================================== */
+.bt-caret::after {
+  content: "▮";
+  color: var(--accent);
+  margin-left: 0.25ch;
+  animation: bt-blink 1.1s steps(1) infinite;
+}
+@keyframes bt-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.bt-glow-text {
+  color: var(--accent);
+  text-shadow: 0 0 16px var(--bt-glow);
+}
+
+.bt-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--bt-hair-bright) 12%,
+    var(--bt-hair-bright) 88%,
+    transparent
+  );
+}
+
+/* A scanning amber sweep used on "running"/loading rails. */
+.bt-scanline {
+  position: relative;
+  overflow: hidden;
+}
+.bt-scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--bt-glow), transparent);
+  width: 40%;
+  transform: translateX(-120%);
+  animation: bt-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  opacity: 0.5;
+}
+@keyframes bt-sweep {
+  to {
+    transform: translateX(320%);
+  }
+}
+
+/* ============================================================================
+   BOOT REVEAL  ·  staggered terminal-style entrance (numbers/lines settle in)
+   ========================================================================== */
+@keyframes bt-boot {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+.bt-boot {
+  animation: bt-boot 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.bt-boot-1 {
+  animation-delay: 0.04s;
+}
+.bt-boot-2 {
+  animation-delay: 0.1s;
+}
+.bt-boot-3 {
+  animation-delay: 0.16s;
+}
+.bt-boot-4 {
+  animation-delay: 0.22s;
+}
+.bt-boot-5 {
+  animation-delay: 0.28s;
+}
+.bt-boot-6 {
+  animation-delay: 0.34s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-boot {
+    animation: none;
+  }
+  .bt-caret::after {
+    animation: none;
+  }
+  .bt-scanline::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   FOCUS  ·  amber ring consistent with the theme
+   ========================================================================== */
+.bt-terminal :focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+}

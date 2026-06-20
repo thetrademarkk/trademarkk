@@ -33,7 +33,7 @@ export function BacktestTradeQuickView({
         {row && (
           <>
             <DialogHeader>
-              <DialogTitle className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="bt-display flex flex-wrap items-center gap-2">
                 {symbol} · {row.day}
                 {row.substituted && (
                   <Badge variant="warning">
@@ -46,10 +46,10 @@ export function BacktestTradeQuickView({
               </DialogTitle>
             </DialogHeader>
 
-            <div className="flex items-end justify-between rounded-lg bg-surface-2/60 px-4 py-3">
+            <div className="bt-panel flex items-end justify-between px-4 py-3">
               <div>
-                <p className="micro-label">Net P&L</p>
-                <PnlText value={row.net} className="text-2xl font-bold" />
+                <p className="bt-label">Net P&L</p>
+                <PnlText value={row.net} className="bt-num mt-1 block text-2xl" />
               </div>
               <div className="text-right text-xs text-muted">
                 <p>
@@ -61,21 +61,21 @@ export function BacktestTradeQuickView({
 
             <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
               <div>
-                <dt className="micro-label">Entry</dt>
-                <dd className="text-xs">{istTime(row.entryTs)}</dd>
+                <dt className="bt-label">Entry</dt>
+                <dd className="font-money text-xs tabular-nums">{istTime(row.entryTs)}</dd>
               </div>
               <div>
-                <dt className="micro-label">Exit</dt>
-                <dd className="text-xs">{istTime(row.exitTs)}</dd>
+                <dt className="bt-label">Exit</dt>
+                <dd className="font-money text-xs tabular-nums">{istTime(row.exitTs)}</dd>
               </div>
               <div>
-                <dt className="micro-label">Legs</dt>
-                <dd className="font-money">{row.legs.length}</dd>
+                <dt className="bt-label">Legs</dt>
+                <dd className="font-money tabular-nums">{row.legs.length}</dd>
               </div>
             </dl>
 
             <div className="space-y-1.5">
-              <p className="micro-label">Per-leg</p>
+              <p className="bt-label">Per-leg</p>
               {row.legs.map((leg, i) => (
                 <div
                   key={`${leg.legId}-${i}`}

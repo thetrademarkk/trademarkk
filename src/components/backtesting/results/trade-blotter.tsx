@@ -47,10 +47,11 @@ export function TradeBlotter({ run }: { run: RunResult }) {
   };
 
   return (
-    <div data-testid="bt-blotter">
+    <div data-testid="bt-blotter" className="bt-boot bt-boot-1">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs text-muted">
-          {rows.length} trading-day{rows.length === 1 ? "" : "s"}
+          <span className="font-money tabular-nums">{rows.length}</span> trading-day
+          {rows.length === 1 ? "" : "s"}
           {hasSubstitute && (
             <span className="ml-2 text-warning">* nearest/illiquid strike used</span>
           )}
@@ -61,13 +62,14 @@ export function TradeBlotter({ run }: { run: RunResult }) {
           size="sm"
           onClick={onExport}
           data-testid="bt-csv-export"
+          className="font-mono uppercase tracking-wide"
         >
           <Download className="h-3.5 w-3.5" aria-hidden /> CSV
         </Button>
       </div>
 
       {/* Sticky header */}
-      <div className="grid grid-cols-[1.6fr_1fr_1fr_1.1fr] gap-2 border-b px-2 py-1.5 text-[11px] uppercase tracking-wide text-muted">
+      <div className="bt-label grid grid-cols-[1.6fr_1fr_1fr_1.1fr] gap-2 border-b px-2 py-1.5">
         <span>Day</span>
         <span className="text-right">Gross</span>
         <span className="text-right">Charges</span>
@@ -96,7 +98,7 @@ export function TradeBlotter({ run }: { run: RunResult }) {
                 data-row-day={row.day}
                 data-substituted={row.substituted ? "true" : "false"}
               >
-                <span className="flex items-center gap-1 text-left">
+                <span className="flex items-center gap-1 text-left font-money tabular-nums">
                   {row.day}
                   {flagged && (
                     <span className="text-warning" aria-label="substituted or illiquid">
