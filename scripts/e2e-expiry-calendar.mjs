@@ -55,6 +55,31 @@ await step("calendar page shows the two tabs", async () => {
   await page.getByRole("tab", { name: /Upcoming expiries/ }).waitFor({ timeout: 5000 });
 });
 
+await step("primary tabs use the Groww underline variant (not pills)", async () => {
+  // Theme-robust: prove the underline geometry rather than a hard-coded accent rgb.
+  const s = await page.evaluate(() => {
+    const list = document.querySelector('[role="tablist"]');
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const active = tabs.find((t) => t.getAttribute("data-state") === "active");
+    const inactive = tabs.find((t) => t.getAttribute("data-state") !== "active");
+    const cs = (el) => (el ? getComputedStyle(el) : null);
+    return {
+      listBg: cs(list)?.backgroundColor,
+      activeShadow: cs(active)?.boxShadow,
+      inactiveShadow: cs(inactive)?.boxShadow,
+    };
+  });
+  const transparent = (c) => !c || c === "rgba(0, 0, 0, 0)" || c === "transparent";
+  // Pill track was bg-surface-2; the underline list must be transparent.
+  if (!transparent(s.listBg)) throw new Error(`tablist should be transparent, got ${s.listBg}`);
+  // Active tab carries an inset box-shadow underline (the violet accent bar)…
+  if (!s.activeShadow || s.activeShadow === "none" || !/inset/.test(s.activeShadow))
+    throw new Error(`active tab should have an inset underline shadow, got ${s.activeShadow}`);
+  // …while the inactive tab has no underline shadow.
+  if (s.inactiveShadow && s.inactiveShadow !== "none")
+    throw new Error(`inactive tab should have no underline shadow, got ${s.inactiveShadow}`);
+});
+
 await step("Upcoming expiries tab renders cross-exchange day cards", async () => {
   await page.getByRole("tab", { name: /Upcoming expiries/ }).click();
   await page.getByTestId("upcoming-expiries").waitFor({ timeout: 10000 });
