@@ -214,7 +214,7 @@ function Segmented({
       <div
         role="group"
         aria-label={label}
-        className="bt-scrollfade flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-0 flex-1 snap-x snap-mandatory gap-1 overflow-x-auto rounded-lg bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {children}
       </div>

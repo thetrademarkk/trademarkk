@@ -1,6 +1,4 @@
 @import "tailwindcss";
-/* TAPE — scoped backtesting instrument skin (.bt-terminal only; see file head). */
-@import "./bt-terminal.css";
 
 /* Dark themes are class-based (next-themes sets the class on <html>). */
 @custom-variant dark (&:where(.carbon, .carbon *, .midnight, .midnight *, .oled, .oled *));
@@ -210,6 +208,60 @@ label:has(> input[type="file"].hidden) {
     transparent 5px
   );
   background-color: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+/* ── Backtesting structural signatures ─────────────────────────────────────────
+   De-scoped from the old amber `.bt-terminal` skin: now UNSCOPED and reading the
+   journal's violet tokens (--accent / --border / --font-mono), so the /backtesting
+   universe shares the journal's four themes (light / carbon / midnight / oled)
+   instead of a separate amber palette. */
+.bt-section {
+  position: relative;
+}
+.bt-section-num {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+@media (min-width: 640px) {
+  .bt-section-spine {
+    padding-left: 2rem;
+    border-left: 2px solid var(--border);
+  }
+}
+.bt-verdict {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 2rem;
+  line-height: 2.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+/* Coverage seam — a 4px strip welded beneath a curve: solid (--border) = real
+   bars · .bt-hatch weave = substituted · transparent gap = absent. */
+.bt-seam {
+  display: flex;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.bt-seam > i {
+  display: block;
+  height: 100%;
+}
+.bt-seam-real {
+  background: var(--border);
+}
+.bt-seam-gap {
+  background: transparent;
+}
+.bt-seam-spark {
+  height: 4px;
+  gap: 1px;
+  border-radius: 0;
+}
+.bt-seam-spark > i {
+  border-radius: 1px;
 }
 
 /* Thin scrollbars for data-dense panes */

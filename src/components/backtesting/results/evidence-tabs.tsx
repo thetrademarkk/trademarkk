@@ -30,19 +30,19 @@ function TabFallback() {
 export function EvidenceTabs({ run }: { run: RunResult }) {
   return (
     <Tabs defaultValue="returns" className="w-full" data-testid="bt-evidence-tabs">
-      {/* A ruled tab bar — active tab marked by a 2px amber underline, not a
-          filled pill (the journal's four themes keep the primitive's pills). */}
-      <TabsList className="w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 sm:w-auto">
-        <TabsTrigger value="returns" data-testid="bt-tab-returns" className="bt-tab">
+      {/* The journal's filled-pill tab bar (shared Tabs primitive). Scrolls on a
+          narrow phone; shrinks to content from sm up. */}
+      <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+        <TabsTrigger value="returns" data-testid="bt-tab-returns">
           Returns
         </TabsTrigger>
-        <TabsTrigger value="risk" data-testid="bt-tab-risk" className="bt-tab">
+        <TabsTrigger value="risk" data-testid="bt-tab-risk">
           Risk
         </TabsTrigger>
-        <TabsTrigger value="calendar" data-testid="bt-tab-calendar" className="bt-tab">
+        <TabsTrigger value="calendar" data-testid="bt-tab-calendar">
           Calendar
         </TabsTrigger>
-        <TabsTrigger value="robustness" data-testid="bt-tab-robustness" className="bt-tab">
+        <TabsTrigger value="robustness" data-testid="bt-tab-robustness">
           Robustness
         </TabsTrigger>
       </TabsList>
