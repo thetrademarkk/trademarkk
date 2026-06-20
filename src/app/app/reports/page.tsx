@@ -14,7 +14,7 @@ export default function ReportsPage() {
         className="print:hidden"
       />
       <Tabs defaultValue="reviews">
-        <TabsList className="print:hidden">
+        <TabsList variant="underline" className="print:hidden">
           <TabsTrigger value="reviews">
             <BarChart3 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Periodic reviews
           </TabsTrigger>

@@ -239,7 +239,7 @@ export default function CalendarPage() {
         description="Your P&L, day by day. Dots mark journaled days; the bar under a day shows a position was held across it."
       />
       <Tabs defaultValue="pnl" className="space-y-4">
-        <TabsList>
+        <TabsList variant="underline">
           <TabsTrigger value="pnl">P&amp;L calendar</TabsTrigger>
           <TabsTrigger value="expiries">Upcoming expiries</TabsTrigger>
         </TabsList>
