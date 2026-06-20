@@ -45,7 +45,7 @@ export interface LotSizeEntry {
 
 // The "as-of" date stamped on the reference set. Lot sizes are revised by the
 // exchanges periodically — this is when the table below was last reconciled.
-export const LOT_SIZE_AS_OF = "2026-06-01";
+export const LOT_SIZE_AS_OF = "2026-06-21";
 
 /**
  * Index F&O lot sizes (NSE index derivatives + BSE SENSEX/BANKEX). One lot of a
@@ -53,9 +53,9 @@ export const LOT_SIZE_AS_OF = "2026-06-01";
  */
 const INDEX_LOTS: LotSizeEntry[] = [
   { symbol: "NIFTY", segment: "OPT", exchange: "NSE", lotSize: 65, asOf: LOT_SIZE_AS_OF },
-  { symbol: "BANKNIFTY", segment: "OPT", exchange: "NSE", lotSize: 35, asOf: LOT_SIZE_AS_OF },
-  { symbol: "FINNIFTY", segment: "OPT", exchange: "NSE", lotSize: 65, asOf: LOT_SIZE_AS_OF },
-  { symbol: "MIDCPNIFTY", segment: "OPT", exchange: "NSE", lotSize: 140, asOf: LOT_SIZE_AS_OF },
+  { symbol: "BANKNIFTY", segment: "OPT", exchange: "NSE", lotSize: 30, asOf: LOT_SIZE_AS_OF },
+  { symbol: "FINNIFTY", segment: "OPT", exchange: "NSE", lotSize: 60, asOf: LOT_SIZE_AS_OF },
+  { symbol: "MIDCPNIFTY", segment: "OPT", exchange: "NSE", lotSize: 120, asOf: LOT_SIZE_AS_OF },
   { symbol: "NIFTYNXT50", segment: "OPT", exchange: "NSE", lotSize: 25, asOf: LOT_SIZE_AS_OF },
   { symbol: "SENSEX", segment: "OPT", exchange: "BSE", lotSize: 20, asOf: LOT_SIZE_AS_OF },
   { symbol: "BANKEX", segment: "OPT", exchange: "BSE", lotSize: 30, asOf: LOT_SIZE_AS_OF },
@@ -77,9 +77,9 @@ const STOCK_LOTS: LotSizeEntry[] = [
   { symbol: "TCS", segment: "OPT", exchange: "NSE", lotSize: 175, asOf: LOT_SIZE_AS_OF },
   { symbol: "ITC", segment: "OPT", exchange: "NSE", lotSize: 1600, asOf: LOT_SIZE_AS_OF },
   { symbol: "AXISBANK", segment: "OPT", exchange: "NSE", lotSize: 625, asOf: LOT_SIZE_AS_OF },
-  { symbol: "KOTAKBANK", segment: "OPT", exchange: "NSE", lotSize: 400, asOf: LOT_SIZE_AS_OF },
+  { symbol: "KOTAKBANK", segment: "OPT", exchange: "NSE", lotSize: 2000, asOf: LOT_SIZE_AS_OF },
   { symbol: "TATAMOTORS", segment: "OPT", exchange: "NSE", lotSize: 550, asOf: LOT_SIZE_AS_OF },
-  { symbol: "TATASTEEL", segment: "OPT", exchange: "NSE", lotSize: 5500, asOf: LOT_SIZE_AS_OF },
+  { symbol: "TATASTEEL", segment: "OPT", exchange: "NSE", lotSize: 2750, asOf: LOT_SIZE_AS_OF },
   { symbol: "WIPRO", segment: "OPT", exchange: "NSE", lotSize: 3000, asOf: LOT_SIZE_AS_OF },
   { symbol: "HINDUNILVR", segment: "OPT", exchange: "NSE", lotSize: 300, asOf: LOT_SIZE_AS_OF },
   { symbol: "BHARTIARTL", segment: "OPT", exchange: "NSE", lotSize: 475, asOf: LOT_SIZE_AS_OF },
@@ -88,7 +88,7 @@ const STOCK_LOTS: LotSizeEntry[] = [
   { symbol: "BAJFINANCE", segment: "OPT", exchange: "NSE", lotSize: 750, asOf: LOT_SIZE_AS_OF },
   { symbol: "HCLTECH", segment: "OPT", exchange: "NSE", lotSize: 350, asOf: LOT_SIZE_AS_OF },
   { symbol: "SUNPHARMA", segment: "OPT", exchange: "NSE", lotSize: 350, asOf: LOT_SIZE_AS_OF },
-  { symbol: "ADANIENT", segment: "OPT", exchange: "NSE", lotSize: 300, asOf: LOT_SIZE_AS_OF },
+  { symbol: "ADANIENT", segment: "OPT", exchange: "NSE", lotSize: 309, asOf: LOT_SIZE_AS_OF },
 ];
 
 /**
@@ -117,7 +117,7 @@ const COMMODITY_LOTS: LotSizeEntry[] = [
     symbol: "GOLDGUINEA",
     segment: "COMM",
     exchange: "MCX",
-    lotSize: 8,
+    lotSize: 1,
     tickSize: 1,
     asOf: LOT_SIZE_AS_OF,
   },
@@ -393,6 +393,37 @@ const BY_SYMBOL: Map<string, LotSizeEntry> = (() => {
 })();
 
 /**
+ * Colloquial / legacy spellings users type that differ from the exchange symbol
+ * used as the BY_SYMBOL key. Maps the normalised typed base → canonical key.
+ * Every value MUST be a real key in BY_SYMBOL. Keep small and documented.
+ */
+const SYMBOL_ALIASES: Record<string, string> = {
+  SILVERMINI: "SILVERM", // MCX "Silver Mini" lists as SILVERM
+  SILVERMICRO: "SILVERMIC",
+  GOLDMINI: "GOLDM",
+  CRUDEOILMINI: "CRUDEOILM",
+  NIFTYBANK: "BANKNIFTY",
+  BANKNIFTY50: "BANKNIFTY",
+  NIFTY50: "NIFTY",
+  NIFTYFIN: "FINNIFTY",
+  NIFTYMIDCAP: "MIDCPNIFTY",
+  MIDCAPNIFTY: "MIDCPNIFTY",
+};
+
+/**
+ * Separator-insensitive index ("M&M" → "MM", "BAJAJ-AUTO" → "BAJAJAUTO") so a
+ * symbol typed without its punctuation still resolves. First entry wins.
+ */
+const BY_SYMBOL_SQUASHED: Map<string, LotSizeEntry> = (() => {
+  const m = new Map<string, LotSizeEntry>();
+  for (const e of LOT_SIZE_REFERENCE) {
+    const sq = e.symbol.replace(/[^A-Z0-9]+/g, "");
+    if (sq && !m.has(sq)) m.set(sq, e);
+  }
+  return m;
+})();
+
+/**
  * Normalise a raw symbol to its contract base for a lot lookup: uppercase, drop
  * an exchange prefix (NSE:/MCX:/…), and strip any trailing contract details
  * (expiry/strike/FUT/CE/PE) that begin at the first digit. Mirrors the
@@ -404,6 +435,7 @@ export function lotSymbolBase(symbol: string): string {
     .trim()
     .toUpperCase()
     .replace(/^(?:NSE|BSE|NFO|BFO|MCX|NCDEX|NCO|CDS|BCD):/, "")
+    .replace(/\s+/g, "") // collapse internal whitespace ("SILVER MINI" → "SILVERMINI")
     .replace(/\d.*$/, "")
     .replace(/[^A-Z]+$/, ""); // drop a trailing -EQ / CE / PE left after the digit strip
 }
@@ -421,7 +453,10 @@ export function lookupLotSize(symbol: string, segment: Segment): LotSizeEntry | 
   if (segment === "EQ") return null;
   const base = lotSymbolBase(symbol);
   if (!base) return null;
-  const entry = BY_SYMBOL.get(base);
+  // 1) direct, 2) alias (SILVERMINI→SILVERM), 3) separator-insensitive fallback.
+  const key = SYMBOL_ALIASES[base] ?? base;
+  const entry =
+    BY_SYMBOL.get(key) ?? BY_SYMBOL_SQUASHED.get(key.replace(/[^A-Z0-9]+/g, "")) ?? null;
   if (!entry) return null;
   // The entry's `segment` is the canonical listing (OPT for index/stock). A FUT
   // trade on the same underlying uses the identical lot size, so accept it.

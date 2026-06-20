@@ -87,6 +87,23 @@ export function LotQtyHelper({
     setLotOverride("");
   }, [refLot]);
 
+  // Auto-seed ONE lot the first time a recognised symbol resolves while the Qty
+  // is still empty — so typing e.g. "SILVERMINI" immediately fills a sensible
+  // quantity (1 lot = lotSize). Fires once; never clobbers an existing qty (an
+  // edit-mode trade or a value the user already entered).
+  const didSeed = React.useRef(false);
+  React.useEffect(() => {
+    if (didSeed.current) return;
+    if (refLot == null) return; // symbol not recognised yet — wait
+    if (unitsNum != null || lots.trim() !== "") {
+      didSeed.current = true; // qty/lots already present — don't seed
+      return;
+    }
+    didSeed.current = true;
+    setLots("1");
+    onUnits(lotsToUnits(1, refLot) ?? refLot);
+  }, [refLot, unitsNum, lots, onUnits]);
+
   const applyLots = (lotsStr: string, size: number | undefined) => {
     const n = toNum(lotsStr);
     if (n == null || size == null || !(size > 0)) return;
