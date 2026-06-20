@@ -26,7 +26,7 @@ export default function BacktestingLayout({ children }: { children: React.ReactN
       {/* The runner lives at the LAYOUT level so an in-flight worker run survives
           navigation between /build and the (future) results view. */}
       <BacktestRunnerProvider>
-        <div className="bt-terminal flex min-h-dvh flex-col">
+        <div className="flex min-h-dvh flex-col">
           <SiteHeader
             cta={
               <Button
