@@ -41,15 +41,15 @@ export default function ExplorePage() {
 
       {/* Honest framing banner — required */}
       <div
-        className="mt-5 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3 text-xs leading-5 text-muted"
+        className="mt-5 flex items-start gap-2 rounded-lg border border-accent/30 bg-accent/10 p-3 text-xs leading-5 text-muted"
         data-testid="explore-disclaimer"
       >
         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <p>
           <span className="font-medium text-foreground">
-            Educational examples to learn the mechanics — not trade recommendations.
+            Educational examples to learn the mechanics — not trade recommendations. Nothing here is
+            a signal to copy, and a coverage badge is never a profitability claim.
           </span>{" "}
-          Nothing here is a signal to copy, and a coverage badge is never a profitability claim.
           Past performance never guarantees future results.
         </p>
       </div>

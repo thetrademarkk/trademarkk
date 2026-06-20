@@ -11,6 +11,7 @@ import { PRESET_CATEGORY_LABEL } from "@/features/backtest/presets/catalogue";
 import type { PresetCard as PresetCardData } from "@/features/backtest/presets/coverage-resolver";
 import { INDEX_META } from "@/features/backtest/shared/instruments";
 import { CoverageBadge } from "./coverage-badge";
+import { CoverageSeam, sparkFromFraction } from "../shared/coverage-seam";
 
 /**
  * One preset card in the Explore grid (BT-10, item 3). Shows the title, thesis,
@@ -44,7 +45,7 @@ export function PresetCard({ card }: { card: PresetCardData }) {
       data-testid="preset-card"
       data-preset-id={meta.id}
       data-runnable={runnableNow ? "1" : "0"}
-      className="flex h-full flex-col rounded-2xl border bg-surface p-4 transition-colors hover:border-accent"
+      className="flex h-full flex-col rounded-lg border bg-surface p-4 transition-colors hover:border-accent"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -56,16 +57,22 @@ export function PresetCard({ card }: { card: PresetCardData }) {
           symbol={meta.index}
           scope="in this period"
           detail={detail}
-          size="sm"
+          size="md"
         />
       </div>
 
-      <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-base font-semibold leading-snug">
-        {meta.title}
-      </h3>
+      {/* Coverage spark — the seam at card scale (solid=real, hatch=substituted). */}
+      <CoverageSeam
+        variant="spark"
+        segments={sparkFromFraction(coverage.fraction, coverage.usedSymbolFallback)}
+        className="mt-2.5"
+        label="Data coverage for this preset"
+      />
+
+      <h3 className="mt-3 line-clamp-3 text-base font-semibold leading-snug">{meta.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{meta.thesis}</p>
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-2/50 p-2.5">
+      <div className="mt-3 flex items-start gap-2 rounded-lg bg-surface-2 p-3">
         <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
         <p className="line-clamp-3 text-xs leading-5 text-muted">
           <span className="font-medium text-foreground">What it teaches: </span>
@@ -81,7 +88,7 @@ export function PresetCard({ card }: { card: PresetCardData }) {
         ))}
       </div>
 
-      <p className="mt-2 text-[11px] text-muted">
+      <p className="micro-label mt-2">
         {meta.periodLabel} · {DIFFICULTY_LABEL[meta.difficulty] ?? meta.difficulty}
       </p>
 

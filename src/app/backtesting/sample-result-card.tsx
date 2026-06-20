@@ -5,6 +5,7 @@ import { Activity, ShieldCheck, TrendingDown, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatINR } from "@/lib/utils";
 import type { QualityChip, RunResult } from "@/features/backtest/shared";
+import { CoverageSeam, seamFromCoverage } from "@/components/backtesting/shared/coverage-seam";
 
 /** Map a quality-chip level to a semantic Badge variant (no raw hex). */
 function chipVariant(level: QualityChip["level"]): "profit" | "warning" | "loss" {
@@ -58,11 +59,11 @@ function Stat({
   tone?: "profit" | "loss" | "default";
 }) {
   return (
-    <div className="rounded-lg border bg-surface px-3 py-2">
-      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+    <div className="rounded-lg border bg-surface px-3 py-3">
+      <div className="micro-label">{label}</div>
       <div
         className={cn(
-          "mt-0.5 text-sm font-semibold tabular-nums",
+          "mt-1 font-money text-[18px] font-semibold",
           tone === "profit" && "text-profit",
           tone === "loss" && "text-loss"
         )}
@@ -82,27 +83,29 @@ function Stat({
  */
 export function SampleResultCard({ run, sample = false }: { run: RunResult; sample?: boolean }) {
   const s = run.stats;
+  const up = s.netPnl >= 0;
+  const seam = seamFromCoverage(run.coverage);
   return (
-    <div className="rounded-2xl border bg-surface-2 p-4 shadow-sm sm:p-5">
+    <div className="rounded-lg border bg-surface-2 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent" aria-hidden />
           <span className="text-sm font-semibold">{run.config.name}</span>
           {sample && (
-            <Badge variant="secondary" className="uppercase tracking-wide">
+            <Badge variant="outline" className="uppercase tracking-wide">
               Sample
             </Badge>
           )}
         </div>
-        <span className="text-[11px] text-muted">
+        <span className="micro-label">
           {run.config.market.symbol} · {run.config.market.dateRange.start} →{" "}
           {run.config.market.dateRange.end}
         </span>
       </div>
 
       {/* Honesty layer — quiet by default, loud on problems. */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <ShieldCheck className="h-3.5 w-3.5 text-muted" aria-hidden />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-muted" aria-hidden />
         {run.qualityChips.map((c, i) => (
           <Badge key={i} variant={chipVariant(c.level)}>
             {c.label}
@@ -110,12 +113,15 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <Stat
-          label="Net P&L"
-          value={formatINR(s.netPnl, { signed: true })}
-          tone={s.netPnl >= 0 ? "profit" : "loss"}
-        />
+      {/* Verdict number — the ONE mono hero figure (Net P&L, P&L-toned). */}
+      <div className="mt-4">
+        <div className="micro-label">Net P&L</div>
+        <div className={cn("bt-verdict mt-1", up ? "text-profit" : "text-loss")}>
+          {formatINR(s.netPnl, { signed: true })}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <Stat label="Win rate" value={`${Math.round(s.winRate * 100)}%`} />
         <Stat label="Max drawdown" value={formatINR(s.maxDrawdown)} tone="loss" />
         <Stat label="Expectancy" value={`${formatINR(s.expectancy, { signed: true })}/trade`} />
@@ -124,8 +130,8 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
       </div>
 
       <div className="mt-4 rounded-lg border bg-surface p-3">
-        <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted">
-          {s.netPnl >= 0 ? (
+        <div className="mb-1 flex items-center gap-1.5 text-xs text-muted">
+          {up ? (
             <TrendingUp className="h-3.5 w-3.5 text-profit" aria-hidden />
           ) : (
             <TrendingDown className="h-3.5 w-3.5 text-loss" aria-hidden />
@@ -133,6 +139,8 @@ export function SampleResultCard({ run, sample = false }: { run: RunResult; samp
           Equity curve
         </div>
         <Sparkline points={run.equityCurve} />
+        {/* Coverage Seam — welded beneath the curve: solid=real, hatch=substituted. */}
+        <CoverageSeam segments={seam} className="mt-1.5" label="Sample data coverage" />
       </div>
     </div>
   );

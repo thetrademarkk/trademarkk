@@ -16,11 +16,12 @@ import {
 const today = new Date("2026-06-14T00:00:00Z");
 
 describe("makeInitialDraft", () => {
-  it("is a valid, runnable strategy (two ATM short legs)", () => {
+  it("is a valid, runnable strategy (two at-spot short legs, %-of-spot default)", () => {
     const d = makeInitialDraft(today);
     expect(safeParseStrategyDef(d).success).toBe(true);
     expect(d.legs).toHaveLength(2);
-    expect(d.legs.every((l) => l.strike.mode === "ATM_OFFSET")).toBe(true);
+    // The builder defaults to %-of-spot strike selection (pct: 0 = at spot).
+    expect(d.legs.every((l) => l.strike.mode === "PERCENT")).toBe(true);
   });
 
   it("defaults to a 3-month range clamped to the index data start", () => {

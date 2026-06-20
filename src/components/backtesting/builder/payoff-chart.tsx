@@ -111,14 +111,32 @@ export function PayoffChart({ summary, guides, className, height = H }: PayoffCh
         strokeWidth={1}
       />
 
-      {/* Y-axis labels. */}
-      <text x={4} y={sy(yMaxRaw) + 4} fontSize={10} fill="var(--text-muted)">
+      {/* Y-axis labels (mono ticks — the TAPE numeric face). */}
+      <text
+        x={4}
+        y={sy(yMaxRaw) + 4}
+        fontSize={10}
+        fill="var(--text-muted)"
+        fontFamily="var(--font-mono)"
+      >
         {formatINR(yMaxRaw)}
       </text>
-      <text x={4} y={zeroY + 4} fontSize={10} fill="var(--text-muted)">
+      <text
+        x={4}
+        y={zeroY + 4}
+        fontSize={10}
+        fill="var(--text-muted)"
+        fontFamily="var(--font-mono)"
+      >
         ₹0
       </text>
-      <text x={4} y={sy(yMinRaw) + 4} fontSize={10} fill="var(--text-muted)">
+      <text
+        x={4}
+        y={sy(yMinRaw) + 4}
+        fontSize={10}
+        fill="var(--text-muted)"
+        fontFamily="var(--font-mono)"
+      >
         {formatINR(yMinRaw, { signed: true })}
       </text>
 
@@ -134,7 +152,14 @@ export function PayoffChart({ summary, guides, className, height = H }: PayoffCh
             strokeWidth={1}
             strokeDasharray="3 3"
           />
-          <text x={sx(k)} y={H - 8} fontSize={9} fill="var(--text-muted)" textAnchor="middle">
+          <text
+            x={sx(k)}
+            y={H - 8}
+            fontSize={9}
+            fill="var(--text-muted)"
+            fontFamily="var(--font-mono)"
+            textAnchor="middle"
+          >
             {formatNumber(k, 0)}
           </text>
         </g>

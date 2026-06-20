@@ -61,15 +61,24 @@ export function makeInitialDraft(today = new Date()): StrategyDef {
     ...base,
     name: "New backtest",
     market: { ...base.market, dateRange: range },
+    // The builder defaults to %-of-spot strike selection (pct: 0 = at spot = ATM
+    // equivalent). Spot-% is the default authoring UX; the ATM-step, premium and
+    // absolute-strike modes all remain selectable in the ladder.
     legs: [
-      { ...base.legs[0]!, id: `${id}-l1`, optionType: "CE", side: "sell" },
+      {
+        ...base.legs[0]!,
+        id: `${id}-l1`,
+        optionType: "CE",
+        side: "sell",
+        strike: { mode: "PERCENT", pct: 0 },
+      },
       {
         id: `${id}-l2`,
         enabled: true,
         optionType: "PE",
         side: "sell",
         lots: 1,
-        strike: { mode: "ATM_OFFSET", steps: 0 },
+        strike: { mode: "PERCENT", pct: 0 },
         expiry: "WEEKLY",
         squareOff: "partial",
       },
@@ -77,7 +86,8 @@ export function makeInitialDraft(today = new Date()): StrategyDef {
   };
 }
 
-/** A blank leg (ATM short CE) ready to be added to a draft. */
+/** A blank leg (at-spot short CE) ready to be added to a draft. Strike defaults to
+ * %-of-spot (pct: 0 = at spot) — the builder's default strike-selection UX. */
 export function makeBlankLeg(): LegDef {
   return {
     id: makeId("leg"),
@@ -85,7 +95,7 @@ export function makeBlankLeg(): LegDef {
     optionType: "CE",
     side: "sell",
     lots: 1,
-    strike: { mode: "ATM_OFFSET", steps: 0 },
+    strike: { mode: "PERCENT", pct: 0 },
     expiry: "WEEKLY",
     squareOff: "partial",
   };

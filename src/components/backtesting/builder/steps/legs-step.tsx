@@ -19,6 +19,7 @@ import {
 } from "@/features/backtest/builder/templates";
 import type { LegDef, StrategyDef, StrikeSelector } from "@/features/backtest/builder/types";
 import { StrikeLadder } from "../strike-ladder";
+import { SegmentedControl } from "../segmented-control";
 
 /**
  * Step 2 — Legs (the centrepiece). A template gallery for the fastest on-ramp,
@@ -58,9 +59,7 @@ export function LegsStep({ draft }: { draft: StrategyDef }) {
         <div className="rounded-xl border bg-surface/40 p-3" data-testid="bt-template-gallery">
           {TEMPLATE_OUTLOOKS.map((outlook) => (
             <div key={outlook} className="mb-3 last:mb-0">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                {outlook}
-              </div>
+              <div className="micro-label">{outlook}</div>
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {templatesByOutlook(outlook).map((t) => (
                   <button
@@ -147,8 +146,8 @@ function LegCard({
   return (
     <div
       className={cn(
-        "rounded-xl border-l-4 bg-surface p-3.5",
-        sell ? "border-l-loss/60" : "border-l-profit/60"
+        "rounded-lg border-l-4 bg-surface p-3.5",
+        sell ? "border-l-loss" : "border-l-profit"
       )}
       data-testid={`bt-leg-${leg.id}`}
       data-leg-side={leg.side}
@@ -158,23 +157,25 @@ function LegCard({
         <span className="text-xs font-semibold text-muted">Leg {ordinal}</span>
 
         {/* Buy/Sell */}
-        <Segmented
+        <SegmentedControl<LegDef["side"]>
           value={leg.side}
           options={[
             { value: "buy", label: "Buy" },
             { value: "sell", label: "Sell" },
           ]}
-          onChange={(v) => updateLeg(leg.id, { side: v as LegDef["side"] })}
+          onChange={(v) => updateLeg(leg.id, { side: v })}
+          ariaLabel="Leg direction"
           testid={`bt-side-${leg.id}`}
         />
         {/* CE/PE */}
-        <Segmented
+        <SegmentedControl<LegDef["optionType"]>
           value={leg.optionType}
           options={[
             { value: "CE", label: "CE" },
             { value: "PE", label: "PE" },
           ]}
-          onChange={(v) => updateLeg(leg.id, { optionType: v as LegDef["optionType"] })}
+          onChange={(v) => updateLeg(leg.id, { optionType: v })}
+          ariaLabel="Option type"
           testid={`bt-type-${leg.id}`}
         />
 
@@ -251,39 +252,6 @@ function LegCard({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function Segmented({
-  value,
-  options,
-  onChange,
-  testid,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  testid?: string;
-}) {
-  return (
-    <div className="inline-flex rounded-lg border bg-surface-2 p-0.5" data-testid={testid}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          aria-pressed={value === o.value}
-          data-value={o.value}
-          data-active={value === o.value || undefined}
-          className={cn(
-            "rounded-md px-2.5 py-0.5 text-xs transition-colors",
-            value === o.value ? "bg-surface font-medium shadow" : "text-muted hover:text-foreground"
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
     </div>
   );
 }

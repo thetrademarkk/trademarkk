@@ -85,6 +85,8 @@ function StatTile({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  // Net P&L is the verdict hero — the ONE mono figure per result, at display scale.
+  const isHero = card.key === "netPnl";
   const inner = (
     <>
       <div className="flex items-center justify-between gap-1">
@@ -97,7 +99,11 @@ function StatTile({
         )}
       </div>
       <div
-        className={cn("mt-1.5 text-lg font-semibold font-money md:text-xl", toneClass(card.tone))}
+        className={cn(
+          "font-money",
+          isHero ? "bt-verdict mt-1" : "mt-1.5 text-[18px] font-semibold md:text-xl",
+          toneClass(card.tone)
+        )}
       >
         {card.value}
       </div>

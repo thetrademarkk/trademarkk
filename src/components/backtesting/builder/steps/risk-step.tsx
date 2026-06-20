@@ -48,9 +48,7 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
       </header>
 
       <section className="rounded-xl border bg-surface/40 p-3.5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Overall (whole-strategy MTM)
-        </div>
+        <div className="micro-label">Overall (whole-strategy MTM)</div>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <RupeePctField
             label="Stop loss"
@@ -100,9 +98,7 @@ export function RiskStep({ draft }: { draft: StrategyDef }) {
       </section>
 
       <section>
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Per-leg rules (optional)
-        </div>
+        <div className="micro-label">Per-leg rules (optional)</div>
         <div className="mt-2 space-y-2">
           {draft.legs.map((leg, i) => (
             <PerLegRules key={leg.id} leg={leg} ordinal={i + 1} onUpdate={updateLeg} />

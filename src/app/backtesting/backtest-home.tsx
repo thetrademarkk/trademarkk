@@ -2,10 +2,59 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Code2, FlaskConical, Gauge, GitCompareArrows, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Code2,
+  FlaskConical,
+  Gauge,
+  GitCompareArrows,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buildPayoffCurve, classifyStrategy, type PayoffLeg } from "@/lib/options/payoff";
+import type { PayoffSummary } from "@/features/backtest/builder/payoff-rail";
+import { PayoffChart } from "@/components/backtesting/builder/payoff-chart";
+import { CoverageSeam } from "@/components/backtesting/shared/coverage-seam";
+import { BtSection } from "@/components/backtesting/shared/bt-section";
 import { SAMPLE_RUN } from "./sample-run";
 import { SampleResultCard } from "./sample-result-card";
+
+/**
+ * A static "loaded strategy" for the live-instrument hero: a NIFTY 9:20 short
+ * straddle (the same shape the Sample uses). Pure closed-form payoff math — zero
+ * engine, zero data — so it renders instantly as the hero's amber curve crossing
+ * the ruled zero-line at the two breakevens (the TAPE signature).
+ */
+const HERO_PAYOFF: PayoffSummary = (() => {
+  const lot = 75;
+  const legs: PayoffLeg[] = [
+    { strike: 24500, optionType: "CE", direction: "short", qty: lot, premium: 132 },
+    { strike: 24500, optionType: "PE", direction: "short", qty: lot, premium: 121 },
+  ];
+  const curve = buildPayoffCurve(legs);
+  const label = classifyStrategy(
+    legs.map((l) => ({
+      strike: l.strike,
+      optionType: l.optionType,
+      direction: l.direction,
+      qty: l.qty,
+    }))
+  );
+  const netCredit = (132 + 121) * lot;
+  return {
+    label,
+    curve,
+    legs: legs.map((l, i) => ({
+      legId: `hero-${i}`,
+      strike: l.strike,
+      premium: l.premium,
+      payoff: l,
+    })),
+    netCredit,
+    hasLegs: true,
+  };
+})();
 
 // The full read-only report (incl. the BT-11 robustness tab) is heavy (Recharts)
 // so it's lazy-loaded and only mounts when the visitor expands the sample.
@@ -105,56 +154,84 @@ export function BacktestHome() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-      {/* Hero */}
-      <section className="text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15">
-          <FlaskConical className="h-6 w-6 text-accent" aria-hidden />
-        </span>
-        <h1 className="mt-4 text-balance text-3xl font-bold sm:text-4xl">
-          Backtest options strategies — free, honest, in your browser
-        </h1>
-        <p className="mx-auto mt-3 max-w-2xl text-pretty text-sm leading-6 text-muted sm:text-base">
-          Test a NIFTY, BANKNIFTY or SENSEX idea against real 1-minute history. Build with no code
-          or bring your own. See a beautiful result that&apos;s honest about exactly what data
-          existed — and sign in only when you want to keep it.
-        </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button asChild size="lg">
-            <Link href="/backtesting/build">Build a strategy — free, no signup</Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/backtesting/explore">Explore strategies</Link>
-          </Button>
+      {/* Hero — the LIVE INSTRUMENT: a loaded strategy (amber payoff on the ruled
+          grid) on the left, the pitch + CTAs on the right, sharing one baseline. */}
+      <section className="grid items-end gap-6 border-b pb-8 sm:grid-cols-2">
+        <div className="order-2 rounded-lg border bg-surface p-3 sm:order-1">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="micro-label">Loaded · NIFTY short straddle</p>
+            <span className="micro-label">Payoff at expiry</span>
+          </div>
+          <PayoffChart summary={HERO_PAYOFF} className="h-44 w-full" />
+          <CoverageSeam
+            segments={[
+              { kind: "real", frac: 0.72 },
+              { kind: "sub", frac: 0.18 },
+              { kind: "gap", frac: 0.1 },
+            ]}
+            className="mt-2"
+            label="Illustrative data coverage"
+          />
+        </div>
+        <div className="order-1 sm:order-2">
+          <h1 className="text-balance text-3xl font-bold sm:text-[32px]">
+            Backtest options strategies — free, honest, in your browser
+          </h1>
+          <p className="mt-3 text-pretty text-sm leading-6 text-muted sm:text-base">
+            Test a NIFTY, BANKNIFTY or SENSEX idea against real 1-minute history. Build with no code
+            or bring your own. See a beautiful result that&apos;s honest about exactly what data
+            existed — and sign in only when you want to keep it.
+          </p>
+          <div className="mt-6 flex flex-col gap-2 xs:flex-row">
+            <Button asChild size="lg" className="w-full xs:w-auto">
+              <Link href="/backtesting/build">Build a strategy — free, no signup</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="w-full xs:w-auto">
+              <Link href="/backtesting/explore">Explore strategies</Link>
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Recent runs rail (returning visitors only) */}
-      {returning && recent.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-sm font-semibold text-muted">Your recent runs</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {recent.map((r) => (
+      {/* Recent-runs rail — ALWAYS visible (never silently hides); a ruled strip
+          with a left amber tick, and a ghost "load your first" rung when empty. */}
+      <section className="mt-10" data-testid="bt-recent-rail">
+        <p className="micro-label">Recent runs</p>
+        <div className="mt-2 flex flex-wrap gap-2 border-l-2 border-accent pl-3">
+          {returning && recent.length > 0 ? (
+            recent.map((r) => (
               <Link
                 key={r.id}
                 href={`/backtesting/run/${r.id}`}
-                className="rounded-lg border bg-surface px-3 py-2 text-xs hover:border-accent"
+                className="rounded border bg-surface px-3 py-2 text-xs hover:border-accent"
               >
                 <span className="font-medium">{r.label}</span>
                 <span className="ml-2 text-muted">{r.index}</span>
               </Link>
-            ))}
-          </div>
-        </section>
-      )}
+            ))
+          ) : (
+            <Link
+              href="/backtesting/build"
+              className="inline-flex items-center gap-1 rounded border border-dashed bg-surface-2 px-3 py-2 text-xs text-muted hover:border-accent hover:text-foreground"
+              data-testid="bt-recent-empty"
+            >
+              Load your first strategy <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          )}
+        </div>
+      </section>
 
       {/* The pre-baked sample — the "Run this" on-ramp, instant + $0 */}
-      <section className="mt-10">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">See a result in one tap</h2>
+      <BtSection
+        number="01"
+        eyebrow="Sample result"
+        className="mt-10"
+        action={
           <Button asChild size="sm" variant="ghost">
             <Link href="/backtesting/build?template=short-straddle">Tweak this strategy →</Link>
           </Button>
-        </div>
+        }
+      >
         <p className="mb-3 text-xs text-muted">
           A NIFTY 9:20 short straddle over 3 months — a worked sample so you can see the result
           shape instantly. Build your own to run live in your browser.
@@ -174,13 +251,13 @@ export function BacktestHome() {
         {showFullSample && (
           <div className="mt-5" data-testid="bt-sample-full-report">
             <React.Suspense
-              fallback={<div className="h-40 animate-pulse rounded-2xl bg-surface-2/60" />}
+              fallback={<div className="h-40 animate-pulse rounded-lg bg-surface-2/60" />}
             >
               <RunResultReport result={SAMPLE_RUN} />
             </React.Suspense>
           </div>
         )}
-      </section>
+      </BtSection>
 
       {/* Two ways in */}
       <section className="mt-12">
@@ -190,7 +267,7 @@ export function BacktestHome() {
             <Link
               key={w.href}
               href={w.href}
-              className="group rounded-2xl border bg-surface p-5 transition-colors hover:border-accent"
+              className="group rounded-lg border bg-surface p-5 transition-colors hover:border-accent"
               onClick={() => {
                 try {
                   localStorage.setItem(BT_KEYS.lastMode, w.mode);
@@ -202,7 +279,13 @@ export function BacktestHome() {
               <w.icon className="h-6 w-6 text-accent" aria-hidden />
               <h3 className="mt-3 text-base font-semibold">{w.title}</h3>
               <p className="mt-1.5 text-sm leading-6 text-muted">{w.blurb}</p>
-              <span className="mt-3 inline-block text-sm font-medium text-accent">{w.cta} →</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent group-hover:underline">
+                {w.cta}{" "}
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </span>
             </Link>
           ))}
         </div>
@@ -212,10 +295,10 @@ export function BacktestHome() {
       <section className="mt-12">
         <Link
           href="/backtesting/compare"
-          className="group flex items-start gap-4 rounded-2xl border bg-surface p-5 transition-colors hover:border-accent"
+          className="group flex flex-col gap-3 rounded-lg border bg-surface p-5 transition-colors hover:border-accent xs:flex-row xs:items-start xs:gap-4"
           data-testid="bt-compare-entry"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15">
             <GitCompareArrows className="h-5 w-5 text-accent" aria-hidden />
           </span>
           <div className="min-w-0">
@@ -235,7 +318,7 @@ export function BacktestHome() {
       {/* Trust row */}
       <section className="mt-12 grid gap-4 sm:grid-cols-3">
         {TRUST.map((t) => (
-          <div key={t.title} className="rounded-xl border bg-surface/50 p-5">
+          <div key={t.title} className="rounded-lg border bg-surface p-5">
             <t.icon className="h-5 w-5 text-accent" aria-hidden />
             <h3 className="mt-3 text-sm font-semibold">{t.title}</h3>
             <p className="mt-1.5 text-sm leading-6 text-muted">{t.text}</p>

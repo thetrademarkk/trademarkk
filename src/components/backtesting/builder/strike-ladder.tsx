@@ -26,9 +26,11 @@ export interface StrikeLadderProps {
 }
 
 type Mode = StrikeSelector["mode"];
+// Spot % leads — the default UX is percentage-of-spot strike selection (ATM ± N%).
+// The ATM-step, premium and absolute-strike (Exact) paths all stay available.
 const MODE_TABS: { value: Mode; label: string }[] = [
-  { value: "ATM_OFFSET", label: "ATM ±" },
   { value: "PERCENT", label: "Spot %" },
+  { value: "ATM_OFFSET", label: "ATM ±" },
   { value: "PREMIUM", label: "Premium ₹" },
   { value: "EXACT", label: "Exact" },
   // Delta DEFERRED (D7) — no IV/Greeks data — so there is intentionally no delta tab.
@@ -136,7 +138,7 @@ export function StrikeLadder({
           aria-orientation="horizontal"
           tabIndex={0}
           onKeyDown={onKeyDown}
-          className="flex gap-1 overflow-x-auto rounded-lg border bg-surface/40 p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex gap-1 overflow-x-auto rounded-lg border bg-surface-2 p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
           data-testid={`bt-ladder-${idBase}`}
         >
           {rungs.map((r) => (
@@ -214,7 +216,7 @@ function Rung({
           : "hover:border-accent hover:bg-surface-2"
       )}
     >
-      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
+      <span className="micro-label">{label}</span>
       <span className="text-xs font-semibold tabular-nums">{formatNumber(rung.strike, 0)}</span>
       <span className="font-money text-[11px]">{formatINR(rung.premium, { decimals: true })}</span>
       <CoveragePip coverage={rung.coverage} />
@@ -247,10 +249,13 @@ function PercentSelector({
   const coverage =
     served != null ? estimateCoverage(chain.index, Math.round((served - chain.atm) / step)) : null;
 
+  // Quick ATM ± N% chips — the tactile fast path for the default %-of-spot mode.
+  const quickPcts = [-3, -2, -1, 0, 1, 2, 3];
+
   return (
-    <div className="space-y-2 rounded-lg border bg-surface/40 p-2.5">
+    <div className="space-y-2.5 rounded-lg border bg-surface-2 p-2.5" data-testid="bt-percent-mode">
       <label className="flex items-center gap-2 text-xs">
-        <span className="text-muted">Offset from spot</span>
+        <span className="text-muted">Strike = spot ± %</span>
         <span className="inline-flex items-center">
           <Input
             type="number"
@@ -265,11 +270,29 @@ function PercentSelector({
             className="h-8 w-24 rounded-r-none"
             data-testid="bt-percent-offset"
           />
-          <span className="rounded-r-md border border-l-0 bg-surface-2 px-2 py-1 text-xs text-muted">
+          <span className="rounded-r-md border border-l-0 bg-surface px-2 py-1 text-xs text-muted">
             %
           </span>
         </span>
       </label>
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Quick percent-of-spot offsets">
+        {quickPcts.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onChange(q)}
+            data-active={pct === q || undefined}
+            className={cn(
+              "rounded border px-2 py-0.5 text-[11px] tabular-nums transition-colors",
+              pct === q
+                ? "border-accent bg-accent/15 text-foreground"
+                : "text-muted hover:border-accent hover:text-foreground"
+            )}
+          >
+            {q === 0 ? "ATM" : q > 0 ? `+${q}%` : `${q}%`}
+          </button>
+        ))}
+      </div>
       {served != null && (
         <p className="text-[11px] text-muted">
           {pct === 0 ? "At spot" : pct > 0 ? `${pct}% above spot` : `${Math.abs(pct)}% below spot`}{" "}
@@ -311,7 +334,7 @@ function PremiumSelector({
   }, [rungs, target]);
 
   return (
-    <div className="space-y-2 rounded-lg border bg-surface/40 p-2.5">
+    <div className="space-y-2 rounded-lg border bg-surface-2 p-2.5">
       <label className="flex items-center gap-2 text-xs">
         <span className="text-muted">Target premium</span>
         <span className="inline-flex items-center">
@@ -351,7 +374,7 @@ function ExactSelector({
   onChange: (strike: number) => void;
 }) {
   return (
-    <div className="space-y-1.5 rounded-lg border bg-surface/40 p-2.5">
+    <div className="space-y-1.5 rounded-lg border bg-surface-2 p-2.5">
       <label className="flex items-center gap-2 text-xs">
         <span className="text-muted">Exact strike</span>
         <Input

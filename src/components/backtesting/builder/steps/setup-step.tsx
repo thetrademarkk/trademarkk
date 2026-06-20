@@ -61,7 +61,7 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
 
       {/* Index */}
       <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Index</legend>
+        <legend className="micro-label">Index</legend>
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {INDEX_SYMBOLS.map((sym) => {
             const meta = INDEX_META[sym];
@@ -97,9 +97,7 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
 
       {/* Interval */}
       <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Candle interval
-        </legend>
+        <legend className="micro-label">Candle interval</legend>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border bg-surface-2 p-0.5">
             {INTERVALS.map((iv) => (
@@ -137,9 +135,7 @@ export function SetupStep({ draft }: { draft: StrategyDef }) {
 
       {/* Date range */}
       <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
-          Date range
-        </legend>
+        <legend className="micro-label">Date range</legend>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <label className="text-xs">
             <span className="text-muted">From</span>

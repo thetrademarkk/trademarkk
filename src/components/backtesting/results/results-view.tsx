@@ -134,6 +134,8 @@ function RunningState({
         ))}
       </div>
       <div className="mt-3 h-56 animate-pulse rounded-lg bg-surface-2/60" aria-hidden />
+      {/* Coverage-seam skeleton so the seam doesn't pop in on completion. */}
+      <div className="mt-1 h-1 animate-pulse rounded-sm bg-surface-2/60" aria-hidden />
     </div>
   );
 }
@@ -198,7 +200,7 @@ function DoneState({
   onReRun?: () => void;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Iteration toolbar */}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {onEdit && (

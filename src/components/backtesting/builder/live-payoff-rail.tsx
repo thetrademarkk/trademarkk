@@ -52,17 +52,17 @@ export function LivePayoffRail({ summary, guides, className }: LivePayoffRailPro
 
   return (
     <div
-      className={cn("rounded-2xl border bg-surface/60 p-4", className)}
+      className={cn("rounded-lg border bg-surface p-4 shadow-sm", className)}
       data-testid="bt-live-rail"
     >
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Live payoff</h2>
+      <div className="mb-3 flex items-center justify-between gap-2 border-b pb-2">
+        <h2 className="micro-label">Live payoff</h2>
         <Badge variant="outline" data-testid="bt-strategy-label" data-strategy={label}>
           {label}
         </Badge>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-1">
         <PayoffChart summary={summary} guides={guides} />
       </div>
 
@@ -80,21 +80,19 @@ export function LivePayoffRail({ summary, guides, className }: LivePayoffRailPro
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
         <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">Max profit</div>
+          <div className="micro-label">Max profit</div>
           <div className="mt-0.5">
             <MaxValue unbounded={curve.profitUnbounded} value={curve.maxProfit} tone="profit" />
           </div>
         </div>
         <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">Max loss</div>
+          <div className="micro-label">Max loss</div>
           <div className="mt-0.5">
             <MaxValue unbounded={curve.lossUnbounded} value={curve.maxLoss} tone="loss" />
           </div>
         </div>
         <div className="rounded-md border px-2 py-1.5">
-          <div className="text-[10px] uppercase tracking-wide text-muted">
-            Breakeven{curve.breakevens.length === 1 ? "" : "s"}
-          </div>
+          <div className="micro-label">Breakeven{curve.breakevens.length === 1 ? "" : "s"}</div>
           <div className="mt-0.5 font-money" data-testid="bt-breakevens">
             {curve.breakevens.length === 0
               ? "—"
@@ -103,7 +101,7 @@ export function LivePayoffRail({ summary, guides, className }: LivePayoffRailPro
         </div>
       </div>
 
-      <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-5 text-muted">
+      <p className="mt-3 flex items-start gap-1.5 text-xs leading-5 text-muted">
         <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
         At-expiry intrinsic value from estimated entry premiums — a preview of the structure. Your
         run uses real historical prices and net-of-charges P&amp;L.
