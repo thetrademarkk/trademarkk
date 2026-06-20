@@ -5,6 +5,7 @@ import { NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { CommunitySearch, MessagesFab, NotificationsBell } from "@/features/community";
+import { CommunityBottomNav } from "@/components/layout/community-bottom-nav";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -43,9 +44,16 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
             </>
           }
         />
-        <main className="flex-1">{children}</main>
-        <MessagesFab />
-        <footer className="border-t py-6 text-center text-[11px] text-muted">
+        {/* pb-24 reserves room above the mobile bottom bar; cleared from md up. */}
+        <main className="flex-1 pb-24 md:pb-0">{children}</main>
+        {/* Desktop keeps the floating chat dock; on mobile the bottom bar's
+            Chat tab owns that action, so the FAB is hidden to avoid two
+            stacked chat affordances. */}
+        <div className="hidden md:contents">
+          <MessagesFab />
+        </div>
+        <CommunityBottomNav />
+        <footer className="mb-16 border-t py-6 text-center text-[11px] text-muted md:mb-0">
           Educational discussion only — nothing on TradeMarkk is investment advice.
         </footer>
       </div>

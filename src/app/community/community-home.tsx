@@ -207,19 +207,10 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
         {/* Today's session threads — surfaced inline on mobile (the right rail
             that hosts it on desktop is hidden below lg). */}
         <EventsCard className="mb-4 lg:hidden" />
+        {/* Feed-sort tabs only. Leaderboard/Trending now live in the mobile
+            bottom bar (CommunityBottomNav), so they're no longer duplicated
+            here. */}
         <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
-          <Link
-            href="/community/leaderboard"
-            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted"
-          >
-            Leaderboard
-          </Link>
-          <Link
-            href="/community/trending"
-            className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted"
-          >
-            Trending
-          </Link>
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -298,11 +289,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
         </div>
       </aside>
 
-      {/* Mobile compose FAB */}
+      {/* Mobile compose FAB — floats ABOVE the bottom bar (X-style) below md,
+          drops to the corner in the md–lg range where the bar is hidden. */}
       <button
         aria-label="Write a post"
         onClick={() => setComposeOpen(true)}
-        className="fixed bottom-5 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-accent-solid p-3.5 text-accent-fg shadow-lg transition-transform active:scale-95 lg:hidden"
+        className="fixed bottom-20 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-accent-solid p-3.5 text-accent-fg shadow-lg transition-transform active:scale-95 md:bottom-5 lg:hidden"
       >
         <PenSquare className="h-5 w-5" aria-hidden />
       </button>

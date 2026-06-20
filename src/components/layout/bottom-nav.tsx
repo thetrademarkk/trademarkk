@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BottomBarShell } from "@/components/layout/bottom-bar-shell";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,11 +45,7 @@ export function BottomNav() {
   };
 
   return (
-    <nav
-      aria-label="Primary"
-      className="md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t bg-surface/95 backdrop-blur"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
+    <BottomBarShell>
       {leftTabs.map((t) => (
         <Tab key={t.href} tab={t} />
       ))}
@@ -93,6 +90,6 @@ export function BottomNav() {
       >
         <Plus className="h-6 w-6" aria-hidden />
       </button>
-    </nav>
+    </BottomBarShell>
   );
 }
