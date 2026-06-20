@@ -140,11 +140,17 @@ def main(argv=None) -> int:
     ap.add_argument("--archive", required=True, help="The 4GB source archive to prune.")
     ap.add_argument("--staging-hf", required=True, help="The re-sorted HF-layout tree (the row-count source of truth).")
     ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
+    ap.add_argument("--options-root", default="options",
+                    help="Option subtree to verify+prune ('options' index, 'stocks_options' single-stock).")
     ap.add_argument("--delete-confirmed", action="store_true", help="Actually delete local sources that pass verification.")
     ap.add_argument("--prune-staging", action="store_true", help="Also delete the staging re-sorted file once verified.")
     ap.add_argument("--prune-index", action="store_true", help="Also verify+prune the per-symbol index layer.")
     ap.add_argument("--token-env", default=None, help="Env var holding an HF token (only for PRIVATE repos).")
     ap.add_argument("--max-expiries", type=int, default=0, help="Limit per symbol (0 = all).")
+    ap.add_argument("--one-symbol", default=None,
+                    help="DISK-SAFE slice mode: verify+prune only this symbol (with --one-expiry).")
+    ap.add_argument("--one-expiry", default=None,
+                    help="DISK-SAFE slice mode: verify+prune only this expiry of --one-symbol.")
     args = ap.parse_args(argv)
 
     if not os.path.isdir(args.archive):
@@ -164,18 +170,27 @@ def main(argv=None) -> int:
     reclaim_total = 0
     n_ok = n_bad = n_deleted = 0
 
-    for sym in args.symbols:
-        sroot = os.path.join(args.archive, "options", sym)
+    oroot = args.options_root
+    # failures live under failures/ for the index root, failures_<root>/ otherwise
+    froot_name = "failures" if oroot == "options" else f"failures_{oroot}"
+
+    # DISK-SAFE slice mode: restrict to a single (symbol, expiry).
+    symbols = [args.one_symbol] if args.one_symbol else args.symbols
+
+    for sym in symbols:
+        sroot = os.path.join(args.archive, oroot, sym)
         if not os.path.isdir(sroot):
             continue
         expiries = sorted(e for e in os.listdir(sroot) if os.path.isdir(os.path.join(sroot, e)))
+        if args.one_expiry:
+            expiries = [args.one_expiry] if args.one_expiry in expiries else []
         if args.max_expiries and len(expiries) > args.max_expiries:
             expiries = expiries[: args.max_expiries]
-        print(f"\n[{sym}] {len(expiries)} expiries")
+        print(f"\n[{sym}] {len(expiries)} expiries ({oroot})")
 
         for exp in expiries:
-            rel = f"options/{sym}/{exp}.parquet"
-            staging_file = os.path.join(args.staging_hf, "options", sym, f"{exp}.parquet")
+            rel = f"{oroot}/{sym}/{exp}.parquet"
+            staging_file = os.path.join(args.staging_hf, oroot, sym, f"{exp}.parquet")
             if not os.path.exists(staging_file):
                 print(f"  {exp}: SKIP (no staging file — not re-sorted/uploaded yet)")
                 continue
@@ -192,7 +207,7 @@ def main(argv=None) -> int:
                 if args.delete_confirmed:
                     shutil.rmtree(src_dir, ignore_errors=True)
                     # prune this expiry's failures too (HF now authoritative)
-                    fdir = os.path.join(args.archive, "failures", sym, exp)
+                    fdir = os.path.join(args.archive, froot_name, sym, exp)
                     shutil.rmtree(fdir, ignore_errors=True)
                     if args.prune_staging:
                         try:

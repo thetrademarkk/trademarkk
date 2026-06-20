@@ -62,8 +62,8 @@ SYMBOLS = ("NIFTY", "BANKNIFTY", "SENSEX")
 EXPECTED_BARS_PER_DAY = 375  # 09:15–15:30 IST at 1m (docs/07-data-layer §7)
 STRIKE_STEP = {"NIFTY": 50, "BANKNIFTY": 100, "SENSEX": 100}
 
-# NSE-NIFTY-25Jul24-21150-CE.parquet  ->  strike=21150 type=CE
-_FNAME = re.compile(r"-(\d+)-(CE|PE)\.parquet$")
+# NSE-NIFTY-25Jul24-21150-CE.parquet -> 21150  OR  NSE-ITC-...-257.5-CE -> 257.5
+_FNAME = re.compile(r"-(\d+(?:\.\d+)?)-(CE|PE)\.parquet$")
 
 MANIFEST_SCHEMA_VERSION = 1
 
@@ -72,7 +72,9 @@ def parse_contract(fname: str):
     m = _FNAME.search(fname)
     if not m:
         return None
-    return int(m.group(1)), m.group(2)
+    s = float(m.group(1))
+    s = int(s) if s == int(s) else s
+    return s, m.group(2)
 
 
 def iso_day(ts: str) -> str:
@@ -135,13 +137,13 @@ def trading_days_between(start: str, end: str):
     return out
 
 
-def build(archive: str, symbols, max_expiries, workers: int):
+def build(archive: str, symbols, max_expiries, workers: int, options_root: str = "options"):
     rows = []  # full per-contract records
     per_symbol = {}
     per_expiry = {}  # (sym, expiry) -> rollup
 
     for sym in symbols:
-        sroot = os.path.join(archive, "options", sym)
+        sroot = os.path.join(archive, options_root, sym)
         if not os.path.isdir(sroot):
             continue
         expiries = sorted(os.listdir(sroot))
@@ -152,7 +154,8 @@ def build(archive: str, symbols, max_expiries, workers: int):
                 expiries = expiries[:half] + expiries[-(max_expiries - half):]
         sym_real = sym_empty = sym_bars = 0
         sym_cov_acc = []  # per-contract coverage for the symbol mean
-        step = STRIKE_STEP[sym]
+        # stocks aren't in the index STRIKE_STEP map; 0 = "data-driven / n/a"
+        step = STRIKE_STEP.get(sym, 0)
 
         for exp in expiries:
             ed = os.path.join(sroot, exp)
@@ -279,14 +282,16 @@ def build(archive: str, symbols, max_expiries, workers: int):
     return rows, per_symbol, per_expiry
 
 
-def write_full_parquet(rows, staging: str) -> str:
+def write_full_parquet(rows, staging: str, out_name: str = "manifest.parquet") -> str:
     os.makedirs(staging, exist_ok=True)
-    out = os.path.join(staging, "manifest.parquet")
+    out = os.path.join(staging, out_name)
+    frac = any(isinstance(r["strike"], float) for r in rows)
+    strike_type = pa.float64() if frac else pa.int32()
     schema = pa.schema(
         [
             ("symbol", pa.string()),
             ("expiry", pa.string()),
-            ("strike", pa.int32()),
+            ("strike", strike_type),
             ("option_type", pa.string()),
             ("present_bars", pa.int32()),
             ("trading_days", pa.int32()),
@@ -300,7 +305,7 @@ def write_full_parquet(rows, staging: str) -> str:
     )
     # sort by (symbol, expiry, strike, option_type) — the row-group-pruning order
     rows_sorted = sorted(
-        rows, key=lambda r: (r["symbol"], r["expiry"], r["strike"], r["option_type"])
+        rows, key=lambda r: (r["symbol"], r["expiry"], float(r["strike"]), r["option_type"])
     )
     cols = {name: [r[name] for r in rows_sorted] for name, _ in zip(schema.names, schema.types)}
     tbl = pa.table(cols, schema=schema)
@@ -349,6 +354,10 @@ def main(argv=None) -> int:
     ap.add_argument("--staging", default=None, help="Dir for the full manifest.parquet (gitignored).")
     ap.add_argument("--out-json", required=True, help="Compact JSON summary path (committed).")
     ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
+    ap.add_argument("--options-root", default="options",
+                    help="Option subtree ('options' index, 'stocks_options' single-stock).")
+    ap.add_argument("--manifest-name", default="manifest.parquet",
+                    help="Filename for the full manifest parquet under --staging.")
     ap.add_argument("--max-expiries", type=int, default=0, help="Sample N expiries/symbol (0 = all).")
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args(argv)
@@ -357,8 +366,13 @@ def main(argv=None) -> int:
         print(f"ERROR: archive not found: {args.archive}", file=sys.stderr)
         return 2
 
+    syms = args.symbols
+    if args.options_root != "options" and args.symbols == list(SYMBOLS):
+        base = os.path.join(args.archive, args.options_root)
+        syms = sorted(os.listdir(base)) if os.path.isdir(base) else []
+
     rows, per_symbol, per_expiry = build(
-        args.archive, args.symbols, args.max_expiries, args.workers
+        args.archive, syms, args.max_expiries, args.workers, args.options_root
     )
 
     out_json = write_compact_json(per_symbol, per_expiry, args.archive, args.out_json)
@@ -366,7 +380,7 @@ def main(argv=None) -> int:
 
     parquet_path = None
     if args.staging:
-        parquet_path = write_full_parquet(rows, args.staging)
+        parquet_path = write_full_parquet(rows, args.staging, args.manifest_name)
 
     print("\n=== MANIFEST SUMMARY ===")
     for sym, v in per_symbol.items():
