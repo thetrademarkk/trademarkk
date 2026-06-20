@@ -1,6 +1,7 @@
 /**
- * Feature e2e: the Analytics section switcher is mobile-friendly — a dropdown on
- * a phone (7 tabs don't fit a 360px strip) and the full pill strip on desktop.
+ * Feature e2e: the Analytics section switcher uses the journal underline tab
+ * strip (like the calendar) — scrollable on a phone, with a violet underline on
+ * the active tab — NOT a dropdown.
  *
  * Run (app serving a prod build on :3000):
  *   BASE_URL=http://localhost:3000 SHOT_DIR=. node scripts/e2e-analytics-tabs.mjs
@@ -47,45 +48,55 @@ await step("seed demo journal", async () => {
 });
 
 await step(
-  "mobile shows a dropdown switcher (not a cramped pill strip) + no overflow",
+  "mobile shows the underline tab strip (not a dropdown), active tab underlined",
   async () => {
     await page.goto(`${BASE}/app/analytics`, { waitUntil: "domcontentloaded" });
-    const select = page.getByRole("combobox", { name: "Analytics section" });
-    await select.waitFor({ timeout: 15000 });
-    // The desktop pill tablist must be hidden on mobile.
-    const tablistVisible = await page
-      .getByRole("tablist")
-      .first()
+    await page.getByRole("tab", { name: "Time" }).waitFor({ timeout: 15000 });
+    // All 7 tabs are present in the strip.
+    for (const t of [
+      "Time",
+      "Setup",
+      "Instrument",
+      "Distribution",
+      "Options",
+      "Monte Carlo",
+      "More",
+    ])
+      await page.getByRole("tab", { name: t }).first().waitFor({ timeout: 6000 });
+    // No dropdown switcher remains.
+    const hasSelect = await page
+      .getByRole("combobox", { name: "Analytics section" })
       .isVisible()
       .catch(() => false);
-    if (tablistVisible) throw new Error("pill tablist should be hidden on mobile");
+    if (hasSelect) throw new Error("the analytics dropdown should be gone — use the tab strip");
+    // The active tab carries the violet underline (inset box-shadow), like the calendar.
+    const shadow = await page
+      .getByRole("tab", { name: "Time" })
+      .first()
+      .evaluate((el) => getComputedStyle(el).boxShadow);
+    if (!shadow || shadow === "none" || !/inset/.test(shadow))
+      throw new Error(`active tab should have the underline shadow, got ${shadow}`);
+    // The PAGE must not overflow horizontally (the strip scrolls internally).
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );
-    if (overflow > 2) throw new Error(`horizontal overflow on mobile: ${overflow}px`);
+    if (overflow > 2) throw new Error(`horizontal page overflow on mobile: ${overflow}px`);
     await page.screenshot({ path: `${SHOT_DIR}/_analytics-tabs-mobile.png`, fullPage: false });
   }
 );
 
-await step("the dropdown switches the analytics section", async () => {
-  await page.getByRole("combobox", { name: "Analytics section" }).click();
-  await page.getByRole("option", { name: "Monte Carlo" }).click();
-  await page.waitForTimeout(400);
-  const val = await page.getByRole("combobox", { name: "Analytics section" }).innerText();
-  if (!/Monte Carlo/.test(val)) throw new Error(`dropdown should read 'Monte Carlo', saw "${val}"`);
+await step("tapping a tab switches the section", async () => {
+  await page.getByRole("tab", { name: "Monte Carlo" }).click(); // auto-scrolls the strip
+  await page.waitForTimeout(300);
+  const state = await page.getByRole("tab", { name: "Monte Carlo" }).getAttribute("data-state");
+  if (state !== "active") throw new Error(`Monte Carlo tab should be active, got ${state}`);
 });
 
-await step("desktop shows the full pill strip", async () => {
+await step("desktop shows the same tab strip", async () => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.waitForTimeout(300);
   await page.getByRole("tab", { name: "Monte Carlo" }).waitFor({ timeout: 5000 });
   await page.getByRole("tab", { name: "Distribution" }).waitFor({ timeout: 3000 });
-  // The mobile dropdown is hidden on desktop.
-  const selVisible = await page
-    .getByRole("combobox", { name: "Analytics section" })
-    .isVisible()
-    .catch(() => false);
-  if (selVisible) throw new Error("mobile dropdown should be hidden on desktop");
 });
 
 await ctx.close();
