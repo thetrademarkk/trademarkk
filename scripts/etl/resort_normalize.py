@@ -64,7 +64,8 @@ import pyarrow.parquet as pq
 SYMBOLS = ("NIFTY", "BANKNIFTY", "SENSEX")
 CANON_TZ = "+05:30"  # fixed IST offset (no IANA db needed)
 IST_OFFSET_NS = (5 * 3600 + 30 * 60) * 1_000_000_000
-_FNAME = re.compile(r"-(\d+)-(CE|PE)\.parquet$")
+# integer strikes (index) OR fractional strikes (single-stock: ITC 257.5, TRENT 2333.35)
+_FNAME = re.compile(r"-(\d+(?:\.\d+)?)-(CE|PE)\.parquet$")
 
 # canonical column order for option rows
 OPT_COLS = [
@@ -76,7 +77,11 @@ IDX_COLS = ["timestamp", "open", "high", "low", "close", "volume", "trading_day"
 
 def parse_contract(fname: str):
     m = _FNAME.search(fname)
-    return (int(m.group(1)), m.group(2)) if m else None
+    if not m:
+        return None
+    s = float(m.group(1))
+    s = int(s) if s == int(s) else s
+    return (s, m.group(2))
 
 
 def normalize_ts(col: pa.ChunkedArray) -> pa.Array:
@@ -105,7 +110,8 @@ def normalize_int(col, fill=0):
     return pc.round(filled).cast(pa.int64())
 
 
-def read_contract_table(path: str, sym: str, expiry: str, strike: int, ot: str) -> pa.Table:
+def read_contract_table(path: str, sym: str, expiry: str, strike, ot: str,
+                        strike_type=pa.int32()) -> pa.Table:
     t = pq.read_table(path)
     n = t.num_rows
     ts = normalize_ts(t.column("timestamp"))
@@ -119,21 +125,23 @@ def read_contract_table(path: str, sym: str, expiry: str, strike: int, ot: str) 
         "open_interest": normalize_int(t.column("open_interest")),
         "trading_day": t.column("trading_day").cast(pa.string()),
         "symbol": pa.array([sym] * n, type=pa.string()),
-        "strike": pa.array([strike] * n, type=pa.int32()),
+        "strike": pa.array([strike] * n, type=strike_type),
         "option_type": pa.array([ot] * n, type=pa.string()),
         "expiry": pa.array([expiry] * n, type=pa.string()),
     }
     return pa.table(out)
 
 
-def opt_schema() -> pa.Schema:
+def opt_schema(strike_type=pa.int32()) -> pa.Schema:
+    """Option-chain schema. Index strikes are int32; single-stock strikes can be
+    fractional so the stock path passes strike_type=float64 to keep e.g. 257.5."""
     return pa.schema([
         ("timestamp", pa.timestamp("ns", tz=CANON_TZ)),
         ("open", pa.float64()), ("high", pa.float64()),
         ("low", pa.float64()), ("close", pa.float64()),
         ("volume", pa.int64()), ("open_interest", pa.int64()),
         ("trading_day", pa.string()), ("symbol", pa.string()),
-        ("strike", pa.int32()), ("option_type", pa.string()), ("expiry", pa.string()),
+        ("strike", strike_type), ("option_type", pa.string()), ("expiry", pa.string()),
     ])
 
 
@@ -171,9 +179,14 @@ def write_daily_rowgroups(tbl: pa.Table, out_path: str, group_keys=None) -> None
     writer.close()
 
 
-def resort_expiry(archive: str, sym: str, expiry: str, out_root: str) -> dict:
-    """Re-sort one expiry's whole chain into one normalized file. Returns metrics."""
-    ed = os.path.join(archive, "options", sym, expiry)
+def resort_expiry(archive: str, sym: str, expiry: str, out_root: str,
+                  options_root: str = "options") -> dict:
+    """Re-sort one expiry's whole chain into one normalized file. Returns metrics.
+
+    `options_root` selects the source/destination subtree ('options' for index
+    chains, 'stocks_options' for single-stock chains) so the same normalizer
+    serves both without duplicating the sort/normalize logic."""
+    ed = os.path.join(archive, options_root, sym, expiry)
     paths = []
     for f in os.listdir(ed):
         if f.endswith(".parquet"):
@@ -185,8 +198,11 @@ def resort_expiry(archive: str, sym: str, expiry: str, out_root: str) -> dict:
     if not paths:
         return {"symbol": sym, "expiry": expiry, "in_files": 0, "skipped": True}
 
-    tables = [read_contract_table(p, sym, expiry, s, o) for p, s, o in paths]
-    combined = pa.concat_tables(tables).cast(opt_schema())
+    # single-stock chains can carry fractional strikes -> float64; index -> int32
+    frac = any(isinstance(s, float) for _p, s, _o in paths)
+    strike_type = pa.float64() if frac else pa.int32()
+    tables = [read_contract_table(p, sym, expiry, s, o, strike_type) for p, s, o in paths]
+    combined = pa.concat_tables(tables).cast(opt_schema(strike_type))
     # SORT (trading_day, strike, option_type, timestamp)
     idx = pc.sort_indices(
         combined,
@@ -194,7 +210,7 @@ def resort_expiry(archive: str, sym: str, expiry: str, out_root: str) -> dict:
                    ("option_type", "ascending"), ("timestamp", "ascending")],
     )
     sorted_tbl = combined.take(idx)
-    out_path = os.path.join(out_root, "options", sym, f"{expiry}.parquet")
+    out_path = os.path.join(out_root, options_root, sym, f"{expiry}.parquet")
     write_daily_rowgroups(sorted_tbl, out_path)
     out_bytes = os.path.getsize(out_path)
     md = pq.ParquetFile(out_path).metadata
@@ -248,12 +264,12 @@ def resort_index(archive: str, sym: str, out_root: str) -> dict:
     }
 
 
-def pick_sample(archive: str):
-    """A few HIGH- + LOW-coverage expiries across all three symbols.
+def pick_sample(archive: str, options_root: str = "options", symbols=SYMBOLS):
+    """A few HIGH- + LOW-coverage expiries across all symbols.
     Heuristic: per symbol pick 2 dense recent + 1 sparse early expiry."""
     sample = []
-    for sym in SYMBOLS:
-        sroot = os.path.join(archive, "options", sym)
+    for sym in symbols:
+        sroot = os.path.join(archive, options_root, sym)
         if not os.path.isdir(sroot):
             continue
         exps = sorted(
@@ -280,6 +296,10 @@ def main(argv=None) -> int:
     ap.add_argument("--full", action="store_true", help="Full HF tree (owner step; large).")
     ap.add_argument("--symbol", default=None)
     ap.add_argument("--expiry", default=None)
+    ap.add_argument("--symbols", nargs="*", default=None,
+                    help="Restrict --full/--sample to these symbols (default: SYMBOLS or all stock dirs).")
+    ap.add_argument("--options-root", default="options",
+                    help="Source/dest option subtree ('options' index, 'stocks_options' single-stock).")
     ap.add_argument("--with-index", action="store_true", help="Also re-sort the index layer.")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args(argv)
@@ -288,25 +308,35 @@ def main(argv=None) -> int:
         print(f"ERROR: archive not found: {args.archive}", file=sys.stderr)
         return 2
 
+    oroot = args.options_root
+    # symbol universe: explicit --symbols, else index SYMBOLS, else every dir under the root
+    if args.symbols:
+        sym_universe = args.symbols
+    elif oroot == "options":
+        sym_universe = list(SYMBOLS)
+    else:
+        base = os.path.join(args.archive, oroot)
+        sym_universe = sorted(os.listdir(base)) if os.path.isdir(base) else []
+
     targets = []
     if args.symbol and args.expiry:
         targets = [(args.symbol, args.expiry)]
     elif args.full:
-        for sym in SYMBOLS:
-            sroot = os.path.join(args.archive, "options", sym)
+        for sym in sym_universe:
+            sroot = os.path.join(args.archive, oroot, sym)
             if os.path.isdir(sroot):
                 for e in sorted(os.listdir(sroot)):
                     if glob.glob(os.path.join(sroot, e, "*.parquet")):
                         targets.append((sym, e))
     else:
-        targets = pick_sample(args.archive)  # default = sample
+        targets = pick_sample(args.archive, oroot, sym_universe)  # default = sample
 
-    print(f"re-sorting {len(targets)} expiries -> {args.out}")
+    print(f"re-sorting {len(targets)} expiries ({oroot}) -> {args.out}")
     tot_in_files = tot_in = tot_out = tot_rows = 0
     results = []
 
     def work(t):
-        return resort_expiry(args.archive, t[0], t[1], args.out)
+        return resort_expiry(args.archive, t[0], t[1], args.out, oroot)
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         for r in ex.map(work, targets):
@@ -323,7 +353,9 @@ def main(argv=None) -> int:
                 f"{r['out_row_groups']} row-groups, {r['out_rows']} rows)"
             )
 
-    if args.with_index or args.full:
+    # The index layer is shared (index spot), so only re-sort it on the index root,
+    # never for a stocks_options run (which would redundantly rebuild it).
+    if (args.with_index or args.full) and oroot == "options":
         for sym in SYMBOLS:
             r = resort_index(args.archive, sym, args.out)
             if not r.get("skipped"):

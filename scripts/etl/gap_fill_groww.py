@@ -52,7 +52,9 @@ import json
 import os
 import random
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -94,30 +96,52 @@ def expiry_to_ddmmmyy(expiry: str) -> str:
     return f"{d.day:02d}{_MONTHS[d.month - 1]}{d.year % 100:02d}"
 
 
-def groww_symbol(sym: str, expiry: str, strike: int, ot: str) -> str:
-    return f"NSE-{sym}-{expiry_to_ddmmmyy(expiry)}-{strike}-{ot}"
+def strike_token(strike) -> str:
+    """Format a strike exactly as Groww's groww_symbol does.
+
+    Index strikes are always integers (24000). Single-stock strikes can be
+    fractional (ITC 257.5, KOTAKBANK 287.5, TRENT 2333.35), and Groww renders
+    them with their decimals and NO trailing zero (so 345 not 345.0, 257.5 not
+    257.50). round() to int when the value is whole; otherwise drop trailing
+    zeros from the decimal form.
+    """
+    f = float(strike)
+    if f == int(f):
+        return str(int(round(f)))
+    s = f"{f:.2f}".rstrip("0").rstrip(".")
+    return s
+
+
+def groww_symbol(sym: str, expiry: str, strike, ot: str) -> str:
+    return f"NSE-{sym}-{expiry_to_ddmmmyy(expiry)}-{strike_token(strike)}-{ot}"
 
 
 def contract_filename(sym: str, expiry: str, strike: int, ot: str) -> str:
     return f"{groww_symbol(sym, expiry, strike, ot)}.parquet"
 
 
-def parquet_path(archive: str, sym: str, expiry: str, strike: int, ot: str) -> str:
-    return os.path.join(archive, "options", sym, expiry,
+def parquet_path(archive: str, sym: str, expiry: str, strike: int, ot: str,
+                 root: str = "options") -> str:
+    return os.path.join(archive, root, sym, expiry,
                         contract_filename(sym, expiry, strike, ot))
 
 
+def failures_root(archive: str, root: str) -> str:
+    """Failures dir, kept separate per data root so stock + index failures don't collide."""
+    return "failures" if root == "options" else f"failures_{root}"
+
+
 def already_done(archive: str, sym: str, expiry: str, strike: int, ot: str,
-                 retry_failures: bool) -> bool:
+                 retry_failures: bool, root: str = "options") -> bool:
     """Idempotency guard: real parquet OR empty marker (always skip), failure
     (skip unless --retry-failures)."""
-    base = parquet_path(archive, sym, expiry, strike, ot)
+    base = parquet_path(archive, sym, expiry, strike, ot, root)
     if os.path.exists(base):
         return True
     if os.path.exists(base + ".empty.json"):
         return True
     if not retry_failures:
-        froot = os.path.join(archive, "failures", sym, expiry)
+        froot = os.path.join(archive, failures_root(archive, root), sym, expiry)
         fp = os.path.join(froot, groww_symbol(sym, expiry, strike, ot) + ".json")
         if os.path.exists(fp):
             return True
@@ -175,8 +199,8 @@ def _f(v):
         return 0.0
 
 
-def write_real(archive, sym, expiry, strike, ot, table: pa.Table) -> str:
-    out = parquet_path(archive, sym, expiry, strike, ot)
+def write_real(archive, sym, expiry, strike, ot, table: pa.Table, root: str = "options") -> str:
+    out = parquet_path(archive, sym, expiry, strike, ot, root)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     tmp = out + ".tmp"
     # ZSTD + stats so it matches the archive's other files; tiny per-contract files
@@ -185,8 +209,8 @@ def write_real(archive, sym, expiry, strike, ot, table: pa.Table) -> str:
     return out
 
 
-def write_empty(archive, sym, expiry, strike, ot, lookback_days: int) -> str:
-    out = parquet_path(archive, sym, expiry, strike, ot) + ".empty.json"
+def write_empty(archive, sym, expiry, strike, ot, lookback_days: int, root: str = "options") -> str:
+    out = parquet_path(archive, sym, expiry, strike, ot, root) + ".empty.json"
     os.makedirs(os.path.dirname(out), exist_ok=True)
     rec = {
         "expiry": expiry,
@@ -201,8 +225,8 @@ def write_empty(archive, sym, expiry, strike, ot, lookback_days: int) -> str:
     return out
 
 
-def write_failure(archive, sym, expiry, strike, ot, err: str) -> str:
-    froot = os.path.join(archive, "failures", sym, expiry)
+def write_failure(archive, sym, expiry, strike, ot, err: str, root: str = "options") -> str:
+    froot = os.path.join(archive, failures_root(archive, root), sym, expiry)
     os.makedirs(froot, exist_ok=True)
     out = os.path.join(froot, groww_symbol(sym, expiry, strike, ot) + ".json")
     rec = {
@@ -218,8 +242,8 @@ def write_failure(archive, sym, expiry, strike, ot, err: str) -> str:
     return out
 
 
-def clear_failure(archive, sym, expiry, strike, ot) -> None:
-    fp = os.path.join(archive, "failures", sym, expiry,
+def clear_failure(archive, sym, expiry, strike, ot, root: str = "options") -> None:
+    fp = os.path.join(archive, failures_root(archive, root), sym, expiry,
                       groww_symbol(sym, expiry, strike, ot) + ".json")
     try:
         os.remove(fp)
@@ -228,17 +252,31 @@ def clear_failure(archive, sym, expiry, strike, ot) -> None:
 
 
 class Throttle:
-    """Min-interval pacing + exponential backoff with jitter on transient errors."""
+    """SHARED, thread-safe min-interval pacing + backoff.
+
+    With multiple worker threads, every worker calls wait() before each API
+    request. A lock serializes the spacing decision so the GLOBAL request rate
+    never exceeds ~1/min_interval req/s no matter how many workers are running —
+    i.e. the min-interval is a true global rate cap, respected across the pool,
+    not a per-thread one. (At --min-interval 0.12 and N workers you'd approach
+    Groww's ~10 req/s soft cap; the default 0.75 stays well under it.)
+    """
 
     def __init__(self, min_interval: float):
         self.min_interval = min_interval
-        self._last = 0.0
+        self._next = 0.0  # earliest monotonic time the next call may start
+        self._lock = threading.Lock()
 
     def wait(self):
-        dtm = time.monotonic() - self._last
-        if dtm < self.min_interval:
-            time.sleep(self.min_interval - dtm)
-        self._last = time.monotonic()
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._next)
+            # reserve this slot for the calling thread, then release the lock so
+            # other threads queue behind it rather than all sleeping in parallel
+            self._next = start + self.min_interval
+            delay = start - now
+        if delay > 0:
+            time.sleep(delay)
 
     @staticmethod
     def backoff(attempt: int):
@@ -330,14 +368,20 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Fill archive gaps from Groww (idempotent, resumable).")
     ap.add_argument("--archive", required=True)
     ap.add_argument("--plan", required=True, help="gap-plan.json from gap_detect.py")
-    ap.add_argument("--symbols", nargs="*", default=list(SYMBOLS))
+    ap.add_argument("--symbols", nargs="*", default=None,
+                    help="Restrict to these symbols (default: every symbol present in the plan).")
     ap.add_argument("--env", default=".env.local")
-    ap.add_argument("--min-interval", type=float, default=0.75, help="Seconds between API calls.")
+    ap.add_argument("--min-interval", type=float, default=0.75,
+                    help="Min seconds between API calls (SHARED across all workers — a global rate cap).")
+    ap.add_argument("--workers", type=int, default=4,
+                    help="Parallel fetch threads (default 4). The shared min-interval still caps the global req/s.")
     ap.add_argument("--max-retries", type=int, default=4, help="Transient retries per contract.")
     ap.add_argument("--max-contracts", type=int, default=0, help="Cap contracts this run (0 = all).")
     ap.add_argument("--retry-failures", action="store_true", help="Also re-attempt recorded failures.")
     ap.add_argument("--state", default=None, help="Resumable attempt-count state json (optional).")
     ap.add_argument("--giveup-after", type=int, default=3, help="Stop retrying a contract after N hard fails.")
+    ap.add_argument("--root-subdir", default="options",
+                    help="Archive subtree to write under (default 'options'; 'stocks_options' for stock chains).")
     ap.add_argument("--dry-run", action="store_true", help="Plan only; no API calls, no writes.")
     args = ap.parse_args(argv)
 
@@ -348,8 +392,12 @@ def main(argv=None) -> int:
     state = load_state(args.state)
 
     # Build the flat work list from the plan (missing + optionally retry).
+    # Default to EVERY symbol the plan carries (so a stock plan with 48 names isn't
+    # silently dropped by an index-only default); --symbols still restricts.
+    plan_symbols = list(plan.get("symbols", {}).keys())
+    target_symbols = args.symbols if args.symbols else plan_symbols
     work = []  # (sym, expiry, strike, ot, start_day, end_day)
-    for sym in args.symbols:
+    for sym in target_symbols:
         sblock = plan.get("symbols", {}).get(sym)
         if not sblock:
             continue
@@ -362,7 +410,11 @@ def main(argv=None) -> int:
             if args.retry_failures:
                 todo += list(eb.get("retryContracts", []))
             for strike, ot in todo:
-                work.append((sym, exp, int(strike), ot, start_day, end_day))
+                # keep fractional stock strikes (ITC 257.5) intact; index strikes
+                # round-trip as ints via strike_token()
+                sv = float(strike)
+                sv = int(sv) if sv == int(sv) else sv
+                work.append((sym, exp, sv, ot, start_day, end_day))
 
     print(f"plan work list: {len(work)} contracts "
           f"({'+retry' if args.retry_failures else 'missing only'})")
@@ -371,8 +423,9 @@ def main(argv=None) -> int:
         # show the first few groww_symbols that WOULD be fetched
         for w in work[:10]:
             print("  WOULD fetch", groww_symbol(w[0], w[1], w[2], w[3]),
-                  f"[{w[4]}..{w[5]}]")
-        print("DRY RUN — no API calls, no writes.")
+                  f"[{w[4]}..{w[5]}] -> {args.root_subdir}/")
+        print(f"DRY RUN — {len(work)} contracts, {args.workers} workers, "
+              f"min-interval {args.min_interval}s — no API calls, no writes.")
         return 0
 
     env = load_env(args.env)
@@ -388,67 +441,110 @@ def main(argv=None) -> int:
     g = GrowwAPI(get_token(env))
     print("Groww auth OK (cached TOTP token).")
 
-    thr = Throttle(args.min_interval)
-    n_real = n_empty = n_fail = n_skip = n_done = 0
+    thr = Throttle(args.min_interval)  # SHARED across all workers (global rate cap)
+    root = args.root_subdir
+    lookback = plan.get("params", {}).get("lookbackDays", 60)
+    workers = max(1, args.workers)
     t0 = time.monotonic()
 
-    for i, (sym, exp, strike, ot, start_day, end_day) in enumerate(work):
-        if args.max_contracts and n_done >= args.max_contracts:
-            print(f"reached --max-contracts={args.max_contracts}; stopping (resumable).")
-            break
+    # Mutable, lock-guarded run counters + state. The GrowwAPI client is shared:
+    # each get_historical_candles is an independent stateless HTTP call, and the
+    # SHARED Throttle (not the client) is what serializes the request rate.
+    lock = threading.Lock()
+    ctr = {"real": 0, "empty": 0, "fail": 0, "skip": 0, "done": 0}
+    stop = threading.Event()  # set when --max-contracts reached (resumable: just re-run)
+
+    def process(item) -> None:
+        sym, exp, strike, ot, start_day, end_day = item
+        if stop.is_set():
+            return
         # idempotency re-check at fetch time (archive is the source of truth)
-        if already_done(args.archive, sym, exp, strike, ot, args.retry_failures):
-            n_skip += 1
-            continue
+        if already_done(args.archive, sym, exp, strike, ot, args.retry_failures, root):
+            with lock:
+                ctr["skip"] += 1
+            return
         gs = groww_symbol(sym, exp, strike, ot)
-        st = state.setdefault(gs, {"hardFails": 0})
-        if st.get("hardFails", 0) >= args.giveup_after:
-            n_skip += 1
-            continue
+        with lock:
+            st = state.setdefault(gs, {"hardFails": 0})
+            if st.get("hardFails", 0) >= args.giveup_after:
+                ctr["skip"] += 1
+                return
+            # claim a contract slot against the --max-contracts budget BEFORE the
+            # API call so the cap is exact under concurrency
+            if args.max_contracts and ctr["done"] >= args.max_contracts:
+                stop.set()
+                return
+            ctr["done"] += 1
 
         candles, err = fetch_contract(g, sym, exp, strike, ot, start_day, end_day,
                                       thr, args.max_retries)
+
         if candles is None:
-            write_failure(args.archive, sym, exp, strike, ot, err)
-            st["hardFails"] = st.get("hardFails", 0) + 1
-            n_fail += 1
+            write_failure(args.archive, sym, exp, strike, ot, err, root)
+            with lock:
+                st["hardFails"] = st.get("hardFails", 0) + 1
+                ctr["fail"] += 1
         elif len(candles) == 0:
-            write_empty(args.archive, sym, exp, strike, ot,
-                        plan.get("params", {}).get("lookbackDays", 60))
-            clear_failure(args.archive, sym, exp, strike, ot)
-            n_empty += 1
+            write_empty(args.archive, sym, exp, strike, ot, lookback, root)
+            clear_failure(args.archive, sym, exp, strike, ot, root)
+            with lock:
+                ctr["empty"] += 1
         else:
             try:
                 tbl = candles_to_table(candles)
-                write_real(args.archive, sym, exp, strike, ot, tbl)
-                clear_failure(args.archive, sym, exp, strike, ot)
-                st["hardFails"] = 0
-                n_real += 1
+                write_real(args.archive, sym, exp, strike, ot, tbl, root)
+                clear_failure(args.archive, sym, exp, strike, ot, root)
+                with lock:
+                    st["hardFails"] = 0
+                    ctr["real"] += 1
             except Exception as e:  # noqa: BLE001
-                write_failure(args.archive, sym, exp, strike, ot, f"write:{type(e).__name__}:{e}")
-                st["hardFails"] = st.get("hardFails", 0) + 1
-                n_fail += 1
-        n_done += 1
+                write_failure(args.archive, sym, exp, strike, ot,
+                              f"write:{type(e).__name__}:{e}", root)
+                with lock:
+                    st["hardFails"] = st.get("hardFails", 0) + 1
+                    ctr["fail"] += 1
 
-        if n_done % 200 == 0:
-            save_state(args.state, state)
-            rate = n_done / max(time.monotonic() - t0, 1e-6)
-            remaining = len(work) - i - 1
-            eta_min = remaining / max(rate, 1e-6) / 60
+        # periodic checkpoint + progress (guarded; cheap)
+        with lock:
+            n = ctr["done"]
+        if n and n % 200 == 0:
+            with lock:
+                save_state(args.state, dict(state))
+            rate = n / max(time.monotonic() - t0, 1e-6)
+            eta_min = max(len(work) - n, 0) / max(rate, 1e-6) / 60
             sys.stderr.write(
-                f"  [{n_done}/{len(work)}] real={n_real} empty={n_empty} "
-                f"fail={n_fail} skip={n_skip}  {rate:.2f}/s  ETA~{eta_min:.0f}m\n"
+                f"  [{n}/{len(work)}] real={ctr['real']} empty={ctr['empty']} "
+                f"fail={ctr['fail']} skip={ctr['skip']}  {rate:.2f}/s  ETA~{eta_min:.0f}m "
+                f"({workers}w)\n"
             )
+
+    print(f"fetching with {workers} workers, shared min-interval {args.min_interval}s "
+          f"-> root '{root}'")
+    if workers == 1:
+        for item in work:
+            if stop.is_set():
+                break
+            process(item)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(process, item) for item in work]
+            for fut in as_completed(futures):
+                exc = fut.exception()
+                if exc is not None:
+                    sys.stderr.write(f"  worker error: {type(exc).__name__}: {exc}\n")
+
+    if stop.is_set():
+        print(f"reached --max-contracts={args.max_contracts}; stopping (resumable).")
 
     save_state(args.state, state)
     print("\n=== GAP FILL SUMMARY ===")
-    print(f"  fetched   : {n_done}")
-    print(f"  real      : {n_real}")
-    print(f"  empty     : {n_empty}")
-    print(f"  failed    : {n_fail}")
-    print(f"  skipped   : {n_skip} (already present / gave up)")
+    print(f"  fetched   : {ctr['done']}")
+    print(f"  real      : {ctr['real']}")
+    print(f"  empty     : {ctr['empty']}")
+    print(f"  failed    : {ctr['fail']}")
+    print(f"  skipped   : {ctr['skip']} (already present / gave up)")
     print(f"  elapsed   : {(time.monotonic()-t0)/60:.1f} min")
-    if n_fail:
+    if ctr["fail"]:
         print("  re-run to retry transient failures (idempotent); "
               "add --retry-failures to re-attempt recorded errors.")
     return 0
