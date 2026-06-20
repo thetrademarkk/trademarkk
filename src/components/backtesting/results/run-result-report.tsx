@@ -11,6 +11,8 @@ import { VerdictStatStrip } from "./verdict-stat-strip";
 import { HeroEquityChart } from "./hero-equity-chart";
 import { EvidenceTabs } from "./evidence-tabs";
 import { TradeBlotter } from "./trade-blotter";
+import { BtSection } from "../shared/bt-section";
+import { CoverageSeam, seamFromCoverage } from "../shared/coverage-seam";
 
 /** Coverage below this reads as a PARTIAL (honest low-coverage) verdict. */
 export const PARTIAL_COVERAGE = 0.4;
@@ -49,43 +51,54 @@ export function RunResultReport({
     [result, snapshot]
   );
 
+  const seam = React.useMemo(() => seamFromCoverage(result.coverage), [result.coverage]);
+
   return (
     <div
-      className="space-y-6"
+      className="space-y-3 sm:space-y-6"
       data-testid="bt-results-done"
       data-partial={isPartial ? "true" : "false"}
     >
-      {/* Tier 1 — verdict band */}
-      <section className="animate-slide-up space-y-3 rounded-2xl border bg-surface p-4 sm:p-5">
-        {isPartial && (
-          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 p-2.5 text-xs leading-5 text-warning">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
-            partial, indicative result, not a verdict.
+      {/* Tier 1 — VERDICT */}
+      <BtSection number="01" eyebrow="Verdict" data-testid="bt-tier-verdict">
+        <div className="animate-slide-up space-y-3 rounded-lg border bg-surface p-4 sm:p-5">
+          {isPartial && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 p-2.5 text-xs leading-5 text-warning">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              Low data coverage ({Math.round(result.coverage.overall * 100)}%) — read this as a
+              partial, indicative result, not a verdict.
+            </div>
+          )}
+          <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
+          <p className="text-sm leading-6" data-testid="bt-verdict-headline">
+            {headline}
+          </p>
+          {caveat && <p className="text-xs text-muted">{caveat}</p>}
+          <VerdictStatStrip run={result} prevStats={prevStats} />
+          {/* The hero equity is the one living amber curve; the Coverage Seam is
+              welded full-width directly beneath it — the marquee honesty signal. */}
+          <div>
+            <HeroEquityChart curve={result.equityCurve} benchmark={benchmark} />
+            <CoverageSeam
+              segments={seam}
+              className="mt-1"
+              label="Data coverage across the equity period"
+            />
           </div>
-        )}
-        <QualityChipRow chips={chips} filledBarFraction={result.coverage.filledBarFraction} />
-        <p className="text-sm leading-6" data-testid="bt-verdict-headline">
-          {headline}
-        </p>
-        {caveat && <p className="text-xs text-muted">{caveat}</p>}
-        <VerdictStatStrip run={result} prevStats={prevStats} />
-        <HeroEquityChart curve={result.equityCurve} benchmark={benchmark} />
-      </section>
+        </div>
+      </BtSection>
 
-      {/* Tier 2 — evidence */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Evidence</h2>
+      {/* Tier 2 — EVIDENCE */}
+      <BtSection number="02" eyebrow="Evidence" data-testid="bt-tier-evidence">
         <EvidenceTabs run={result} />
-      </section>
+      </BtSection>
 
-      {/* Tier 3 — drill-down */}
-      <section>
-        <h2 className="mb-2 text-xs uppercase tracking-wide text-muted">Trade-by-trade</h2>
+      {/* Tier 3 — TRADE-BY-TRADE */}
+      <BtSection number="03" eyebrow="Trade-by-trade" data-testid="bt-tier-blotter">
         <TradeBlotter run={result} />
-      </section>
+      </BtSection>
 
-      <p className="rounded-lg border bg-surface-2/40 p-3 text-[11px] leading-5 text-muted">
+      <p className="rounded-lg border bg-surface-2/40 p-3 text-xs leading-5 text-muted">
         Backtests are hypothetical, use historical data with patchy options coverage, and exclude
         liquidity/impact beyond modelled slippage. Past performance is not indicative of future
         results.

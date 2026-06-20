@@ -120,9 +120,13 @@ await step("live rail shows the Short Straddle label + two breakevens on the def
 });
 
 await step("the strike ladder is keyboard-navigable (arrow keys move selection)", async () => {
+  // The builder defaults to the %-of-spot mode; switch the first leg to the
+  // "ATM ±" tab so the keyboard-navigable rung ladder renders.
+  await page.getByRole("tab", { name: "ATM ±" }).first().click();
   // Focus the first leg's ladder listbox and press ArrowRight → selection moves
   // to a higher offset rung.
   const ladder = page.locator('[role="listbox"]').first();
+  await ladder.waitFor({ timeout: 8000 });
   await ladder.focus();
   const before = await page
     .locator("[data-rung-offset][data-selected]")

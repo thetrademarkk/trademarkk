@@ -16,7 +16,7 @@ export function FeaturedPresets() {
 
   return (
     <section className="mt-12" data-testid="featured-presets">
-      <div className="mb-1 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Start from a strategy</h2>
         <Link
           href="/backtesting/explore"
@@ -30,7 +30,7 @@ export function FeaturedPresets() {
         Educational examples to learn the mechanics — not trade recommendations. Each shows honestly
         how much real data backs it.
       </p>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((card) => (
           <PresetCard key={card.meta.id} card={card} />
         ))}

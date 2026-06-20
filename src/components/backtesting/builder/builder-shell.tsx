@@ -126,7 +126,7 @@ export function BuilderShell({
           {/* Inline validation feedback. */}
           {showErrors && validation.errors.length > 0 && (
             <ul
-              className="mt-4 space-y-1 rounded-lg border border-loss/40 bg-loss/5 p-3 text-sm text-loss"
+              className="mt-4 space-y-1 rounded-lg border border-loss/60 bg-loss/10 p-3 text-sm text-loss"
               data-testid="bt-errors"
             >
               {validation.errors.map((e, i) => (
@@ -136,7 +136,7 @@ export function BuilderShell({
           )}
           {validation.warnings.length > 0 && (
             <ul
-              className="mt-4 space-y-1 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-warning"
+              className="mt-4 space-y-1 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning"
               data-testid="bt-warnings"
             >
               {validation.warnings.map((w, i) => (

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* TAPE — scoped backtesting instrument skin (.bt-terminal only; see file head). */
+@import "./bt-terminal.css";
 
 /* Dark themes are class-based (next-themes sets the class on <html>). */
 @custom-variant dark (&:where(.carbon, .carbon *, .midnight, .midnight *, .oled, .oled *));

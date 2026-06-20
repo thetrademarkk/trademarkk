@@ -47,7 +47,7 @@ export function Stepper({ current, reachable, onJump }: StepperProps) {
                 data-state={done ? "done" : isCurrent ? "current" : "future"}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                  isCurrent && "bg-accent/15 text-accent ring-2 ring-accent",
+                  isCurrent && "text-foreground",
                   done && "text-foreground hover:bg-surface-2",
                   !done && !isCurrent && "text-muted",
                   !canJump && "cursor-not-allowed opacity-60"
@@ -55,11 +55,11 @@ export function Stepper({ current, reachable, onJump }: StepperProps) {
               >
                 <span
                   className={cn(
-                    "flex h-4 w-4 items-center justify-center rounded-full text-[10px]",
+                    "flex h-4 w-4 items-center justify-center rounded-full font-mono text-[10px]",
                     done
                       ? "bg-accent-solid text-accent-fg"
                       : isCurrent
-                        ? "border-2 border-accent"
+                        ? "border-2 border-accent ring-2 ring-accent"
                         : "border border-border"
                   )}
                 >

@@ -44,7 +44,7 @@ export function TimingStep({ draft }: { draft: StrategyDef }) {
       </header>
 
       <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Entry</legend>
+        <legend className="micro-label">Entry</legend>
         <div className="mt-2 inline-flex rounded-lg border bg-surface-2 p-0.5">
           <span className="rounded-md bg-surface px-3 py-1 text-sm font-medium shadow">
             Fixed time
@@ -65,7 +65,7 @@ export function TimingStep({ draft }: { draft: StrategyDef }) {
       </fieldset>
 
       <fieldset>
-        <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Exit</legend>
+        <legend className="micro-label">Exit</legend>
         <label className="mt-2 flex items-center gap-2 text-sm">
           <span className="text-muted">Square off at</span>
           <Input

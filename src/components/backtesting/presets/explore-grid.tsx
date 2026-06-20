@@ -77,7 +77,7 @@ export function ExploreGrid({
     <div>
       {/* Filter bar */}
       <div
-        className="space-y-3 rounded-2xl border bg-surface/50 p-3 sm:p-4"
+        className="space-y-3 rounded-lg border bg-surface p-3 sm:p-4"
         data-testid="explore-filters"
       >
         {/* Row 1 — search + results count */}
@@ -121,8 +121,8 @@ export function ExploreGrid({
         </Segmented>
 
         {/* Row 3 — Strategy type segmented control + Tags popover */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <Segmented label="Strategy type" className="min-w-0 lg:flex-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <Segmented label="Strategy type" className="min-w-0 md:flex-1">
             <SegOption active={!filter.category} onClick={() => setFacet("category", null)}>
               All
             </SegOption>
@@ -160,12 +160,9 @@ export function ExploreGrid({
           )}
         </div>
 
-        {/* Row 4 — Clear all */}
+        {/* Row 4 — Clear all (count already shown in Row 1) */}
         {active && (
-          <div className="flex items-center justify-between border-t pt-3">
-            <span className="text-xs text-muted">
-              {visible.length} of {cards.length} match your filters
-            </span>
+          <div className="flex items-center justify-end border-t pt-3">
             <button
               type="button"
               onClick={reset}
@@ -181,13 +178,16 @@ export function ExploreGrid({
 
       {/* Grid */}
       {visible.length > 0 ? (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="preset-grid">
+        <div
+          className="mt-5 grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="preset-grid"
+        >
           {visible.map((card) => (
             <PresetCard key={card.meta.id} card={card} />
           ))}
         </div>
       ) : (
-        <p className="mt-8 rounded-xl border bg-surface/50 p-6 text-center text-sm text-muted">
+        <p className="mt-12 rounded-lg border bg-surface p-6 text-center text-sm text-foreground">
           No educational examples match those filters yet.
         </p>
       )}
@@ -210,13 +210,11 @@ function Segmented({
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <span className="w-20 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted">
-        {label}
-      </span>
+      <span className="micro-label w-16 shrink-0 xs:w-20">{label}</span>
       <div
         role="group"
         aria-label={label}
-        className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="bt-scrollfade flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {children}
       </div>
@@ -285,7 +283,7 @@ function TagsPopover({
           <ChevronDown className="h-3.5 w-3.5" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-60 p-0">
+      <PopoverContent align="end" className="w-[calc(100vw-2rem)] p-0 sm:w-60">
         <div className="border-b p-2">
           <div className="relative">
             <Search
@@ -303,11 +301,7 @@ function TagsPopover({
             />
           </div>
         </div>
-        <div
-          role="listbox"
-          aria-label="Tags"
-          className="max-h-56 overflow-y-auto p-1"
-        >
+        <div role="listbox" aria-label="Tags" className="max-h-56 overflow-y-auto p-1">
           {shown.length === 0 ? (
             <p className="px-2 py-3 text-center text-xs text-muted">No tags match.</p>
           ) : (
