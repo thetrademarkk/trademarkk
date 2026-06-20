@@ -50,7 +50,9 @@ function MessagesView() {
         <MessageCircle className="h-5 w-5 text-accent" aria-hidden /> Messages
       </h1>
 
-      <div className="flex h-[calc(100dvh-13.5rem)] min-h-[380px] overflow-hidden rounded-xl border bg-surface">
+      {/* Subtract the mobile bottom bar (~4rem) from the pane height so the
+          two-pane chat never hides behind it; restored from md up. */}
+      <div className="flex h-[calc(100dvh-13.5rem-4rem)] min-h-[380px] overflow-hidden rounded-xl border bg-surface md:h-[calc(100dvh-13.5rem)]">
         <aside
           aria-label="Inbox"
           className={cn(
