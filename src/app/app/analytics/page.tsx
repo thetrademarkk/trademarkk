@@ -97,7 +97,24 @@ export default function AnalyticsPage() {
   // Declared before the loading guard so the hook order is stable.
   const [tab, setTab] = useState("time");
 
-  if (isLoading || !trades) return <Skeleton className="h-96" />;
+  if (isLoading || !trades)
+    return (
+      <div className="space-y-4">
+        {/* Mirror the real page: header + the 4 stat cards + the section
+            switcher + a chart panel — not one blank block. */}
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-9 w-full rounded-lg sm:w-80" />
+        <Skeleton className="h-72 rounded-lg" />
+      </div>
+    );
   const closed = closedOnly(trades);
   const playbookName = new Map(playbooks.map((p) => [p.id, p.name]));
   const bySetup = groupBy(
