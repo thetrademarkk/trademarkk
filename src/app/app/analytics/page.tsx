@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades, useAllLegs, usePlaybooks } from "@/features/trades";
 import type { LegShape } from "@/lib/options/payoff";
@@ -36,6 +36,13 @@ import { AnalyticsStatCards } from "@/features/analytics/components/analytics-st
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   byDirection,
   byExpiryDay,
@@ -86,6 +93,10 @@ export default function AnalyticsPage() {
     return map;
   }, [legRows]);
 
+  // Controlled so the mobile dropdown and desktop pill strip share one value.
+  // Declared before the loading guard so the hook order is stable.
+  const [tab, setTab] = useState("time");
+
   if (isLoading || !trades) return <Skeleton className="h-96" />;
   const closed = closedOnly(trades);
   const playbookName = new Map(playbooks.map((p) => [p.id, p.name]));
@@ -99,6 +110,16 @@ export default function AnalyticsPage() {
   const mix = horizonMix(closed);
   const gateIntraday = shouldGateIntradayPanels(mix);
 
+  const TAB_ITEMS = [
+    { v: "time", label: "Time" },
+    { v: "setup", label: "Setup" },
+    { v: "instrument", label: "Instrument" },
+    { v: "distribution", label: "Distribution" },
+    { v: "options", label: "Options" },
+    { v: "montecarlo", label: "Monte Carlo" },
+    { v: "more", label: "More" },
+  ];
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -108,15 +129,28 @@ export default function AnalyticsPage() {
 
       <AnalyticsStatCards trades={closed} />
 
-      <Tabs defaultValue="time">
-        <TabsList className="flex max-w-full justify-start overflow-x-auto">
-          <TabsTrigger value="time">Time</TabsTrigger>
-          <TabsTrigger value="setup">Setup</TabsTrigger>
-          <TabsTrigger value="instrument">Instrument</TabsTrigger>
-          <TabsTrigger value="distribution">Distribution</TabsTrigger>
-          <TabsTrigger value="options">Options</TabsTrigger>
-          <TabsTrigger value="montecarlo">Monte Carlo</TabsTrigger>
-          <TabsTrigger value="more">More</TabsTrigger>
+      <Tabs value={tab} onValueChange={setTab}>
+        {/* Mobile: a dropdown — 7 tabs don't fit a 360px strip, and a hidden
+            horizontal scroll buries the later panels. */}
+        <Select value={tab} onValueChange={setTab}>
+          <SelectTrigger className="w-full sm:hidden" aria-label="Analytics section">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TAB_ITEMS.map((t) => (
+              <SelectItem key={t.v} value={t.v}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Desktop: the full pill strip. */}
+        <TabsList className="hidden max-w-full justify-start overflow-x-auto sm:flex">
+          {TAB_ITEMS.map((t) => (
+            <TabsTrigger key={t.v} value={t.v}>
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="time" className="space-y-4">
