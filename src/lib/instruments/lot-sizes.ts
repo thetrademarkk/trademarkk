@@ -22,6 +22,7 @@
 
 import type { Segment } from "@/features/trades/types";
 import type { Exchange } from "@/config/brokers";
+import { GENERATED_LOTS } from "./lot-sizes.generated";
 
 /** A reference lot-size entry for one derivative contract base. */
 export interface LotSizeEntry {
@@ -282,12 +283,98 @@ const CURRENCY_LOTS: LotSizeEntry[] = [
   },
 ];
 
-/** The full reference set (single source of truth). */
+/**
+ * NCDEX agricultural commodity futures — the actively-traded set (mid-2026).
+ * NCDEX quotes these in ₹ per quintal (100 kg), so ONE lot is `lotSize` quintals
+ * (e.g. GUARSEED10 is a 10 MT contract = 100 quintals). Verified against NCDEX
+ * contract specifications / the Trading-Operations master circular. Groww's
+ * instrument master carries no NCDEX scrip, so these are curated by hand.
+ *
+ * Deliberately ABSENT: chana, wheat, mustard (RMSEED), soybean (SYBEANIDR), moong
+ * and paddy are under SEBI's derivative-trading suspension (extended to 31 Mar
+ * 2027) — not tradable, so no lot is offered. KAPAS is quoted in maunds (20 kg);
+ * its 200-unit lot already lives in the MCX set, so it is not duplicated here.
+ */
+const NCDEX_LOTS: LotSizeEntry[] = [
+  {
+    symbol: "GUARSEED",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 100,
+    tickSize: 1,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Guar Seed, 10 MT
+  {
+    symbol: "GUARGUM",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 50,
+    tickSize: 1,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Guar Gum, 5 MT
+  {
+    symbol: "JEERAUNJHA",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 30,
+    tickSize: 5,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Jeera/Cumin, 3 MT
+  {
+    symbol: "DHANIYA",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 50,
+    tickSize: 2,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Coriander, 5 MT
+  {
+    symbol: "TURMERIC",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 50,
+    tickSize: 2,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Turmeric (TMCFGRNZM), 5 MT
+  {
+    symbol: "CASTORSEED",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 50,
+    tickSize: 2,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Castor Seed, 5 MT
+  {
+    symbol: "COCUDAKL",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 100,
+    tickSize: 1,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Cottonseed oilcake, 10 MT
+  {
+    symbol: "BARLEY",
+    segment: "COMM",
+    exchange: "NCDEX",
+    lotSize: 100,
+    tickSize: 0.5,
+    asOf: LOT_SIZE_AS_OF,
+  }, // Barley (BARLEYJPR), 10 MT
+];
+
+/**
+ * The full reference set (single source of truth). Curated arrays come FIRST so
+ * their hand-reconciled values win in the first-match-wins {@link BY_SYMBOL} map;
+ * {@link GENERATED_LOTS} (the long tail of NSE/BSE stock-F&O + MCX commodities,
+ * auto-generated from the Groww instrument master) fills everything else.
+ */
 export const LOT_SIZE_REFERENCE: readonly LotSizeEntry[] = [
   ...INDEX_LOTS,
   ...STOCK_LOTS,
   ...COMMODITY_LOTS,
   ...CURRENCY_LOTS,
+  ...NCDEX_LOTS,
+  ...GENERATED_LOTS,
 ];
 
 /**

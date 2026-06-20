@@ -64,3 +64,8 @@ demo/clicks.json
 # Playwright MCP browser artifacts (snapshots/screenshots from local verification)
 .playwright-mcp/
 /public/duckdb/
+
+# python (ETL scripts)
+__pycache__/
+*.pyc
+.groww_token.json
