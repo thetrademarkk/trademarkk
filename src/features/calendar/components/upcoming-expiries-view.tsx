@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,8 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   upcomingExpiryDays,
-  EXPIRY_CALENDAR_AS_OF,
   type ExpiryExchange,
   type ExpiryDay,
   type ExpiryEvent,
@@ -63,32 +69,6 @@ function Chip({ label, tone }: { label: string; tone?: string }) {
     >
       {label}
     </span>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        active
-          ? "border-accent bg-accent/15 text-accent"
-          : "border-border text-muted hover:bg-surface-2"
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -200,9 +180,18 @@ export function UpcomingExpiriesView() {
   const toggle = (id: ExpiryExchange) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
+  const exchangeLabel =
+    selected.length === 0
+      ? "All exchanges"
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} exchanges`;
+
   return (
     <div className="space-y-3" data-testid="upcoming-expiries">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Both filters are compact dropdowns so the whole row fits on one line
+          even on a 360px phone. */}
+      <div className="flex items-center gap-2">
         <Select value={type} onValueChange={(v) => setType(v as ExpiryInstrumentType)}>
           <SelectTrigger className="h-8 w-[8.5rem] text-xs" aria-label="Contract type">
             <SelectValue />
@@ -213,17 +202,35 @@ export function UpcomingExpiriesView() {
             <SelectItem value="futures">Futures</SelectItem>
           </SelectContent>
         </Select>
-        <FilterChip active={selected.length === 0} onClick={() => setSelected([])}>
-          All exchanges
-        </FilterChip>
-        {EXCHANGES.map((id) => (
-          <FilterChip key={id} active={selected.includes(id)} onClick={() => toggle(id)}>
-            {id}
-          </FilterChip>
-        ))}
-        <span className="ml-auto text-[11px] text-muted">
-          snapshot {EXPIRY_CALENDAR_AS_OF} · NCDEX = 20th (approx.)
-        </span>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex h-8 min-w-[8.5rem] items-center justify-between gap-1.5 rounded-md border bg-surface px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 data-[state=open]:ring-2 data-[state=open]:ring-accent/60"
+            aria-label="Filter exchanges"
+          >
+            {exchangeLabel}
+            <ChevronDown className="size-3.5 shrink-0 text-muted" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[10rem]">
+            <DropdownMenuCheckboxItem
+              checked={selected.length === 0}
+              onCheckedChange={() => setSelected([])}
+              onSelect={(e) => e.preventDefault()}
+            >
+              All exchanges
+            </DropdownMenuCheckboxItem>
+            {EXCHANGES.map((id) => (
+              <DropdownMenuCheckboxItem
+                key={id}
+                checked={selected.includes(id)}
+                onCheckedChange={() => toggle(id)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {id}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {days.length === 0 ? (

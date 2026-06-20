@@ -102,8 +102,11 @@ await step("Options/Futures dropdown switches contract type", async () => {
   await page.getByRole("option", { name: "All contracts" }).click();
 });
 
-await step("exchange filter narrows to NCDEX agri only", async () => {
-  await page.getByRole("button", { name: "NCDEX" }).click();
+await step("exchange multiselect narrows to NCDEX agri only", async () => {
+  // The exchange filter is a multiselect dropdown so the whole row fits one line.
+  await page.getByRole("button", { name: "Filter exchanges" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "NCDEX" }).click();
+  await page.keyboard.press("Escape"); // onSelect preventDefault keeps it open for multi-pick
   await page.getByTestId("upcoming-expiries").waitFor();
   // GUARSEED is an NCDEX agri contract; NIFTY must disappear under the filter.
   await page.getByText("GUARSEED", { exact: true }).first().waitFor({ timeout: 8000 });
@@ -111,7 +114,9 @@ await step("exchange filter narrows to NCDEX agri only", async () => {
   if (await page.getByText("NIFTY", { exact: true }).first().isVisible())
     throw new Error("NIFTY should be hidden under the NCDEX filter");
   // back to all
-  await page.getByRole("button", { name: "All exchanges" }).click();
+  await page.getByRole("button", { name: "Filter exchanges" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "All exchanges" }).click();
+  await page.keyboard.press("Escape");
   await page.screenshot({ path: `${SHOT_DIR}/_expiry-calendar.png`, fullPage: false });
 });
 
