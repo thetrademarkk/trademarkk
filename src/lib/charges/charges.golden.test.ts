@@ -40,8 +40,15 @@ const zerodha = getChargeProfile("zerodha");
 const upstox = getChargeProfile("upstox");
 const zero = getChargeProfile("zero");
 
+/**
+ * Golden expected breakdown. `exerciseStt` defaults to 0 (the only non-zero case
+ * is the dedicated exercise-STT suite below), so the existing rows omit it and
+ * stay byte-identical to before the field was added.
+ */
+type ExpectedBreakdown = Omit<ChargeBreakdown, "exerciseStt"> & { exerciseStt?: number };
+
 /** Assert a full breakdown equals the hand-computed golden values, paise-exact. */
-function expectBreakdown(actual: ChargeBreakdown, expected: ChargeBreakdown) {
+function expectBreakdown(actual: ChargeBreakdown, expected: ExpectedBreakdown) {
   // Each component is asserted exactly (toBe on the paise-rounded rupee value).
   expect(actual.brokerage).toBe(expected.brokerage);
   expect(actual.stt).toBe(expected.stt);
@@ -50,6 +57,7 @@ function expectBreakdown(actual: ChargeBreakdown, expected: ChargeBreakdown) {
   expect(actual.gst).toBe(expected.gst);
   expect(actual.stampDuty).toBe(expected.stampDuty);
   expect(actual.dpCharge).toBe(expected.dpCharge);
+  expect(actual.exerciseStt).toBe(expected.exerciseStt ?? 0);
   expect(actual.total).toBe(expected.total);
 }
 
@@ -57,7 +65,7 @@ interface GoldenRow {
   name: string;
   profile: ReturnType<typeof getChargeProfile>;
   trade: TradeForCharges;
-  expected: ChargeBreakdown;
+  expected: ExpectedBreakdown;
   /** Human-readable derivation, kept beside the numbers for re-verification. */
   formula: string;
 }
@@ -588,7 +596,8 @@ describe("SEG-02/SEG-CHG golden charge table — (segment × product × exchange
         actual.sebi +
         actual.gst +
         actual.stampDuty +
-        actual.dpCharge;
+        actual.dpCharge +
+        actual.exerciseStt;
       expect(Math.abs(actual.total - sumOfParts)).toBeLessThanOrEqual(0.01 + 1e-9);
     });
   }
@@ -793,6 +802,68 @@ describe("SEG-02 — paise rounding behaviour at boundaries", () => {
   });
 });
 
+describe("EX-STT — exercise STT on a net-long ITM option settled at expiry (the 'STT trap')", () => {
+  // Hand-verified against the statutory exercise STT 0.125% of the INTRINSIC
+  // settlement notional (strike-vs-settlement-spot × qty). Fixture: a LONG CE
+  // bought for ₹50 premium, settled at intrinsic ₹300 (e.g. 24000 strike, spot
+  // 24300), qty 75 → intrinsic notional 300×75 = 22,500.
+  const longItm = { qty: 75, entryPrice: 50, exitPrice: 300, direction: "long" as const };
+
+  it("charges 0.125% exercise STT on the intrinsic notional, NO premium-sell STT", () => {
+    const b = computeCharges(zerodha, {
+      segment: "OPT",
+      product: "MIS",
+      ...longItm,
+      exercise: { intrinsicNotional: longItm.exitPrice * longItm.qty }, // 22,500
+    });
+    // exercise STT = 22,500 × 0.125% = 28.125 → 28.13. Premium-sell STT = 0.
+    expect(b.exerciseStt).toBe(28.13);
+    expect(b.stt).toBe(0);
+    // exchange 26,250 × 0.03553% = 9.32... → 9.33 (buy 50×75=3,750 + sell 300×75=22,500).
+    expect(b.exchange).toBe(9.33);
+    // brokerage flat 20×2 = 40 · stamp 3,750×0.003% = 0.1125 → 0.11 · SEBI 26,250/1cr×10 = 0.03.
+    expect(b.brokerage).toBe(40);
+    expect(b.stampDuty).toBe(0.11);
+    expect(b.sebi).toBe(0.03);
+    // gst (40 + 9.326... + 0.02625) × 18% = 8.88 · total = 40+0+9.33+0.03+8.88+0.11+28.13 = 86.47.
+    expect(b.gst).toBe(8.88);
+    expect(b.total).toBe(86.47);
+  });
+
+  it("the SAME leg settled at LTP charges the 0.15% premium-sell STT and NO exercise STT", () => {
+    const b = computeCharges(zerodha, { segment: "OPT", product: "MIS", ...longItm });
+    expect(b.exerciseStt).toBe(0);
+    // premium-sell STT = sellTurnover 22,500 × 0.15% = 33.75.
+    expect(b.stt).toBe(33.75);
+    expect(b.total).toBe(92.1);
+  });
+
+  it("exercise STT scales with the intrinsic notional, not the premium turnover", () => {
+    // Double the intrinsic notional (₹600 intrinsic, qty 75 → 45,000) ⇒ STT doubles.
+    const b = computeCharges(zerodha, {
+      segment: "OPT",
+      product: "MIS",
+      qty: 75,
+      entryPrice: 50,
+      exitPrice: 600,
+      direction: "long",
+      exercise: { intrinsicNotional: 600 * 75 }, // 45,000
+    });
+    expect(b.exerciseStt).toBe(56.25); // 45,000 × 0.125%
+  });
+
+  it("the zero (manual) profile charges no exercise STT", () => {
+    const b = computeCharges(zero, {
+      segment: "OPT",
+      product: "MIS",
+      ...longItm,
+      exercise: { intrinsicNotional: 22500 },
+    });
+    expect(b.exerciseStt).toBe(0);
+    expect(b.total).toBe(0);
+  });
+});
+
 /** Strict paise-exact equality of two breakdowns. */
 function expectBreakdownEqual(a: ChargeBreakdown, b: ChargeBreakdown) {
   expect(a.brokerage).toBe(b.brokerage);
@@ -802,5 +873,6 @@ function expectBreakdownEqual(a: ChargeBreakdown, b: ChargeBreakdown) {
   expect(a.gst).toBe(b.gst);
   expect(a.stampDuty).toBe(b.stampDuty);
   expect(a.dpCharge).toBe(b.dpCharge);
+  expect(a.exerciseStt).toBe(b.exerciseStt);
   expect(a.total).toBe(b.total);
 }

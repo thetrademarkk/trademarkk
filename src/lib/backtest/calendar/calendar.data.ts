@@ -136,6 +136,34 @@ export const NSE_BSE_HOLIDAYS: Record<number, readonly string[]> = {
 };
 
 /**
+ * EARLY-CLOSE (half-day) sessions — IST calendar day → the session's CLOSE
+ * minute-of-day, when the market shuts BEFORE the usual 15:30 (930). The engine
+ * caps every exit/square-off at (earlyClose − 1) and never processes a bar past
+ * the early close, so a budget-day / special abbreviated session can never trade
+ * or mark phantom post-close bars (rather than relying on the data simply being
+ * absent). These are FULL trading days that close early — distinct from the
+ * full-day closures in NSE_BSE_HOLIDAYS.
+ *
+ * Coverage of known abbreviated sessions in the dataset window. The Muhurat
+ * trading evening sessions are NOT modelled here (they are evening-only special
+ * sessions, treated as closed for an intraday backtest per the holiday-table
+ * note). Add a dated row when an abbreviated regular session is confirmed; a
+ * wrong/absent row only ever makes the engine MORE conservative (it would just
+ * fall back to the usual 15:29 cap on the day's available bars).
+ *
+ * 2024-01-20 / 2024-03-02: NSE/BSE conducted special LIVE trading sessions on
+ * Saturdays as a DR/BCP (disaster-recovery) drill — abbreviated windows. They
+ * are listed here for completeness; because they fall on Saturdays they are not
+ * on the trading-day spine and never selected, but the table is the single place
+ * an early-close minute lives if such a session lands on a spine day.
+ */
+export const EARLY_CLOSE: Record<string, number> = {
+  // No regular-session half-days are currently confirmed inside the dataset
+  // window; the table ships empty-but-live so the engine path is exercised by a
+  // synthetic golden and a real abbreviated session is a one-line data edit.
+};
+
+/**
  * Per-index first calendar day the dataset has data for. The engine returns
  * isTradingDay() === false before this so it never queries an empty partition.
  *   NIFTY / BANKNIFTY index data begins 2021-05; SENSEX begins 2022.

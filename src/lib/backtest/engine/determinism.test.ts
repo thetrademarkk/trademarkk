@@ -78,6 +78,30 @@ describe("determinism", () => {
     const b = runBacktest(strat, src, { ranAt: 999 }).runId;
     expect(a).toBe(b); // runId is independent of ranAt
   });
+
+  it("the engine-correctness paths (staggered offsets) stay deterministic over 50 runs", () => {
+    // A staggered straddle (CE offset 0, PE offset 5, PE early per-leg exit) must
+    // produce a byte-identical hash every run — the new entry/exit-offset code
+    // adds no nondeterminism.
+    const { src, days } = build40DaySnapshot();
+    const strat = strategyFor(
+      days[0]!,
+      [
+        leg("ce", "CE", "sell", { entryOffsetMin: 0 }),
+        leg("pe", "PE", "sell", { entryOffsetMin: 5, exitOffsetMin: 30 }),
+      ],
+      {
+        market: {
+          symbol: "NIFTY",
+          interval: "1m",
+          dateRange: { start: days[0]!, end: days[days.length - 1]! },
+        },
+      }
+    );
+    const hashes = new Set<string>();
+    for (let i = 0; i < 50; i++) hashes.add(hashResult(runBacktest(strat, src, { ranAt: 0 })));
+    expect(hashes.size).toBe(1);
+  });
 });
 
 describe("Monte-Carlo cone over the engine output (D3)", () => {

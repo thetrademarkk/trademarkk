@@ -28,8 +28,20 @@ export const STRATEGY_SCHEMA_VERSION = 1 as const;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/; // HH:mm 24h
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
 
+/**
+ * The tradeable instrument universe is the 3 INDICES only. Single-stock /
+ * single-name options (TATAMOTORS, RELIANCE, ETERNAL, …) are NOT yet supported:
+ * the engine cash-settles every leg as a NIFTY-style index option (no per-stock
+ * lot/step table, no physical/delivery settlement, no corporate-action
+ * adjustment), so a stock symbol would silently produce wrong P&L. We reject it
+ * with a stable, UI-shown message rather than mislabel the result.
+ */
+export const SINGLE_STOCK_UNSUPPORTED_MSG =
+  "Single-stock options are not yet supported — pick NIFTY, BANKNIFTY or SENSEX.";
+
 export const indexSymbolSchema = z.enum(
-  INDEX_SYMBOLS as unknown as [IndexSymbol, ...IndexSymbol[]]
+  INDEX_SYMBOLS as unknown as [IndexSymbol, ...IndexSymbol[]],
+  { message: SINGLE_STOCK_UNSUPPORTED_MSG }
 );
 /**
  * ARBITRARY candle interval: any token the resampler understands — a minute count
@@ -215,26 +227,42 @@ export const timingConfigSchema = z
 export type TimingConfig = z.infer<typeof timingConfigSchema>;
 
 /** The complete no-code strategy. legs[1..8]; everything else has a default. */
-export const strategyDefSchema = z.object({
-  schemaVersion: z.literal(STRATEGY_SCHEMA_VERSION),
-  id: z.string().min(1),
-  name: z.string().min(1).max(120),
-  notes: z.string().max(2000).optional(),
-  tags: z.array(z.string().max(40)).max(12).optional(),
-  market: marketConfigSchema,
-  legs: z.array(legSchema).min(1, "Add at least one leg").max(8, "At most 8 legs"),
-  timing: timingConfigSchema,
-  risk: overallRiskSchema.default({ reEntryOnOverall: false }),
-  execution: executionSchema,
-  meta: z
-    .object({
-      createdAt: z.string(),
-      updatedAt: z.string(),
-      templateId: z.string().optional(),
-      builderMode: z.enum(["wizard", "advanced"]).default("wizard"),
-    })
-    .optional(),
-});
+export const strategyDefSchema = z
+  .object({
+    schemaVersion: z.literal(STRATEGY_SCHEMA_VERSION),
+    id: z.string().min(1),
+    name: z.string().min(1).max(120),
+    notes: z.string().max(2000).optional(),
+    tags: z.array(z.string().max(40)).max(12).optional(),
+    market: marketConfigSchema,
+    legs: z.array(legSchema).min(1, "Add at least one leg").max(8, "At most 8 legs"),
+    timing: timingConfigSchema,
+    risk: overallRiskSchema.default({ reEntryOnOverall: false }),
+    execution: executionSchema,
+    meta: z
+      .object({
+        createdAt: z.string(),
+        updatedAt: z.string(),
+        templateId: z.string().optional(),
+        builderMode: z.enum(["wizard", "advanced"]).default("wizard"),
+      })
+      .optional(),
+  })
+  // NOT-YET-SUPPORTED GUARD RAILS. Better an honest block than a silently-wrong
+  // result. The enum on market.symbol already rejects unknown symbols, but this
+  // explicit top-level guard keeps the rejection stable if the symbol type is
+  // ever widened (e.g. when the STOCK instrument family lands) — until physical
+  // settlement + per-stock lot/step + corporate actions exist, a single-name
+  // symbol must NOT reach the engine.
+  .superRefine((cfg, ctx) => {
+    if (!INDEX_SYMBOLS.includes(cfg.market.symbol as IndexSymbol)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: SINGLE_STOCK_UNSUPPORTED_MSG,
+        path: ["market", "symbol"],
+      });
+    }
+  });
 export type StrategyDef = z.infer<typeof strategyDefSchema>;
 
 /** Parse + fully validate an unknown value into a StrategyDef (throws on error). */

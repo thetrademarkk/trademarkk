@@ -91,10 +91,16 @@ export function deriveChargesWaterfall(run: RunResult): ChargesWaterfall {
         entryPrice: leg.entryPrice,
         exitPrice: leg.exitPrice,
         qty: leg.qty,
+        // Mirror the engine: an exercise-settled leg carries the 0.125% exercise
+        // STT on its intrinsic notional (= exitPrice × qty), not the premium-sell
+        // STT — so the derived total matches the stored leg.charges cent-for-cent.
+        ...(leg.settlement === "exercise"
+          ? { exercise: { intrinsicNotional: leg.exitPrice * leg.qty } }
+          : {}),
       });
       chargesTotal += bd.total; // already r2 per leg — matches the engine
       acc.brokerage += bd.brokerage;
-      acc.stt += bd.stt;
+      acc.stt += bd.stt + bd.exerciseStt; // fold exercise STT into the STT line
       acc.exchange += bd.exchange;
       acc.sebi += bd.sebi;
       acc.gst += bd.gst;
