@@ -60,11 +60,21 @@ await step("Upcoming expiries tab renders cross-exchange day cards", async () =>
   await page.getByTestId("upcoming-expiries").waitFor({ timeout: 10000 });
   // NIFTY (an index) must appear in the nearest expiries.
   await page.getByText("NIFTY", { exact: true }).first().waitFor({ timeout: 8000 });
-  // The monthly date stacks the single-stock F&O expiries.
-  await page
-    .getByText(/single\s+stocks expire/)
-    .first()
-    .waitFor({ timeout: 8000 });
+  // Single-stock F&O are summarized as ONE "Stocks" chip (no individual names).
+  await page.getByText("Stocks", { exact: true }).first().waitFor({ timeout: 8000 });
+});
+
+await step("Options/Futures dropdown switches contract type", async () => {
+  const view = page.getByTestId("upcoming-expiries");
+  await view.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Futures" }).click();
+  await view.waitFor();
+  await page.getByText("NIFTY", { exact: true }).first().waitFor({ timeout: 6000 });
+  await view.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "Options" }).click();
+  await page.getByText("NIFTY", { exact: true }).first().waitFor({ timeout: 6000 });
+  await view.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: "All contracts" }).click();
 });
 
 await step("exchange filter narrows to NCDEX agri only", async () => {
@@ -78,6 +88,18 @@ await step("exchange filter narrows to NCDEX agri only", async () => {
   // back to all
   await page.getByRole("button", { name: "All exchanges" }).click();
   await page.screenshot({ path: `${SHOT_DIR}/_expiry-calendar.png`, fullPage: false });
+});
+
+await step("mobile (390px) reflows without horizontal overflow", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
+  await page.getByTestId("upcoming-expiries").waitFor();
+  await page.getByText("NIFTY", { exact: true }).first().waitFor({ timeout: 6000 });
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  if (overflow > 2) throw new Error(`horizontal overflow on mobile: ${overflow}px`);
+  await page.screenshot({ path: `${SHOT_DIR}/_expiry-calendar-mobile.png`, fullPage: false });
 });
 
 await ctx.close();

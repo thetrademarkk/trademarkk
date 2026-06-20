@@ -24,9 +24,11 @@ def main() -> int:
     rows = []
     for key, rec in sorted(data["byUnderlying"].items()):
         dates = ", ".join(f'"{d}"' for d in rec["expiries"])
+        opts = ", ".join(f'"{d}"' for d in rec.get("options", []))
+        futs = ", ".join(f'"{d}"' for d in rec.get("futures", []))
         rows.append(
             f'  {{ underlying: "{rec["underlying"]}", exchange: "{rec["exchange"]}", '
-            f'kind: "{rec["kind"]}", expiries: [{dates}] }},'
+            f'kind: "{rec["kind"]}", expiries: [{dates}], options: [{opts}], futures: [{futs}] }},'
         )
 
     body = "\n".join(

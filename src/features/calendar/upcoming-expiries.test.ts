@@ -65,4 +65,29 @@ describe("upcomingExpiryDays", () => {
     const ex = new Set(allExpirySeries(TODAY).map((s) => s.exchange));
     expect(ex).toEqual(new Set(["NSE", "BSE", "MCX", "NCDEX"]));
   });
+
+  it("filters by instrument type — options include weeklies futures don't", () => {
+    const opt = upcomingExpiryDays({
+      today: TODAY,
+      exchanges: ["NSE"],
+      type: "options",
+      maxDays: 120,
+    });
+    const fut = upcomingExpiryDays({
+      today: TODAY,
+      exchanges: ["NSE"],
+      type: "futures",
+      maxDays: 120,
+    });
+    // NSE has weekly options but only monthly futures → more distinct option days.
+    expect(opt.length).toBeGreaterThan(fut.length);
+    const optDates = new Set(opt.map((d) => d.date));
+    const futDates = new Set(fut.map((d) => d.date));
+    expect(optDates.has("2026-07-07")).toBe(true); // a NIFTY weekly option expiry
+    expect(futDates.has("2026-07-07")).toBe(false); // not a futures expiry
+    const nifty = allExpirySeries(TODAY).find(
+      (s) => s.underlying === "NIFTY" && s.exchange === "NSE"
+    );
+    expect(nifty!.options.length).toBeGreaterThan(nifty!.futures.length);
+  });
 });

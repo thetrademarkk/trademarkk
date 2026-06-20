@@ -4,11 +4,19 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   upcomingExpiryDays,
   EXPIRY_CALENDAR_AS_OF,
   type ExpiryExchange,
   type ExpiryDay,
   type ExpiryEvent,
+  type ExpiryInstrumentType,
 } from "../upcoming-expiries";
 
 const EXCHANGES: ExpiryExchange[] = ["NSE", "BSE", "MCX", "NCDEX"];
@@ -124,22 +132,6 @@ function CommodityChips({ items }: { items: ExpiryEvent[] }) {
   );
 }
 
-function StockExpander({ items }: { items: ExpiryEvent[] }) {
-  return (
-    <details className="w-full">
-      <summary className="cursor-pointer list-none text-xs text-muted hover:text-foreground">
-        <span className="font-money font-semibold text-foreground">{items.length}</span> single
-        stocks expire — tap to view
-      </summary>
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {items.map((e) => (
-          <Chip key={e.underlying} label={e.underlying} />
-        ))}
-      </div>
-    </details>
-  );
-}
-
 function groupByExchange(events: ExpiryEvent[]): Map<ExpiryExchange, ExpiryEvent[]> {
   const m = new Map<ExpiryExchange, ExpiryEvent[]>();
   for (const e of events) {
@@ -180,14 +172,10 @@ function DayCard({ day }: { day: ExpiryDay }) {
           return (
             <ExchRow key={exch} exch={exch}>
               {indices.map((e) => (
-                <Chip
-                  key={e.underlying}
-                  label={e.underlying}
-                  tone="border-accent/40 bg-accent/15 font-semibold text-accent"
-                />
+                <Chip key={e.underlying} label={e.underlying} />
               ))}
               {commodities.length > 0 && <CommodityChips items={commodities} />}
-              {stocks.length > 0 && <StockExpander items={stocks} />}
+              {stocks.length > 0 && <Chip label="Stocks" />}
             </ExchRow>
           );
         })}
@@ -204,9 +192,10 @@ function DayCard({ day }: { day: ExpiryDay }) {
 export function UpcomingExpiriesView() {
   const today = React.useMemo(todayKey, []);
   const [selected, setSelected] = React.useState<ExpiryExchange[]>([]);
+  const [type, setType] = React.useState<ExpiryInstrumentType>("all");
   const days = React.useMemo(
-    () => upcomingExpiryDays({ today, exchanges: selected, maxDays: 120 }),
-    [today, selected]
+    () => upcomingExpiryDays({ today, exchanges: selected, type, maxDays: 120 }),
+    [today, selected, type]
   );
   const toggle = (id: ExpiryExchange) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -214,6 +203,16 @@ export function UpcomingExpiriesView() {
   return (
     <div className="space-y-3" data-testid="upcoming-expiries">
       <div className="flex flex-wrap items-center gap-2">
+        <Select value={type} onValueChange={(v) => setType(v as ExpiryInstrumentType)}>
+          <SelectTrigger className="h-8 w-[8.5rem] text-xs" aria-label="Contract type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All contracts</SelectItem>
+            <SelectItem value="options">Options</SelectItem>
+            <SelectItem value="futures">Futures</SelectItem>
+          </SelectContent>
+        </Select>
         <FilterChip active={selected.length === 0} onClick={() => setSelected([])}>
           All exchanges
         </FilterChip>

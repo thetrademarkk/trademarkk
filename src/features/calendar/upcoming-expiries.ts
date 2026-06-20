@@ -14,14 +14,19 @@ import { GENERATED_EXPIRY_SERIES, EXPIRY_CALENDAR_AS_OF } from "./expiry-calenda
 
 export type ExpiryExchange = "NSE" | "BSE" | "MCX" | "NCDEX";
 export type ExpiryKind = "index" | "stock" | "commodity";
+export type ExpiryInstrumentType = "all" | "options" | "futures";
 
 export interface ExpirySeries {
   /** Normalised underlying, e.g. "NIFTY", "RELIANCE", "CRUDEOIL", "GUARSEED". */
   underlying: string;
   exchange: ExpiryExchange;
   kind: ExpiryKind;
-  /** Upcoming expiry dates ("YYYY-MM-DD"), ascending. */
+  /** Upcoming expiry dates ("YYYY-MM-DD"), ascending — the union of options + futures. */
   expiries: readonly string[];
+  /** Dates an OPTION (CE/PE) expires — for indices the weeklies make this broader than futures. */
+  options: readonly string[];
+  /** Dates a FUTURE expires. */
+  futures: readonly string[];
 }
 
 export { EXPIRY_CALENDAR_AS_OF };
@@ -58,11 +63,15 @@ function ncdexMonthlyExpiries(fromKey: string, months = 7): string[] {
 
 export function ncdexSeries(fromKey: string): ExpirySeries[] {
   const dates = ncdexMonthlyExpiries(fromKey);
+  // NCDEX agri trade both futures and (limited) options; the dates are the same
+  // approximate monthly settlement, so both lists carry them.
   return NCDEX_AGRI.map((underlying) => ({
     underlying,
     exchange: "NCDEX" as const,
     kind: "commodity" as const,
     expiries: dates,
+    options: dates,
+    futures: dates,
   }));
 }
 
@@ -96,6 +105,8 @@ export interface UpcomingOpts {
   today: string;
   /** Restrict to these exchanges; omit/empty = all. */
   exchanges?: readonly ExpiryExchange[];
+  /** Filter by instrument type (default "all" = options ∪ futures). */
+  type?: ExpiryInstrumentType;
   /** Horizon in calendar days (default 120 ≈ 4 months). */
   maxDays?: number;
 }
@@ -106,12 +117,13 @@ export interface UpcomingOpts {
  * expires on it — ready for the Dhan-style calendar/list UI.
  */
 export function upcomingExpiryDays(opts: UpcomingOpts): ExpiryDay[] {
-  const { today, exchanges, maxDays = 120 } = opts;
+  const { today, exchanges, type = "all", maxDays = 120 } = opts;
   const filter = exchanges && exchanges.length ? new Set(exchanges) : null;
   const byDate = new Map<string, ExpiryEvent[]>();
   for (const s of allExpirySeries(today)) {
     if (filter && !filter.has(s.exchange)) continue;
-    for (const d of s.expiries) {
+    const dates = type === "options" ? s.options : type === "futures" ? s.futures : s.expiries;
+    for (const d of dates) {
       if (d < today || daysBetween(today, d) > maxDays) continue;
       const arr = byDate.get(d);
       const event = { underlying: s.underlying, exchange: s.exchange, kind: s.kind };

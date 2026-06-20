@@ -55,13 +55,26 @@ def main() -> int:
     for (sym, exch, seg), grp in df.groupby(["underlying_symbol", "exchange", "segment"]):
         key = f"{exch}:{sym}"
         rec = by_underlying.setdefault(
-            key, {"underlying": str(sym), "exchange": str(exch), "kind": kind_of(str(sym), str(seg)), "expiries": set()}
+            key,
+            {
+                "underlying": str(sym), "exchange": str(exch), "kind": kind_of(str(sym), str(seg)),
+                "expiries": set(), "options": set(), "futures": set(),
+            },
         )
+        gt = grp["instrument_type"].astype(str)
+        opt = grp[gt.isin(["CE", "PE"])]
+        fut = grp[gt == "FUT"]
         for d in grp["expiry_date"].dt.date.unique():
             rec["expiries"].add(d.isoformat())
+        for d in opt["expiry_date"].dt.date.unique():
+            rec["options"].add(d.isoformat())
+        for d in fut["expiry_date"].dt.date.unique():
+            rec["futures"].add(d.isoformat())
 
     for rec in by_underlying.values():
         rec["expiries"] = sorted(rec["expiries"])
+        rec["options"] = sorted(rec["options"])
+        rec["futures"] = sorted(rec["futures"])
 
     months = sorted({e[:7] for rec in by_underlying.values() for e in rec["expiries"]})
     out = {
